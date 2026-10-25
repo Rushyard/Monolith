@@ -9,9 +9,8 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  Address,
-  callContractRule,
-  externalSigner,
+  AGENT_RULE,
+  addAgentRuleArgs,
   findAgentRule,
   invokeAsSmartAccount,
   keypairFromCli,
@@ -22,17 +21,16 @@ import {
   rpc,
   saveDeployments,
   scValToNative,
-  spendingLimitParams,
   txLink,
-  usdc,
   xdr,
   type SmartAccountCall,
 } from "./lib.ts";
 
 const DRY = process.argv.includes("--dry-run");
-const SPENDING_LIMIT = usdc(10);
-const PERIOD_LEDGERS = 17_280; // ~24 h
-const RULE_NAME = "agent-usdc-10-24h";
+// Mêmes paramètres que la réactivation après pause (core.ts AGENT_RULE) : 10 USDC / 17 280 ledgers (~24 h).
+const SPENDING_LIMIT = AGENT_RULE.limit;
+const PERIOD_LEDGERS = AGENT_RULE.periodLedgers;
+const RULE_NAME = AGENT_RULE.name;
 
 const d = loadDeployments();
 const owner = keypairFromCli("owner");
@@ -55,15 +53,7 @@ const asOwner = (fn: string, args: xdr.ScVal[]): SmartAccountCall => ({
 });
 
 const removeCall = asOwner("remove_context_rule", [nativeToScVal(oldRule, { type: "u32" })]);
-const addCall = asOwner("add_context_rule", [
-  callContractRule(d.usdcSac),
-  nativeToScVal(RULE_NAME, { type: "string" }),
-  xdr.ScVal.scvVoid(),
-  xdr.ScVal.scvVec([externalSigner(d.ed25519Verifier!, agent.rawPublicKey())]),
-  xdr.ScVal.scvMap([
-    new xdr.ScMapEntry({ key: new Address(d.spendingLimitPolicy!).toScVal(), val: spendingLimitParams(SPENDING_LIMIT, PERIOD_LEDGERS) }),
-  ]),
-]);
+const addCall = asOwner("add_context_rule", addAgentRuleArgs(d.usdcSac, d.ed25519Verifier!, agent.rawPublicKey(), d.spendingLimitPolicy!));
 
 const before = await readSpendingState(owner.publicKey(), d.spendingLimitPolicy!, SA, oldRule);
 console.log(`Smart account ${SA}`);

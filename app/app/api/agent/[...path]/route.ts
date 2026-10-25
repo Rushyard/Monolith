@@ -4,6 +4,8 @@ import { AGENT_CONFIG } from "@/lib/agent/config";
 import { NETWORK_PASSPHRASE, TransactionBuilder, fromUsdc, readTokenBalance, sendAndWait, txLink } from "@/lib/agent/core";
 import { readAgentSpending } from "@/lib/agent/executor";
 import { readActivity, verifyVaultReceipt } from "@/lib/agent/activity";
+import { agentRuleStatus, invalidateAgentRuleCache } from "@/lib/agent/config";
+import { PAUSE_SCOPE, preparePause, prepareResume } from "@/lib/agent/pause";
 import {
   clearSessionCookieHeader,
   createChallenge,
@@ -24,6 +26,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
   // GET /api/agent/session → { enabled, owner, ownerAddress } · GET /api/agent/challenge → { message, token }
   if (route === "session") {
     return NextResponse.json({ enabled: !!sessionSecret(), owner: isOwnerRequest(req, AGENT_CONFIG.ownerAddress), ownerAddress: AGENT_CONFIG.ownerAddress });
+  }
+  // GET /api/agent/pause → { paused, ruleId?, scope }
+  if (route === "pause") {
+    const s = await agentRuleStatus();
+    if (s.state === "unknown") return NextResponse.json({ error: "règle de l'agent illisible on-chain" }, { status: 502 });
+    return NextResponse.json({ paused: s.state === "paused", ruleId: s.state === "active" ? s.id : undefined, scope: PAUSE_SCOPE });
   }
   if (route === "challenge") {
     const secret = sessionSecret();
@@ -85,6 +93,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
       { headers: { "Set-Cookie": sessionCookieHeader(makeSessionToken(AGENT_CONFIG.ownerAddress, secret)) } },
     );
   }
+  // POST /api/agent/pause { action: "pause" | "resume" } (owner connecté) → XDR non signé + frais simulés.
+  if (path.join("/") === "pause") {
+    if (!isOwnerRequest(req, AGENT_CONFIG.ownerAddress)) return NextResponse.json({ error: "réservé à l'owner connecté" }, { status: 401 });
+    const body = z.object({ action: z.enum(["pause", "resume"]) }).safeParse(await req.json().catch(() => null));
+    if (!body.success) return NextResponse.json({ error: "{ action: \"pause\" | \"resume\" } requis" }, { status: 400 });
+    const prep = body.data.action === "pause" ? await preparePause() : await prepareResume();
+    return prep.ok ? NextResponse.json({ ...prep, scope: PAUSE_SCOPE }) : NextResponse.json({ error: prep.error }, { status: 409 });
+  }
   if (path.join("/") === "vault-receipt") {
     const body = ReceiptBody.safeParse(await req.json().catch(() => null));
     if (!body.success) return NextResponse.json({ error: "{ to: G…, hash } requis, sans montant" }, { status: 400 });
@@ -106,6 +122,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
     return NextResponse.json({ error: "tx non signée par l'owner" }, { status: 400 });
   }
   const res = await sendAndWait(tx as Parameters<typeof sendAndWait>[0]);
+  if (res.ok) invalidateAgentRuleCache(); // une pause / reprise change la règle de l'agent
   return res.ok
     ? NextResponse.json({ status: "submitted", hash: res.hash, explorerUrl: txLink(res.hash) })
     : NextResponse.json({ status: "failed", error: res.error, hash: res.hash, explorerUrl: res.hash ? txLink(res.hash) : undefined }, { status: 502 });

@@ -59,6 +59,7 @@ export type ExecutionResult =
       wouldNeed: "nothing" | "owner_approval";
       text: string;
     }
+  | { status: "paused"; text: string }
   | { status: "blocked" }
   | {
       status: "info";
@@ -151,6 +152,7 @@ async function simulateForVisitor(decision: GateDecision): Promise<ExecutionResu
 
 export async function execute(plan: Plan, decision: GateDecision, spending: SpendingState | null, mode: ExecMode = "live"): Promise<ExecutionResult> {
   if (decision.verdict === "BLOCKED") return { status: "blocked" };
+  if (decision.verdict === "PAUSED") return { status: "paused", text: decision.reasons[0] };
 
   // Coffre : l'agent n'a pas les clés de Sarah, il ne signe et ne prouve rien. Il prépare la liste.
   if (decision.verdict === "NEEDS_VAULT_SIGNATURE") {

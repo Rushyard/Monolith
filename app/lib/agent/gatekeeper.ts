@@ -7,7 +7,11 @@ import { payrollLines, sumUsdc, type PayrollLine } from "./payroll";
 import type { Plan } from "./planner";
 import { fromUsdc, type SpendingState } from "./core";
 
-export type Verdict = "AUTO_EXECUTE" | "NEEDS_APPROVAL" | "NEEDS_VAULT_SIGNATURE" | "BLOCKED" | "INFO";
+export type Verdict = "AUTO_EXECUTE" | "NEEDS_APPROVAL" | "NEEDS_VAULT_SIGNATURE" | "BLOCKED" | "INFO" | "PAUSED";
+
+/** B4 : la règle de l'agent a été retirée par l'owner. Ne concerne que la petite caisse publique. */
+export const PAUSED_TEXT =
+  "L'agent est en pause : Sarah a retiré sa règle on-chain, sa signature ne vaut plus rien. Seule la petite caisse publique est coupée ; dans le coffre, Sarah signe déjà chaque paiement.";
 
 /** Texte de réponse quand l'IA a préparé des paiements que Sarah signe dans le coffre. */
 export const vaultPreparedText = (n: number) =>
@@ -112,6 +116,8 @@ export const FIRST_PAYMENT_REASON = "Premier paiement vers cette adresse : je de
 export type DecideOptions = {
   /** Le smart account a déjà payé ce destinataire (historique on-chain). null = historique illisible. */
   paidBefore?: boolean | null;
+  /** B4 : aucune règle de l'agent on-chain (findAgentRule === null). */
+  paused?: boolean;
 };
 
 export function decide(plan: Plan, message: string, spending: SpendingState | null, inVault = false, opts: DecideOptions = {}): GateDecision {
@@ -138,6 +144,7 @@ export function decide(plan: Plan, message: string, spending: SpendingState | nu
 
   const payment = { amountUsdc: pay.amount, recipient };
   if (inVault) return decideVault(payment, message);
+  if (opts.paused) return { verdict: "PAUSED", channel: "public", triggered: ["agent-paused"], reasons: [PAUSED_TEXT], payment };
   const triggered: string[] = [];
   const reasons: string[] = [];
 

@@ -12,7 +12,7 @@ import { slotQuestion, withMemory } from "@/lib/agent/slots";
 import { payrollLines } from "@/lib/agent/payroll";
 import { vaultChannel } from "@/lib/agent/vault";
 import { paidAddresses, recordActivity } from "@/lib/agent/activity";
-import { AGENT_CONFIG } from "@/lib/agent/config";
+import { AGENT_CONFIG, agentRuleStatus } from "@/lib/agent/config";
 import { clientIp, isOwnerRequest, rateLimit } from "@/lib/agent/session";
 
 export const runtime = "nodejs";
@@ -96,8 +96,11 @@ export async function POST(req: Request) {
       .catch((err) => (console.error("[intent] historique illisible", err instanceof Error ? err.message : err), null));
   }
 
+  // B4 : petite caisse en pause (règle de l'agent retirée on-chain par l'owner).
+  const paused = single && !inVault ? (await agentRuleStatus()).state === "paused" : false;
+
   const spending = await spendingP;
-  const decision = decide(plan, message, spending, inVault, { paidBefore });
+  const decision = decide(plan, message, spending, inVault, { paidBefore, paused });
   logVerdict(decision);
   try {
     const result = await execute(plan, decision, spending, owner ? "live" : "simulation");

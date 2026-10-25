@@ -109,3 +109,17 @@ test("A7 : planner de secours — « quel est mon budget ? » → budget, « adr
   const a = fp("c'est quoi l'adresse de bob ?");
   assert.ok(a.type === "actions" && a.steps[0].action === "address" && (a.steps[0] as { of?: string }).of === "bob");
 });
+
+// ---------- B4 : pause de la petite caisse ----------
+import { PAUSED_TEXT } from "../../app/lib/agent/gatekeeper.ts";
+
+test("B4 : agent en pause → verdict PAUSED pour un paiement public, aucune tx", async () => {
+  const p = plan(pay("1", "Alice"));
+  const v = decide(p, "paie 1 USDC à Alice", spending, false, { paused: true });
+  assert.equal(v.verdict, "PAUSED");
+  assert.deepEqual(await execute(p, v, spending), { status: "paused", text: PAUSED_TEXT });
+});
+
+test("B4 : la pause ne touche pas le coffre (Bob → NEEDS_VAULT_SIGNATURE)", () => {
+  assert.equal(decide(plan(pay("2", "Bob")), "paie 2 USDC à Bob", spending, true, { paused: true }).verdict, "NEEDS_VAULT_SIGNATURE");
+});

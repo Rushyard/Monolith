@@ -143,3 +143,12 @@ test("mode démo : sous le plafond → « aurait été exécuté », aucune tx",
   const r = await execute(p, decide(p, `paie ${amount} USDC à Alice`, budget), budget, "simulation");
   assert.ok(r.status === "simulated" && r.wouldSucceed && r.wouldNeed === "nothing", JSON.stringify(r));
 });
+
+test("B4 (simulation) : XDR de pause = remove_context_rule de la règle trouvée, frais simulés ; reprise refusée tant que l'agent est actif", async () => {
+  const { preparePause, prepareResume } = await import("../../app/lib/agent/pause.ts");
+  const pause = await preparePause();
+  assert.ok(pause.ok, !pause.ok ? pause.error : "");
+  assert.ok(pause.ok && pause.ruleId === d.ruleAgent && pause.feeXlm > 0 && pause.unsignedXdr.length > 100);
+  const resume = await prepareResume();
+  assert.ok(!resume.ok && /pas en pause/.test(resume.error));
+});
