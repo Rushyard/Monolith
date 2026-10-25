@@ -273,6 +273,12 @@ compte importé dans Freighter retrouve la même clé dans `/vault`. Idempotent 
 et un `confidential_transfer` au montant caché vers `GDTM…XPH3` [`75db195e…`](https://stellar.expert/explorer/testnet/tx/75db195e4ad59a0cf12e0a15e99a21f44b59b5813d62012cb2f7a4e224256bfc).
 Solde disponible = 10 − (montant caché) < 10 USDC. Solde USDC public : 9 USDC.
 
+Réapprovisionnement pour la paie (Sarah, `/vault` + Freighter, 2026-10-25 20:14 UTC) :
+`deposit` 9 USDC [`a780cdd5…`](https://stellar.expert/explorer/testnet/tx/a780cdd5ca08eef57ae301a829d6066699b951bb0d512c9823761cc27835e0c3) (ledger 5387133),
+`merge` [`37db3c35…`](https://stellar.expert/explorer/testnet/tx/37db3c3510f412ed5eefa002be93e11cab266b9cd3fadb79684a70aaeb511113) (ledger 5387135).
+Solde en réception relu vide après le merge ; solde disponible = 19 − (montant caché de `75db195e…`), lisible seulement par Sarah (`/vault`) ou Marc (`/auditor`).
+(Un premier essai est parti du mauvais compte Freighter, `GCXA…FI3H` : `4c518bc5…` / `7ac0b7a9…`, sans effet sur le coffre de Sarah.)
+
 ### v2 run — our auditor, 2026-10-25 13:34 UTC (`npm run ct:e2e`)
 
 Token `CAYYT5UW…LERJ`. alice = `GB7OT6KYOLWATWCNEPDTZZIP6CHI3L4X3YXH6BX7IVCPY2ENMPKIIKXP`, bob = `GBCQZMHQWCIQJRCQJHAI7L2GS56A3EVY5E2E26DU2RX5SRSU4Y5B32GV`
