@@ -109,6 +109,18 @@ Regroupement initial des USDC vers le smart account : owner [`73c36e30…`](http
 
 Pour la tx b), la simulation échoue et ne fournit donc pas d'empreinte de stockage (footprint). Le script la récupère en simulant un transfert de 1 USDC avec le même nonce, puis soumet la tx de 50 USDC signée : c'est le réseau qui l'exécute et la rejette.
 
+### Pipeline agent (`/api/intent`), testé sur testnet le 2026-10-25
+
+| Test | Résultat | Tx |
+|---|---|---|
+| Executor : « paie 0.5 USDC à Alice » | AUTO_EXECUTE, signé par l'agent (règle B) | [`39a1395f…`](https://stellar.expert/explorer/testnet/tx/39a1395fdc44c211abf0a364a814e4bd8685dbb75177e8cc0441eb2962be8ab8) |
+| Executor : « paie 6 USDC à Alice » (budget restant 4.5) | NEEDS_APPROVAL, tentative de l'agent **rejetée on-chain #3221** | [`bf62de1d…`](https://stellar.expert/explorer/testnet/tx/bf62de1d045d446bcd98028c652126970f96917f100d67dd4d6f08a6cebb3da7) |
+| … puis `unsignedXdr` signé par l'owner (signature d'enveloppe, comme Freighter) | ✅ règle A | [`2a07f513…`](https://stellar.expert/explorer/testnet/tx/2a07f513e5a0a68426cf909df3375043a55808e3e6518a34b0a7cdce54821e2b) |
+| HTTP `POST /api/intent` « paie 0.3 USDC à Alice » | AUTO_EXECUTE | [`7b59cc04…`](https://stellar.expert/explorer/testnet/tx/7b59cc0492681770cbf321c60c52d0e585b0a554d78c8593fd7f351caa18b9ac) |
+| HTTP `POST /api/intent` « paie 50 USDC à Alice » | needs_owner_approval + rejet on-chain #3221 | [`3560dba5…`](https://stellar.expert/explorer/testnet/tx/3560dba557df6c6bedc61c863111d0942bedce6bf1fafb93db89d119fb4c3f0c) |
+
+Remboursements d'alice vers le smart account : [`42d70ea9…`](https://stellar.expert/explorer/testnet/tx/42d70ea967e2643ae63aec7d923a6626720f8ebc95f1a3445fe3297888510c81), [`ea88ec4d…`](https://stellar.expert/explorer/testnet/tx/ea88ec4d58642946ee0a215dbc0de6822984e381b73a86a8cd68fab5612f932d).
+
 
 ## Contract IDs (testnet)
 
