@@ -5,7 +5,7 @@
 import type { IntentResponse } from "@/components/agent/types";
 import { useI18n } from "@/lib/i18n/react";
 
-export type Mood = "idle" | "listen" | "think" | "paid" | "refused" | "pending" | "blocked" | "approved" | "error" | "reply";
+export type Mood = "idle" | "listen" | "think" | "paid" | "refused" | "pending" | "blocked" | "approved" | "error" | "reply" | "simulated" | "paused";
 
 export function moodOf(opts: { typing: boolean; loading: boolean; last?: { response?: IntentResponse; error?: string }; approved: boolean }): Mood {
   const { typing, loading, last, approved } = opts;
@@ -23,6 +23,8 @@ export function outcomeOf(turn: { response?: IntentResponse; error?: string }, a
     case "submitted": return "paid";
     case "needs_owner_approval": return approved ? "approved" : r.agentAttempt?.simulationCode === 3221 ? "refused" : "pending";
     case "needs_vault_signature": return approved ? "approved" : "pending";
+    case "simulated": return "simulated";
+    case "paused": return "paused";
     case "blocked": return "blocked";
     case "error": return "error";
     default: return "reply";

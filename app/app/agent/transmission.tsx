@@ -16,6 +16,9 @@ type Node = { name: string; text: string; tone: Tone };
 function stepText(s: NonNullable<IntentResponse["plan"]>["steps"][number], t: T): string {
   if (s.action === "pay") return t("step.pay", { amount: s.amount, asset: s.asset, to: s.to.startsWith("G") && s.to.length === 56 ? short(s.to) : s.to });
   if (s.action === "balance") return t("step.balance");
+  if (s.action === "payroll") return t("step.payroll");
+  if (s.action === "budget") return t("step.budget");
+  if (s.action === "address") return s.of ? t("step.addressOf", { of: s.of }) : t("step.address");
   return t("step.history");
 }
 
@@ -29,10 +32,13 @@ function nodes(res: IntentResponse, outcome: Mood, t: T): Node[] {
     : verdict.verdict === "NEEDS_APPROVAL" ? { name: gate, text: t("gate.approval"), tone: "warn" }
     : verdict.verdict === "BLOCKED" ? { name: gate, text: t("gate.blocked"), tone: "bad" }
     : verdict.verdict === "NEEDS_VAULT_SIGNATURE" ? { name: gate, text: t("gate.vault"), tone: "warn" }
+    : verdict.verdict === "PAUSED" ? { name: gate, text: t("gate.paused"), tone: "warn" }
     : { name: gate, text: t("gate.info"), tone: "ok" };
   const vault = result.status === "needs_vault_signature";
   const n: Node =
     vault ? (outcome === "approved" ? { name: net, text: t("net.vaultDone"), tone: "ok" } : { name: net, text: t("net.vaultPending"), tone: "warn" })
+    : result.status === "simulated" ? { name: net, text: result.code === 3221 ? t("net.simRefused") : t("net.simulated"), tone: result.wouldSucceed ? "idle" : "bad" }
+    : result.status === "paused" ? { name: net, text: t("net.nothing"), tone: "idle" }
     : outcome === "paid" ? { name: net, text: t("net.paid"), tone: "ok" }
     : outcome === "approved" ? { name: net, text: t("net.approved"), tone: "ok" }
     : outcome === "refused" ? { name: net, text: t("net.refused"), tone: "bad" }
@@ -86,6 +92,17 @@ function Verdict({ res, outcome, hash }: { res: IntentResponse; outcome: Mood; h
   const pay = res.verdict?.payment;
   const what = pay ? `${pay.amountUsdc} USDC → ${pay.recipient.label}` : "";
   const link = (href: string, text: string) => <a className="link" href={href} target="_blank" rel="noreferrer">{text} ↗</a>;
+  if (r.status === "simulated") {
+    const w = what || t("approve.thisPayment");
+    const text = r.code === 3221 ? t("sim.refused", { what: w })
+      : r.code !== null ? t("sim.failed", { what: w, code: r.code })
+      : r.wouldNeed === "nothing" ? t("sim.paid", { what: w })
+      : t("sim.approval", { what: w });
+    return <div className="verdict"><span className="verdict-label">{t("verdict.simulated")}</span><p>{text} {t("sim.nothingSent")}</p></div>;
+  }
+  if (r.status === "paused") {
+    return <div className="verdict warn"><span className="verdict-label">{t("verdict.paused")}</span><p>{t("verdict.pausedText")}</p></div>;
+  }
   if (r.status === "needs_vault_signature") {
     return outcome === "approved"
       ? <div className="verdict ok"><span className="verdict-label">{t("verdict.vaultDone")}</span><p>{t("verdict.vaultDoneText", { n: r.payments.length })}</p></div>
@@ -116,6 +133,11 @@ function Verdict({ res, outcome, hash }: { res: IntentResponse; outcome: Mood; h
       let text = "text" in r ? r.text : "";
       if (r.status === "info" && r.balance) text = t("reply.balance", { bal: r.balance.smartAccountUsdc, left: r.balance.budget.remainingUsdc, limit: r.balance.budget.limitUsdc });
       if (r.status === "info" && r.history) text += " " + (r.history.payments.length ? t("reply.history", { n: r.history.payments.length }) : t("reply.noHistory"));
+      if (r.status === "info" && r.budget) text = t("reply.budget", { spent: r.budget.spentUsdc, limit: r.budget.limitUsdc, left: r.budget.remainingUsdc, h: Math.round((r.budget.periodLedgers * 5) / 3600) });
+      if (r.status === "info" && r.address) {
+        const own = res.plan?.steps.some((st) => st.action === "address" && !st.of);
+        text = own ? t("reply.agentAddress", { address: r.address.address }) : t("reply.address", { label: r.address.label, address: r.address.address });
+      }
       return <div className="verdict"><span className="verdict-label">{t("verdict.reply")}</span><p>{text.trim()}</p></div>;
     }
   }
@@ -131,6 +153,7 @@ export function Transmission({ message, response, error, receivedAt, fresh, appr
   return (
     <article className={`tx-card ${outcome} ${fresh ? "fresh" : ""}`}>
       <p className="tx-request">« {message} »</p>
+      {response?.mode === "simulation" && <p className="sim-tag">{t("sim.tag")}</p>}
       {error && <div className="verdict bad"><span className="verdict-label">{t("verdict.error")}</span><p>{error}</p></div>}
       {response && (
         <>

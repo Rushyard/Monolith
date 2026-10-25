@@ -438,7 +438,8 @@ html, body { overflow-x: clip; }
 }
 .tx-card.refused::before, .tx-card.blocked::before, .tx-card.error::before { background: var(--hal); box-shadow: 0 0 12px var(--hal); }
 .tx-card.paid::before, .tx-card.approved::before { background: var(--sun); box-shadow: 0 0 12px var(--sun-glow); }
-.tx-card.pending::before { background: #f0c27a; }
+.tx-card.pending::before, .tx-card.paused::before { background: #f0c27a; }
+.sim-tag { margin: 6px 0 0; font: 400 10px/1.4 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
 .tx-card.fresh::before { animation: sweep 1s cubic-bezier(.2,.7,.1,1) 1s both; }
 @keyframes sweep { from { transform: scaleX(0); } }
 .tx-request { margin: 0 0 18px; font-size: 19px; font-weight: 300; color: var(--fg); }
