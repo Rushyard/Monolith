@@ -12,7 +12,8 @@ import { slotQuestion, withMemory } from "@/lib/agent/slots";
 import { payrollLines } from "@/lib/agent/payroll";
 import { vaultChannel } from "@/lib/agent/vault";
 import { paidAddresses, recordActivity } from "@/lib/agent/activity";
-import { AGENT_CONFIG, agentRuleStatus } from "@/lib/agent/config";
+import { AGENT_CONFIG, agentRuleStatus, mandateView } from "@/lib/agent/config";
+import { fromUsdc, readTokenBalance } from "@/lib/agent/core";
 import { clientIp, isOwnerRequest, rateLimit } from "@/lib/agent/session";
 import { T, pickLang, requestLang } from "@/lib/agent/i18n";
 
@@ -103,10 +104,18 @@ export async function POST(req: Request) {
   }
 
   // B4 : petite caisse en pause (règle de l'agent retirée on-chain par l'owner).
-  const paused = single && !inVault ? (await agentRuleStatus()).state === "paused" : false;
+  // Mandat : règle présente mais expirée → EXPIRED (le réseau refuserait la signature de l'agent, #3002).
+  const wantsBudget = plan.steps.some((s) => s.action === "budget");
+  const rule = (single && !inVault) || wantsBudget ? await agentRuleStatus() : null;
+  const paused = single && !inVault ? rule?.state === "paused" : false;
+  const expired = single && !inVault ? rule?.state === "expired" : false;
+  const leftoverUsdc = expired
+    ? await readTokenBalance(AGENT_CONFIG.ownerAddress, AGENT_CONFIG.usdcSac, AGENT_CONFIG.smartAccount).then((b) => String(fromUsdc(b)), () => undefined)
+    : undefined;
+  const mandate = wantsBudget && rule ? ((await mandateView(rule).catch(() => null)) ?? undefined) : undefined;
 
   const spending = await spendingP;
-  const decision = decide(plan, message, spending, inVault, { paidBefore, paused, lang });
+  const decision = decide(plan, message, spending, inVault, { paidBefore, paused, lang, expired, leftoverUsdc, mandate });
   logVerdict(decision);
   try {
     const result = await execute(plan, decision, spending, owner ? "live" : "simulation");

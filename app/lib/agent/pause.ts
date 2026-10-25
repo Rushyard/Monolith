@@ -46,6 +46,7 @@ export async function preparePause(lang: Lang = "en"): Promise<PausePrep> {
   const s = await agentRuleStatus();
   if (s.state === "paused") return { ok: false, error: t.alreadyPaused };
   if (s.state === "unknown") return { ok: false, error: t.ruleUnreadable(s.error) };
+  // Règle expirée : on peut quand même la retirer (la pause l'emporte sur le mandat).
   return prepare("pause", asOwner("remove_context_rule", [nativeToScVal(s.id, { type: "u32" })]), lang, s.id);
 }
 
@@ -53,7 +54,7 @@ export async function preparePause(lang: Lang = "en"): Promise<PausePrep> {
 export async function prepareResume(lang: Lang = "en"): Promise<PausePrep> {
   const t = T[lang];
   const s = await agentRuleStatus();
-  if (s.state === "active") return { ok: false, error: t.notPaused(s.id) };
+  if (s.state === "active" || s.state === "expired") return { ok: false, error: t.notPaused(s.id) }; // expirée : renouveler le mandat
   if (s.state === "unknown") return { ok: false, error: t.ruleUnreadable(s.error) };
   const agentKey = process.env.AGENT_SECRET_KEY ? agentKeypair() : Keypair.fromPublicKey(C.agentAddress);
   return prepare("resume", asOwner("add_context_rule", addAgentRuleArgs(C.usdcSac, C.ed25519Verifier, agentKey.rawPublicKey(), C.spendingLimitPolicy)), lang);

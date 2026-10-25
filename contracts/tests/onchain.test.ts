@@ -53,7 +53,8 @@ const budget = await readSpendingState(owner.publicKey(), d.spendingLimitPolicy!
 
 test("règle de l'agent retrouvée on-chain = deployments.testnet.json (et l'app suit)", async () => {
   const onchain = await findAgentRule(owner.publicKey(), SA, d.ed25519Verifier!, agent.rawPublicKey(), d.spendingLimitPolicy!);
-  assert.equal(onchain, d.ruleAgent);
+  assert.equal(onchain?.id, d.ruleAgent);
+  assert.equal(onchain?.expired, false);
   delete process.env.RULE_AGENT_ID;
   assert.equal(await agentRuleId(), d.ruleAgent);
 });

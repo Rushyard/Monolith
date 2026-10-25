@@ -443,3 +443,49 @@ export const T: Record<Lang, Messages> = { en, fr, pt };
 /** Les trois traductions d'une phrase sans paramètre (ex. reconnaître nos propres questions). */
 export const allLangs = (key: { [K in keyof Messages]: Messages[K] extends string ? K : never }[keyof Messages]): string[] =>
   LANGS.map((l) => T[l][key] as string);
+
+// ---------- bloc « mandate » : mandat de l'agent (droits qui expirent on-chain, valid_until OZ) ----------
+
+/** Durée lisible : « 6 days 23 h » / « 5 h 10 min » / « 3 min ». */
+const span = (sec: number, u: { d: string; h: string; m: string }) => {
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return d > 0 ? `${d} ${u.d} ${h} h` : h > 0 ? `${h} h ${m} min` : `${Math.max(m, 1)} min`;
+};
+
+const mandateEn = {
+  expired: "The agent's mandate has expired: Sarah must renew it.",
+  leftover: (usdc: string) => `There are ${usdc} USDC left in the petty cash. Do you want me to put them back in the vault?`,
+  left: (sec: number) => `Mandate: expires in about ${span(sec, { d: "days", h: "h", m: "min" })}.`,
+  none: "Mandate: no expiry.",
+  expiredShort: "Mandate: expired.",
+};
+type MandateMessages = typeof mandateEn;
+
+const mandateFr: MandateMessages = {
+  expired: "Le mandat de l'agent a expiré : Sarah doit le renouveler.",
+  leftover: (usdc) => `Il reste ${usdc} USDC dans la petite caisse. Veux-tu que je les remette dans le coffre ?`,
+  left: (sec) => `Mandat : expire dans environ ${span(sec, { d: "jours", h: "h", m: "min" })}.`,
+  none: "Mandat : sans expiration.",
+  expiredShort: "Mandat : expiré.",
+};
+
+const mandatePt: MandateMessages = {
+  expired: "O mandato do agente expirou: Sarah precisa renová-lo.",
+  leftover: (usdc) => `Restam ${usdc} USDC no caixa. Quer que eu os devolva ao cofre?`,
+  left: (sec) => `Mandato: expira em cerca de ${span(sec, { d: "dias", h: "h", m: "min" })}.`,
+  none: "Mandato: sem expiração.",
+  expiredShort: "Mandato: expirado.",
+};
+
+export const MT: Record<Lang, MandateMessages> = { en: mandateEn, fr: mandateFr, pt: mandatePt };
+
+/** État du mandat à afficher : `validUntil` (ledger, inclus) comparé au ledger courant. */
+export type MandateView = { validUntil: number | null; ledger: number; secondsPerLedger: number };
+
+export function mandateLine(m: MandateView, lang: Lang): string {
+  if (m.validUntil === null) return MT[lang].none;
+  if (m.validUntil < m.ledger) return MT[lang].expiredShort;
+  return MT[lang].left((m.validUntil - m.ledger + 1) * m.secondsPerLedger);
+}

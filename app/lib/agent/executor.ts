@@ -27,7 +27,7 @@ import type { VaultSignatureRequest } from "../../components/agent/types";
 import type { GateDecision } from "./gatekeeper";
 import { sumUsdc } from "./payroll";
 import { recipientClarification, resolveRecipient } from "./contacts";
-import { T, type Lang } from "./i18n";
+import { T, mandateLine, type Lang } from "./i18n";
 import type { Plan } from "./planner";
 
 const C = AGENT_CONFIG;
@@ -61,6 +61,7 @@ export type ExecutionResult =
       text: string;
     }
   | { status: "paused"; text: string }
+  | { status: "expired"; text: string }
   | { status: "blocked" }
   | {
       status: "info";
@@ -154,6 +155,7 @@ export function simulationText(decision: GateDecision, code: number | null, woul
 export async function execute(plan: Plan, decision: GateDecision, spending: SpendingState | null, mode: ExecMode = "live"): Promise<ExecutionResult> {
   if (decision.verdict === "BLOCKED") return { status: "blocked" };
   if (decision.verdict === "PAUSED") return { status: "paused", text: decision.reasons[0] };
+  if (decision.verdict === "EXPIRED") return { status: "expired", text: decision.reasons.join(" ") }; // aucune tx
 
   // Coffre : l'agent n'a pas les clés de Sarah, il ne signe et ne prouve rien. Il prépare la liste.
   if (decision.verdict === "NEEDS_VAULT_SIGNATURE") {
@@ -192,6 +194,7 @@ export async function execute(plan: Plan, decision: GateDecision, spending: Spen
         out.budget = { limitUsdc: fromUsdc(spending.limit), spentUsdc: fromUsdc(spending.spent), remainingUsdc: fromUsdc(spending.remaining), periodLedgers: spending.periodLedgers };
         const b = out.budget;
         texts.push(t.budget(b.limitUsdc, Math.round((b.periodLedgers * 5) / 3600), b.spentUsdc, b.remainingUsdc));
+        if (decision.mandate) texts.push(mandateLine(decision.mandate, decision.lang));
       } else texts.push(t.budgetError);
     }
     const addr = plan.steps.find((s) => s.action === "address");

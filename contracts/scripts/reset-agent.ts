@@ -37,7 +37,8 @@ const owner = keypairFromCli("owner");
 const agent = keypairFromCli("agent");
 const SA = d.smartAccount!;
 // La règle à remplacer est celle qu'on trouve on-chain (signer agent + spending-limit), pas celle du fichier.
-const found = await findAgentRule(owner.publicKey(), SA, d.ed25519Verifier!, agent.rawPublicKey(), d.spendingLimitPolicy!);
+// Valide la plus récente, sinon expirée (on la remplace aussi) : voir pickAgentRule.
+const found = (await findAgentRule(owner.publicKey(), SA, d.ed25519Verifier!, agent.rawPublicKey(), d.spendingLimitPolicy!))?.id ?? null;
 if (found === null) throw new Error("aucune règle agent trouvée on-chain : rien à remplacer");
 if (found !== d.ruleAgent) console.warn(`⚠ deployments.testnet.json dit règle ${d.ruleAgent}, la chaîne dit ${found} : on suit la chaîne`);
 const oldRule = found;

@@ -33,7 +33,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
   if (route === "pause") {
     const s = await agentRuleStatus();
     if (s.state === "unknown") return NextResponse.json({ error: t.ruleUnreadable("RPC") }, { status: 502 });
-    return NextResponse.json({ paused: s.state === "paused", ruleId: s.state === "active" ? s.id : undefined, scope: t.pauseScope });
+    return NextResponse.json({ paused: s.state === "paused", ruleId: s.state === "active" || s.state === "expired" ? s.id : undefined, scope: t.pauseScope });
   }
   if (route === "challenge") {
     const secret = sessionSecret();
