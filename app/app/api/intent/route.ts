@@ -7,6 +7,9 @@ import { z } from "zod";
 import { planIntent, toPlan } from "@/lib/agent/planner";
 import { decide, screenMessage } from "@/lib/agent/gatekeeper";
 import { execute, readAgentSpending } from "@/lib/agent/executor";
+import { resolveRecipient } from "@/lib/agent/contacts";
+import { vaultChannel } from "@/lib/agent/vault";
+import { recordActivity } from "@/lib/agent/activity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,8 +39,21 @@ export async function POST(req: Request) {
   }
 
   const plan = toPlan(out, planned.source);
+
+  // Routage : destinataire inscrit dans le coffre → Sarah signe (montant caché). Fail-closed : si
+  // l'appartenance est illisible, on ne paie pas en public (ça révélerait le montant).
+  const pays = plan.steps.filter((s) => s.action === "pay");
+  const recipient = pays.length === 1 ? resolveRecipient(pays[0].to) : null;
+  let inVault = false;
+  if (recipient) {
+    const ch = await vaultChannel(recipient.address);
+    if (!ch.ok) return NextResponse.json({ plan, verdict: null, result: { status: "error", error: ch.error }, reasoning: ch.error }, { status: 503 });
+    inVault = ch.inVault;
+  }
+
   const spending = await spendingP;
-  const decision = decide(plan, message, spending);
+  const decision = decide(plan, message, spending, inVault);
+  logVerdict(decision);
   try {
     const result = await execute(plan, decision, spending);
     return NextResponse.json({
@@ -53,4 +69,19 @@ export async function POST(req: Request) {
       { status: 500 },
     );
   }
+}
+
+/** Garde en mémoire (best effort) les verdicts qui ne laissent pas de trace on-chain. Jamais de montant privé. */
+function logVerdict(d: ReturnType<typeof decide>) {
+  if (!d.payment || (d.verdict !== "BLOCKED" && d.verdict !== "NEEDS_VAULT_SIGNATURE")) return;
+  const channel = d.channel ?? "public";
+  recordActivity({
+    at: new Date().toISOString(),
+    kind: d.verdict === "BLOCKED" ? "blocked" : "waiting",
+    channel,
+    to: d.payment.recipient.address,
+    label: d.payment.recipient.label,
+    amountUsdc: channel === "public" ? d.payment.amountUsdc : undefined,
+    reason: d.verdict === "BLOCKED" ? "Bloqué par le gatekeeper." : "En attente de la signature de l'owner dans le coffre.",
+  });
 }

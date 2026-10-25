@@ -35,7 +35,10 @@ export type Plan = {
   source: "llm" | "fallback";
 };
 
-const contactNames = BOOK.map((c) => c.name);
+const contactNames = BOOK.map((c) => {
+  const extra = c.aliases.filter((a) => a !== c.name.toLowerCase());
+  return extra.length ? `${c.name} (also called ${extra.join(", ")}; write "${c.name}")` : c.name;
+});
 
 export const PLANNER_SYSTEM_PROMPT = `You turn a user's chat message to Monolith, a payment agent on the Stellar testnet, into one JSON object. You only interpret the request. You never decide whether it is safe or approved; the server and an on-chain spending limit do that, so never refuse a clear request for safety reasons.
 

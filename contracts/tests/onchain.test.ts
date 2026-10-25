@@ -5,6 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { agentRuleId } from "../../app/lib/agent/config.ts";
+import { isInVault } from "../../app/lib/agent/vault.ts";
 import {
   Address,
   findAgentRule,
@@ -117,4 +118,9 @@ test("owner en mode Freighter (source = owner, credentials source-account) : sim
     source: owner.publicKey(),
   });
   assert.equal(res, "ok");
+});
+
+test("coffre (simulation) : Bob inscrit, Alice non → routage privé / public", async () => {
+  assert.equal(await isInVault("GBCQZMHQWCIQJRCQJHAI7L2GS56A3EVY5E2E26DU2RX5SRSU4Y5B32GV"), true);
+  assert.equal(await isInVault(alice), false);
 });

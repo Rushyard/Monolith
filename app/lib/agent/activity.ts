@@ -8,24 +8,18 @@
 //   - mémoire : reçus de coffre (POST /api/agent/vault-receipt) et verdicts récents (blocked,
 //               waiting) de /api/intent. Best effort : perdu quand l'instance serverless redémarre.
 import "server-only";
-import { ChainClient, fetchEvents } from "stellar-confidential-token-sdk";
+import { fetchEvents } from "stellar-confidential-token-sdk";
 import type { ActivityItem } from "../../components/agent/types";
 import { CT } from "../ct/deployment";
 import { AGENT_CONFIG } from "./config";
 import { BOOK } from "./contacts";
+import { ctClient } from "./vault";
 import { Address, NETWORK_PASSPHRASE, TransactionBuilder, contractErrorCodes, fromUsdc, rpc, scValToNative, server } from "./core";
 
 const C = AGENT_CONFIG;
 const HORIZON = process.env.HORIZON_URL || "https://horizon-testnet.stellar.org";
 const CACHE_MS = 30_000;
 const MEMORY_MAX = 50;
-
-export const ctClient = () =>
-  new ChainClient({
-    rpcUrl: CT.rpcUrl,
-    networkPassphrase: CT.networkPassphrase,
-    contracts: { token: CT.token, verifier: CT.verifier, auditor: CT.auditor },
-  });
 
 export function labelFor(address: string): string {
   return BOOK.find((c) => c.address === address)?.name ?? `${address.slice(0, 4)}…${address.slice(-4)}`;
