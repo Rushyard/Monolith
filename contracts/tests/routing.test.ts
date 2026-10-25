@@ -2,7 +2,8 @@
 // vérification d'appartenance au coffre est injectée pour tester le fail-closed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decide, vaultPreparedText } from "../../app/lib/agent/gatekeeper.ts";
+import { decide } from "../../app/lib/agent/gatekeeper.ts";
+import { T } from "../../app/lib/agent/i18n.ts";
 import { toPlan, type StepT } from "../../app/lib/agent/planner.ts";
 import { vaultChannel } from "../../app/lib/agent/vault.ts";
 import { execute } from "../../app/lib/agent/executor.ts";
@@ -18,7 +19,7 @@ test("destinataire du coffre → NEEDS_VAULT_SIGNATURE, canal privé, texte « c
   const v = decide(plan(pay("2", "Bob")), "paie 2 USDC à Bob", spending, true);
   assert.equal(v.verdict, "NEEDS_VAULT_SIGNATURE");
   assert.equal(v.channel, "private");
-  assert.equal(v.reasons[0], vaultPreparedText(1));
+  assert.equal(v.reasons[0], T.fr.vaultPrepared(1));
   assert.equal(v.payment?.recipient.address, BOB);
 });
 
@@ -48,25 +49,26 @@ test("hors coffre : flux public inchangé (Alice 1 USDC → AUTO_EXECUTE, 50 →
 test("FAIL-CLOSED : vérification du coffre en erreur → pas de canal (jamais « public »)", async () => {
   const ch = await vaultChannel(BOB, async () => { throw new Error("RPC down"); });
   assert.equal(ch.ok, false);
-  assert.ok(!ch.ok && /ne paie pas en public/.test(ch.error));
+  assert.ok(!ch.ok && ch.error === T.en.vaultCheckFailed);
+  const fr = await vaultChannel(BOB, async () => { throw new Error("RPC down"); }, "fr");
+  assert.ok(!fr.ok && /ne paie pas en public/.test(fr.error));
   assert.deepEqual(await vaultChannel(BOB, async () => true), { ok: true, inVault: true });
 });
 
 test("executor : needs_vault_signature = liste des paiements, aucune tx", async () => {
   const p = plan(pay("2", "Bob"));
   const r = await execute(p, decide(p, "paie 2 USDC à Bob", spending, true), spending);
-  assert.deepEqual(r, { status: "needs_vault_signature", payments: [{ to: BOB, label: "Bob", amountUsdc: "2" }], totalUsdc: "2", reasons: [vaultPreparedText(1)] });
+  assert.deepEqual(r, { status: "needs_vault_signature", payments: [{ to: BOB, label: "Bob", amountUsdc: "2" }], totalUsdc: "2", reasons: [T.fr.vaultPrepared(1)] });
 });
 
 // ---------- B1 : premier paiement vers une adresse ----------
-import { FIRST_PAYMENT_REASON } from "../../app/lib/agent/gatekeeper.ts";
 const STRANGER = "GCIFXLBRK2CHODLILPTZIPEAK36TOS3MG4QRZGCTJ7PA52PAOP75RS7B"; // hors carnet (compte owner, public)
 
 test("B1 : adresse hors carnet jamais payée → NEEDS_APPROVAL « Premier paiement vers cette adresse », même sous le plafond", () => {
   const v = decide(plan(pay("0.1", STRANGER)), `paie 0.1 USDC à ${STRANGER}`, spending, false, { paidBefore: false });
   assert.equal(v.verdict, "NEEDS_APPROVAL");
   assert.ok(v.triggered.includes("first-payment"));
-  assert.ok(v.reasons.includes(FIRST_PAYMENT_REASON));
+  assert.ok(v.reasons.includes(T.fr.firstPayment));
 });
 
 test("B1 : historique illisible → traité comme un premier paiement (fail-closed)", () => {
@@ -111,13 +113,12 @@ test("A7 : planner de secours — « quel est mon budget ? » → budget, « adr
 });
 
 // ---------- B4 : pause de la petite caisse ----------
-import { PAUSED_TEXT } from "../../app/lib/agent/gatekeeper.ts";
 
 test("B4 : agent en pause → verdict PAUSED pour un paiement public, aucune tx", async () => {
   const p = plan(pay("1", "Alice"));
   const v = decide(p, "paie 1 USDC à Alice", spending, false, { paused: true });
   assert.equal(v.verdict, "PAUSED");
-  assert.deepEqual(await execute(p, v, spending), { status: "paused", text: PAUSED_TEXT });
+  assert.deepEqual(await execute(p, v, spending), { status: "paused", text: T.fr.paused });
 });
 
 test("B4 : la pause ne touche pas le coffre (Bob → NEEDS_VAULT_SIGNATURE)", () => {

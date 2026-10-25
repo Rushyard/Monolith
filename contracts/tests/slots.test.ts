@@ -1,21 +1,24 @@
 // A2/A3 : champs manquants vérifiés en code + mémoire des 6 derniers tours, sans réseau.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SLOT_QUESTIONS, paymentSlots, slotQuestion, withMemory } from "../../app/lib/agent/slots.ts";
+import { paymentSlots, slotQuestion, withMemory } from "../../app/lib/agent/slots.ts";
+import { T } from "../../app/lib/agent/i18n.ts";
+
+const SLOT_QUESTIONS = { both: T.fr.slotBoth, to: T.fr.slotTo, amount: T.fr.slotAmount };
 
 test("« paie » → « Payer combien, et à qui ? »", () => {
   assert.equal(slotQuestion("paie"), SLOT_QUESTIONS.both);
-  assert.equal(slotQuestion("pay"), SLOT_QUESTIONS.both);
+  assert.equal(slotQuestion("pay"), T.en.slotBoth);
 });
 
 test("« paie 5 usdc » → « À qui ? »", () => {
   assert.equal(slotQuestion("paie 5 usdc"), SLOT_QUESTIONS.to);
-  assert.equal(slotQuestion("send 2.5 USDC"), SLOT_QUESTIONS.to);
+  assert.equal(slotQuestion("send 2.5 USDC"), T.en.slotTo);
 });
 
 test("« paie alice » → « Combien ? » (même si le LLM avait inventé un montant)", () => {
   assert.equal(slotQuestion("paie alice"), SLOT_QUESTIONS.amount);
-  assert.equal(slotQuestion("pague a Carol"), SLOT_QUESTIONS.amount);
+  assert.equal(slotQuestion("pague a Carol"), T.pt.slotAmount);
   assert.equal(slotQuestion("paie à Charlie"), SLOT_QUESTIONS.amount);
 });
 

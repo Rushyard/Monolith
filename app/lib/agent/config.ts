@@ -23,7 +23,7 @@ export const AGENT_CONFIG = {
 /** Clé de l'agent : uniquement côté serveur, jamais NEXT_PUBLIC. */
 export function agentKeypair(): Keypair {
   const secret = process.env.AGENT_SECRET_KEY;
-  if (!secret) throw new Error("AGENT_SECRET_KEY manquant (app/.env.local)");
+  if (!secret) throw new Error("AGENT_SECRET_KEY missing (app/.env.local)"); // diagnostic opérateur, enveloppé par errServer
   return Keypair.fromSecret(secret.trim());
 }
 

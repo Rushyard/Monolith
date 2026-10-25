@@ -7,6 +7,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useOwnerApproval } from "./ApprovalCard";
 import { explorerTx, type OwnerApproval, type PauseStatus } from "./types";
+import { T } from "@/lib/agent/i18n";
+import { useI18n } from "@/lib/i18n/react";
 
 type Prep = { action: "pause" | "resume"; unsignedXdr: string; owner: string; feeXlm: number; validUntilLedger: number; scope: string };
 
@@ -14,11 +16,12 @@ function SignPrepared({ prep, onDone }: { prep: Prep; onDone: (hash: string) => 
   const approval: OwnerApproval = { status: "needs_owner_approval", unsignedXdr: prep.unsignedXdr, owner: prep.owner, rule: 0, validUntilLedger: prep.validUntilLedger };
   const [receivedAt] = useState(() => Date.now());
   const { phase, approve } = useOwnerApproval(approval, receivedAt, onDone);
+  const t = T[useI18n().lang];
   return (
     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-      <span style={{ fontSize: 13 }}>Frais simulés : ~{prep.feeXlm} XLM (payés par l&apos;owner).</span>
+      <span style={{ fontSize: 13 }}>{t.uiFee(prep.feeXlm)}</span>
       <button className="btn primary" type="button" disabled={phase.kind === "working" || phase.kind === "done"} onClick={approve}>
-        {phase.kind === "working" ? <span className="progress-dots">{phase.step.replace("…", "")}</span> : prep.action === "pause" ? "Signer la pause dans Freighter" : "Signer la reprise dans Freighter"}
+        {phase.kind === "working" ? <span className="progress-dots">{phase.step.replace("…", "")}</span> : prep.action === "pause" ? t.uiSignPause : t.uiSignResume}
       </button>
       {phase.kind === "error" && <span style={{ fontSize: 13, color: "var(--hal, #d0443e)" }}>{phase.message}</span>}
       {phase.kind === "done" && <a className="link" href={explorerTx(phase.hash)} target="_blank" rel="noreferrer">tx ↗</a>}
@@ -27,15 +30,17 @@ function SignPrepared({ prep, onDone }: { prep: Prep; onDone: (hash: string) => 
 }
 
 export function PauseBanner({ owner, refreshKey = 0 }: { owner: boolean; refreshKey?: number }) {
+  const { lang } = useI18n();
+  const t = T[lang];
   const [status, setStatus] = useState<PauseStatus | null>(null);
   const [prep, setPrep] = useState<Prep | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
-    const r = await fetch("/api/agent/pause", { cache: "no-store" }).catch(() => null);
+    const r = await fetch("/api/agent/pause", { cache: "no-store", headers: { "x-monolith-lang": lang } }).catch(() => null);
     if (r?.ok) setStatus((await r.json()) as PauseStatus);
-  }, []);
+  }, [lang]);
 
   useEffect(() => {
     refresh();
@@ -45,7 +50,7 @@ export function PauseBanner({ owner, refreshKey = 0 }: { owner: boolean; refresh
     setError(null);
     setBusy(true);
     try {
-      const r = await fetch("/api/agent/pause", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+      const r = await fetch("/api/agent/pause", { method: "POST", headers: { "Content-Type": "application/json", "x-monolith-lang": lang }, body: JSON.stringify({ action }) });
       const body = await r.json();
       if (!r.ok) return setError(body.error ?? `HTTP ${r.status}`);
       setPrep(body as Prep);
@@ -60,11 +65,11 @@ export function PauseBanner({ owner, refreshKey = 0 }: { owner: boolean; refresh
 
   return (
     <section className={`panel ${paused ? "pause-banner" : ""}`} style={{ borderColor: paused ? "var(--hal, #d0443e)" : undefined }}>
-      {paused ? <b>Agent en pause : sa règle on-chain est retirée, il ne peut plus rien payer seul.</b> : <b>Petite caisse de l&apos;agent active (règle {status.ruleId}).</b>}
+      <b>{paused ? t.uiPaused : t.uiActive(status.ruleId)}</b>
       <p style={{ margin: "6px 0", fontSize: 13, color: "var(--muted)" }}>{status.scope}</p>
       {owner && !prep && (
         <button className="btn" type="button" disabled={busy} onClick={() => ask(paused ? "resume" : "pause")}>
-          {busy ? <span className="progress-dots">Simulation</span> : paused ? "Réactiver l'agent" : "Mettre l'agent en pause"}
+          {busy ? <span className="progress-dots">{t.uiSimulating}</span> : paused ? t.uiResume : t.uiPause}
         </button>
       )}
       {prep && <SignPrepared prep={prep} onDone={() => { setPrep(null); setTimeout(refresh, 1500); }} />}

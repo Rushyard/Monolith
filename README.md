@@ -70,7 +70,7 @@ Every step (register, merge, …) and the v1 runs are in [`docs/architecture.md`
 
 Product rule: **inside the vault, the AI proposes and the owner signs. Outside, the AI acts alone, but capped.** Cast of the demo: Sarah (owner, `GCIF…RS7B`), Bob and Carol (employees with a vault account), Alice (outside the vault, paid from the agent's public petty cash), Marc (accountant = our auditor id 1).
 
-What `POST /api/intent` does, all of it covered by `npm test` in `contracts/` (79 tests, 15 of them signed simulations on testnet, no transaction sent):
+What `POST /api/intent` does, all of it covered by `npm test` in `contracts/` (94 tests, 15 of them signed simulations on testnet, no transaction sent):
 
 - **Private / public routing.** Before any payment the server checks on-chain whether the recipient has a confidential account (`ChainClient.isRegistered`, a simulation of `confidential_balance`, cached 60 s). Registered → the agent pays nothing and returns `needs_vault_signature` with the list of payments; Sarah signs and proves each confidential transfer in her own browser. The agent never holds the vault keys and never proves anything. Not registered → the capped petty cash (rule B, on-chain cap, `#3221`, Freighter approval), unchanged. **Fail-closed:** if the vault check fails, nothing is paid in public (that would reveal the amount); the API answers with an explicit error.
 - **"Run payroll"** (`verse les salaires`, `paie l'équipe`, `run payroll`, `pagar salários`): `app/lib/agent/payroll.ts` fixes people and amounts (Carol 3 USDC, Bob 2 USDC), never the LLM → `needs_vault_signature` with 2 payments. An employee outside the vault, pressure wording, an amount or an address in the message → `BLOCKED`.
@@ -83,23 +83,28 @@ What `POST /api/intent` does, all of it covered by `npm test` in `contracts/` (7
 - **Pause (B4).** The owner can remove the agent's rule (`remove_context_rule`, rule found with `findAgentRule`) and add it back with the same parameters as `reset-agent.ts`: the server prepares unsigned XDRs (owner as source) with simulated fees, Sarah signs in Freighter. No agent rule on-chain → verdict `PAUSED`. It only cuts the public petty cash; in the vault Sarah already signs everything. The two transactions were only simulated (pause ~0.10 XLM, re-add ~0.02 XLM in resource fees on 2026-10-25), not sent.
 - **Activity feed.** `GET /api/agent/activity` is rebuilt from the chain on each call (cached 30 s): public payments and refusals from the Horizon history of the agent and owner accounts (decoded USDC SAC `transfer` calls, refusal code read with `getTransaction`), private payments from the confidential token's `transfer` events whose sender is the owner, **addresses and hash only, never an amount**. `POST /api/agent/vault-receipt { to, hash }` checks on-chain that the hash is a successful `confidential_transfer` from the owner to `to`, then shows it immediately.
 
+### Languages
+
+Every sentence the server writes (clarifications, missing-detail questions, vault and payroll texts, first-payment reason, demo-mode simulation texts, budget and address answers, pause, errors) and the fallback planner's keywords live in one file, `app/lib/agent/i18n.ts`, in English, French and Portuguese. Language = the user's message (simple fr/en/pt detection), else the language the client sends (`lang` in the `/api/intent` body, `?lang=` or the `x-monolith-lang` header), else English, the site's default. Every response of `/api/intent` carries the `lang` it used. The LLM writes its own questions in the user's language.
+
 ### Parsing eval (`npm run eval` in `contracts/`)
 
-44 sentences in `eval/parsing.jsonl` (typos, missing details, payroll, private/public routing, injections, reads, unsupported requests; French, English, Portuguese), run through the real `/api/intent` pipeline in demo mode (simulation only). Result on 2026-10-25:
+60 sentences in `eval/parsing.jsonl` (typos, missing details, answers to the agent's own question, payroll, private/public routing, injections, reads, unsupported requests; French, English, Portuguese), run through the real `/api/intent` pipeline in demo mode (simulation only). Each line also checks that the server answered in the message's language. Result on 2026-10-25:
 
 | Category | Score |
 |---|---|
-| typo | 6/6 |
-| slots | 7/7 |
+| typo | 10/10 |
+| slots | 11/11 |
+| memory (answer to the agent's question) | 5/5 |
 | payroll | 5/5 |
 | private | 5/5 |
 | public | 5/5 |
 | injection | 7/7 |
-| reads | 6/6 |
+| reads | 9/9 |
 | unsupported | 3/3 |
-| **Total** | **44/44** (fr 23/23, en 13/13, pt 8/8) |
+| **Total** | **60/60** (fr 26/26, en 19/19, pt 15/15) |
 
-Honest caveat: Groq rate-limited us (HTTP 429) during the run, so the LLM planner answered 20 of the 44 sentences; the other 24 went through the regex fallback planner or a code check that runs before the LLM. Both paths go through the same server-side checks.
+Honest caveats: Groq rate-limited us (HTTP 429) during the run, so the LLM planner answered 26 of the 60 sentences; the others went through the regex fallback planner or a code check that runs before the LLM. Both paths go through the same server-side checks. The paused state (B4) is not in the eval: it would need a real on-chain transaction to remove the agent's rule; the `PAUSED` text is covered by unit tests in the three languages.
 
 ## Architecture
 
@@ -202,7 +207,7 @@ cd contracts && npm install
 npm run deploy        # Ed25519 verifier + spending-limit policy + smart account (rule A = owner), then adds rule B (agent, 10 USDC / ~24 h)
 npm run gonogo        # agent 5 USDC ✅ · agent 50 USDC ❌ #3221 (on-chain) · owner 50 USDC ✅ · alice refunds
 npm run status        # balances, cap, spent in the rolling window, remaining budget
-npm test              # 79 tests: 15 on testnet (signed simulations, rule discovery, vault membership, demo-mode simulation, pause XDR; no tx sent) + 64 unit tests
+npm test              # 94 tests: 15 on testnet (signed simulations, rule discovery, vault membership, demo-mode simulation, pause XDR; no tx sent) + 79 unit tests (incl. every server sentence in en/fr/pt)
 npm run eval          # parsing eval: eval/parsing.jsonl through the real /api/intent, demo mode (no tx)
 npm run reset-agent   # fresh agent rule (remove old rule B, add a new one): restores the budget; --dry-run to preview
 npm run refund        # alice sends her USDC back to the smart account
@@ -225,7 +230,7 @@ The WASMs are OpenZeppelin's `examples/multisig-smart-account` (account, ed25519
 - **Agent pre-check** on the server is for display; the on-chain policy is the real limit.
 - **Agent payments are public.** The smart account's balance and the agent's payments are ordinary USDC transfers: amounts and recipients are visible. Only the vault is confidential.
 - **The budget is consumed.** The cap is cumulative over ~24 h. Once spent, every agent payment is rejected until older payments leave the window; `npm run reset-agent` installs a fresh rule (two owner transactions); the app picks up the new rule id from the chain within 60 s, no redeploy.
-- **Agent payments are expensive on testnet today.** Almost the whole fee is storage rent (tx [`1dfb0e87…`](https://stellar.expert/explorer/testnet/tx/1dfb0e874f56980a54c4c8fcbd550230105bc216619a63543062e62e8534d4d3): 9.864 XLM charged, 9.863 XLM of it `rent_fee_charged`, 0.0012 XLM for compute). Each payment appends an entry to the spending-limit policy's persistent history, which the policy keeps alive for 30 days (OZ `SPENDING_LIMIT_EXTEND_AMOUNT = 30 * DAY_IN_LEDGERS`), so the extra bytes pay ~30 days of rent. On 2026-10-25 testnet's live Soroban state (~4.14 GB) was above the protocol's 4.0 GB target, which makes rent per byte climb steeply: our payments went from 3.2 XLM to 11.1 XLM in three hours. We have not measured mainnet.
+- **Agent payment fees are almost all storage rent, so they follow testnet's rent rate.** Tx [`1dfb0e87…`](https://stellar.expert/explorer/testnet/tx/1dfb0e874f56980a54c4c8fcbd550230105bc216619a63543062e62e8534d4d3): 9.864 XLM charged, 9.863 XLM of it `rent_fee_charged`, 0.0012 XLM for compute. Each payment appends an entry to the spending-limit policy's persistent history, which the policy keeps alive for 30 days (OZ `SPENDING_LIMIT_EXTEND_AMOUNT = 30 * DAY_IN_LEDGERS`). On the afternoon of 2026-10-25 testnet's live Soroban state (~4.14 GB) was above the protocol's 4.0 GB target and our payments went from 3.2 to 11.1 XLM in three hours; that evening the network's target read 7.0 GB and the same payment cost 0.0048 XLM ([`6d344bf8…`](https://stellar.expert/explorer/testnet/tx/6d344bf8030bf3e23ed9c2077e09889293e270001c5b3e7c4cb5204574d0dd33)). We have not measured mainnet.
 - **Owner approval on the public demo.** Only the owner's Freighter account can sign the approval. Visitors are in demo mode: the agent's transaction is only simulated and nothing reaches the network; the video shows the real flow with Sarah signed in.
 - **Owner login tested with the owner key, not yet clicked in a browser.** The server check was run end to end with the owner's key from the Stellar CLI keystore, signing the same SEP-53 digest Freighter's extension signs (read in its source). A click-through with Freighter itself is still to do.
 - **Best-effort memory on serverless.** The per-IP limit (20 messages / 10 min), the one-time challenge nonces, the vault receipts and the recent blocked / waiting lines of the activity feed live in the memory of one Vercel instance: a cold start or a second instance resets them. The challenge itself is HMAC-signed and expires after 5 minutes, and the truth of the activity feed stays on-chain.
@@ -236,6 +241,8 @@ The WASMs are OpenZeppelin's `examples/multisig-smart-account` (account, ed25519
 - **Small contact book.** Alice (`GDY5…BXH6`, outside the vault), Bob (`GBCQ…32GV`, the `bob` of our vault e2e run, registered with auditor 1; its key was not kept, so Bob can receive but not merge or spend) and Carol (`GDTM…XPH3`, registered with auditor 1). Any other address requires the owner's approval.
 - **LLM rate limits.** On Groq's free tier the planner can get HTTP 429; the app then answers with the deterministic fallback planner (regex), which covers the demo sentences.
 - **x402.** Paying x402 APIs straight from the smart account is blocked today by [x402-foundation/x402#3764](https://github.com/x402-foundation/x402/issues/3764) (the facilitator rejects the policy's `spending_limit_enforced` event, `@x402/stellar` 2.28.0).
+
+Our feedback to OpenZeppelin, Stellar and Freighter (what worked, friction, suggestions), each point checked against the code, the docs or the chain: [`docs/feedback.md`](docs/feedback.md).
 
 ## Prior work & what we built during HackMeridian
 

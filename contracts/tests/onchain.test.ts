@@ -150,5 +150,5 @@ test("B4 (simulation) : XDR de pause = remove_context_rule de la règle trouvée
   assert.ok(pause.ok, !pause.ok ? pause.error : "");
   assert.ok(pause.ok && pause.ruleId === d.ruleAgent && pause.feeXlm > 0 && pause.unsignedXdr.length > 100);
   const resume = await prepareResume();
-  assert.ok(!resume.ok && /pas en pause/.test(resume.error));
+  assert.ok(!resume.ok && /isn't paused/.test(resume.error));
 });

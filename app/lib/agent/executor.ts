@@ -27,6 +27,7 @@ import type { VaultSignatureRequest } from "../../components/agent/types";
 import type { GateDecision } from "./gatekeeper";
 import { sumUsdc } from "./payroll";
 import { recipientClarification, resolveRecipient } from "./contacts";
+import { T, type Lang } from "./i18n";
 import type { Plan } from "./planner";
 
 const C = AGENT_CONFIG;
@@ -115,9 +116,9 @@ async function agentRejectionProof(amount: bigint, to: string): Promise<AgentAtt
   };
 }
 
-async function ownerApproval(amount: bigint, to: string, agentAttempt?: AgentAttempt): Promise<ExecutionResult> {
+async function ownerApproval(amount: bigint, to: string, lang: Lang, agentAttempt?: AgentAttempt): Promise<ExecutionResult> {
   const prepared = await invokeAsSmartAccountUnsigned(await transferCall(amount, to, "owner"));
-  if (!prepared.ok) return { status: "error", error: `préparation de l'approbation owner : ${prepared.error}`, agentAttempt };
+  if (!prepared.ok) return { status: "error", error: T[lang].errOwnerApproval(prepared.error), agentAttempt };
   return {
     status: "needs_owner_approval",
     unsignedXdr: prepared.unsignedXdr,
@@ -137,17 +138,17 @@ async function simulateForVisitor(decision: GateDecision): Promise<ExecutionResu
   const { enforced } = await prepareSmartAccountCall(await transferCall(usdc(amountUsdc), recipient.address, "agent"));
   const code = rpc.Api.isSimulationError(enforced) ? (simulationErrorCode(enforced.error) ?? -1) : null;
   const wouldSucceed = code === null;
-  const what = `${amountUsdc} USDC → ${recipient.label}`;
   const wouldNeed = decision.verdict === "AUTO_EXECUTE" && wouldSucceed ? "nothing" : "owner_approval";
-  const text =
-    code === SPENDING_LIMIT_EXCEEDED
-      ? `Simulation : ce paiement (${what}) aurait été refusé par le réseau (#3221, plafond de l'agent). Seule Sarah pourrait l'approuver avec Freighter. Rien n'a été envoyé.`
-      : code !== null
-        ? `Simulation : ce paiement (${what}) aurait été refusé par le réseau${code > 0 ? ` (#${code})` : ""}. Rien n'a été envoyé.`
-        : wouldNeed === "nothing"
-          ? `Simulation : ce paiement (${what}) aurait été exécuté par l'agent seul, sous son plafond. Rien n'a été envoyé.`
-          : `Simulation : le réseau aurait accepté la signature de l'agent, mais le gatekeeper aurait demandé l'accord de Sarah (${decision.triggered.join(", ")}). Rien n'a été envoyé.`;
-  return { status: "simulated", wouldSucceed, code, wouldNeed, text };
+  return { status: "simulated", wouldSucceed, code, wouldNeed, text: simulationText(decision, code, wouldNeed) };
+}
+
+/** Texte du mode démo, dans la langue de la décision. Exporté pour les tests (sans réseau). */
+export function simulationText(decision: GateDecision, code: number | null, wouldNeed: "nothing" | "owner_approval"): string {
+  const t = T[decision.lang];
+  const what = `${decision.payment!.amountUsdc} USDC → ${decision.payment!.recipient.label}`;
+  if (code === SPENDING_LIMIT_EXCEEDED) return t.simRefusedCap(what);
+  if (code !== null) return t.simRefused(what, code);
+  return wouldNeed === "nothing" ? t.simExecuted(what) : t.simNeedsOwner(decision.triggered.join(", "));
 }
 
 export async function execute(plan: Plan, decision: GateDecision, spending: SpendingState | null, mode: ExecMode = "live"): Promise<ExecutionResult> {
@@ -184,29 +185,30 @@ export async function execute(plan: Plan, decision: GateDecision, spending: Spen
         contractUrl: `https://stellar.expert/explorer/testnet/contract/${C.smartAccount}`,
       };
     }
+    const t = T[decision.lang];
     const texts: string[] = [];
     if (plan.steps.some((s) => s.action === "budget")) {
       if (spending) {
         out.budget = { limitUsdc: fromUsdc(spending.limit), spentUsdc: fromUsdc(spending.spent), remainingUsdc: fromUsdc(spending.remaining), periodLedgers: spending.periodLedgers };
         const b = out.budget;
-        texts.push(`Plafond de l'agent : ${b.limitUsdc} USDC sur ~${Math.round((b.periodLedgers * 5) / 3600)} h glissantes. Dépensé : ${b.spentUsdc} USDC. Restant : ${b.remainingUsdc} USDC. (Lu on-chain dans la spending-limit policy.)`);
-      } else texts.push("Je n'ai pas pu lire le budget on-chain de l'agent : réessaie dans un instant.");
+        texts.push(t.budget(b.limitUsdc, Math.round((b.periodLedgers * 5) / 3600), b.spentUsdc, b.remainingUsdc));
+      } else texts.push(t.budgetError);
     }
     const addr = plan.steps.find((s) => s.action === "address");
     if (addr && addr.action === "address") {
       if (!addr.of) {
-        out.address = { label: "Compte de l'agent (smart account)", address: C.smartAccount };
-        texts.push(`Adresse du compte de l'agent (smart account) : ${C.smartAccount}`);
+        out.address = { label: t.accountLabel, address: C.smartAccount };
+        texts.push(t.accountAddress(C.smartAccount));
       } else {
         const r = resolveRecipient(addr.of);
         if (r?.known) {
           out.address = { label: r.label, address: r.address };
-          texts.push(`Adresse de ${r.label} : ${r.address}`);
-        } else texts.push(recipientClarification(addr.of) ?? `Je ne connais pas « ${addr.of} ».`);
+          texts.push(t.contactAddress(r.label, r.address));
+        } else texts.push(recipientClarification(addr.of, undefined, decision.lang) ?? t.unknownName(addr.of));
       }
     }
     if (out.balance) {
-      texts.unshift(`Solde du compte de l'agent : ${out.balance.smartAccountUsdc} USDC. Budget restant : ${out.balance.budget.remainingUsdc} / ${out.balance.budget.limitUsdc} USDC.`);
+      texts.unshift(t.balance(out.balance.smartAccountUsdc, out.balance.budget.remainingUsdc, out.balance.budget.limitUsdc));
     }
     out.text = texts.join(" ");
     return out;
@@ -223,12 +225,12 @@ export async function execute(plan: Plan, decision: GateDecision, spending: Spen
     if (res.ok) return { status: "submitted", hash: res.hash, explorerUrl: txLink(res.hash), signedBy: "agent", rule: call.ruleId };
     // Le pré-check s'est trompé (budget consommé entre-temps) : c'est la policy on-chain qui tranche.
     if (res.codes?.includes(SPENDING_LIMIT_EXCEEDED)) {
-      return ownerApproval(amount, recipient.address, { simulationCode: SPENDING_LIMIT_EXCEEDED });
+      return ownerApproval(amount, recipient.address, decision.lang, { simulationCode: SPENDING_LIMIT_EXCEEDED });
     }
-    return { status: "error", error: `${res.stage} : ${res.error.split("\n")[0]}` };
+    return { status: "error", error: T[decision.lang].errNetwork(res.stage, res.error.split("\n")[0]) };
   }
 
   // NEEDS_APPROVAL
   const agentAttempt = decision.triggered.includes("spending-limit") ? await agentRejectionProof(amount, recipient.address) : undefined;
-  return ownerApproval(amount, recipient.address, agentAttempt);
+  return ownerApproval(amount, recipient.address, decision.lang, agentAttempt);
 }

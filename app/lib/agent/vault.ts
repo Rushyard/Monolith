@@ -5,6 +5,7 @@
 import "server-only";
 import { ChainClient } from "stellar-confidential-token-sdk";
 import { CT } from "../ct/deployment";
+import { T, type Lang } from "./i18n";
 
 const CACHE_MS = 60_000;
 const cache = new Map<string, { inVault: boolean; at: number }>();
@@ -25,18 +26,15 @@ export async function isInVault(address: string): Promise<boolean> {
   return inVault;
 }
 
-/** Message renvoyé quand l'appartenance au coffre n'a pas pu être vérifiée. */
-export const VAULT_CHECK_FAILED =
-  "Je n'ai pas pu vérifier si ce destinataire est dans le coffre. Je ne paie pas en public à l'aveugle, ça révélerait le montant : réessaie dans un instant.";
 
 export type ChannelCheck = { ok: true; inVault: boolean } | { ok: false; error: string };
 
 /** Canal d'un destinataire. `check` est injectable pour les tests ; toute erreur → ok: false (fail-closed). */
-export async function vaultChannel(address: string, check: (a: string) => Promise<boolean> = isInVault): Promise<ChannelCheck> {
+export async function vaultChannel(address: string, check: (a: string) => Promise<boolean> = isInVault, lang: Lang = "en"): Promise<ChannelCheck> {
   try {
     return { ok: true, inVault: await check(address) };
   } catch (err) {
     console.error("[vault] lecture du coffre impossible", err instanceof Error ? err.message : err);
-    return { ok: false, error: VAULT_CHECK_FAILED };
+    return { ok: false, error: T[lang].vaultCheckFailed };
   }
 }

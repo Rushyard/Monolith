@@ -14,6 +14,7 @@ import { CT } from "../ct/deployment";
 import { AGENT_CONFIG } from "./config";
 import { BOOK } from "./contacts";
 import { ctClient } from "./vault";
+import { T, type Lang, type Messages } from "./i18n";
 import { Address, NETWORK_PASSPHRASE, TransactionBuilder, contractErrorCodes, fromUsdc, rpc, scValToNative, server } from "./core";
 
 const C = AGENT_CONFIG;
@@ -25,12 +26,17 @@ export function labelFor(address: string): string {
   return BOOK.find((c) => c.address === address)?.name ?? `${address.slice(0, 4)}…${address.slice(-4)}`;
 }
 
+/** Raison traduite à la lecture : le cache est commun à toutes les langues. */
+export type ReasonFn = (t: Messages) => string;
+type Item = Omit<ActivityItem, "reason"> & { reason?: ReasonFn };
+const render = (it: Item, lang: Lang): ActivityItem => ({ ...it, reason: it.reason?.(T[lang]) });
+
 // ---------- mémoire (best effort) ----------
 
-const memory: ActivityItem[] = [];
+const memory: Item[] = [];
 
 /** Ajoute un élément en mémoire. Un élément privé ne garde jamais de montant. */
-export function recordActivity(item: ActivityItem) {
+export function recordActivity(item: Item) {
   const clean = item.channel === "private" ? { ...item, amountUsdc: undefined } : item;
   if (clean.hash && memory.some((m) => m.hash === clean.hash)) return;
   memory.unshift(clean);
@@ -74,17 +80,17 @@ async function refusalCode(hash: string): Promise<number[]> {
   return codes;
 }
 
-function refusalReason(codes: number[]): string {
-  if (codes.includes(3221)) return "Refusé par le réseau : plafond de l'agent dépassé (#3221).";
-  if (codes.length) return `Refusé par le réseau (#${codes[0]}).`;
-  return "Refusé par le réseau.";
+function refusalReason(codes: number[]): ReasonFn {
+  if (codes.includes(3221)) return (t) => t.actRefusedCap;
+  if (codes.length) return (t) => t.actRefusedCode(codes[0]);
+  return (t) => t.actRefused;
 }
 
 // ---------- reconstruction ----------
 
-async function publicItems(owner: HorizonTx[]): Promise<ActivityItem[]> {
+async function publicItems(owner: HorizonTx[]): Promise<Item[]> {
   const agent = await horizonTxs(C.agentAddress);
-  const out: ActivityItem[] = [];
+  const out: Item[] = [];
   for (const t of [...agent, ...owner]) {
     const call = decodeInvoke(t.envelope_xdr);
     if (!call || call.contract !== C.usdcSac || call.fn !== "transfer" || call.args[0] !== C.smartAccount) continue;
@@ -99,18 +105,18 @@ async function publicItems(owner: HorizonTx[]): Promise<ActivityItem[]> {
       label: labelFor(to),
       amountUsdc: String(fromUsdc(BigInt(call.args[2] as bigint))),
       hash: t.hash,
-      reason: t.successful ? (fromAgent ? "Payé par l'agent, sous son plafond." : "Approuvé par l'owner (Freighter).") : refusalReason(await refusalCode(t.hash)),
+      reason: t.successful ? (fromAgent ? (m) => m.actPaidAgent : (m) => m.actPaidOwner) : refusalReason(await refusalCode(t.hash)),
     });
   }
   return out;
 }
 
-async function privateItems(owner: HorizonTx[]): Promise<ActivityItem[]> {
+async function privateItems(owner: HorizonTx[]): Promise<Item[]> {
   const health = await server.getHealth();
   const startLedger = Math.max(CT.deployedAtLedger, health.oldestLedger);
   const { events } = await fetchEvents(ctClient(), { startLedger });
   const times = new Map(owner.map((t) => [t.hash, t.created_at]));
-  const out: ActivityItem[] = [];
+  const out: Item[] = [];
   for (const ev of events) {
     if (ev.type !== "transfer" || ev.from !== C.ownerAddress) continue;
     let at = times.get(ev.txHash);
@@ -118,27 +124,31 @@ async function privateItems(owner: HorizonTx[]): Promise<ActivityItem[]> {
       const r = await fetch(`${HORIZON}/transactions/${ev.txHash}`, { signal: AbortSignal.timeout(10_000) });
       at = r.ok ? ((await r.json()) as HorizonTx).created_at : new Date().toISOString();
     }
-    out.push({ at, kind: "paid", channel: "private", to: ev.to, label: labelFor(ev.to), hash: ev.txHash, reason: "Signé par l'owner dans le coffre : montant caché." });
+    out.push({ at, kind: "paid", channel: "private", to: ev.to, label: labelFor(ev.to), hash: ev.txHash, reason: (t) => t.actPrivate });
   }
   return out;
 }
 
-let cache: { at: number; items: ActivityItem[] } | null = null;
+let cache: { at: number; items: Item[] } | null = null;
 
-export async function readActivity(): Promise<ActivityItem[]> {
+async function readItems(): Promise<Item[]> {
   if (cache && Date.now() - cache.at < CACHE_MS) return cache.items;
   const owner = await horizonTxs(C.ownerAddress);
   const [pub, priv] = await Promise.all([publicItems(owner), privateItems(owner)]);
-  const byHash = new Map<string, ActivityItem>();
+  const byHash = new Map<string, Item>();
   for (const it of [...pub, ...priv]) byHash.set(it.hash!, it);
   const items = [...byHash.values(), ...memory.filter((m) => !m.hash || !byHash.has(m.hash))].sort((a, b) => b.at.localeCompare(a.at));
   cache = { at: Date.now(), items };
   return items;
 }
 
+export async function readActivity(lang: Lang = "en"): Promise<ActivityItem[]> {
+  return (await readItems()).map((it) => render(it, lang));
+}
+
 /** Adresses déjà payées par le smart account (paiements publics réussis, historique Horizon). */
 export async function paidAddresses(): Promise<Set<string>> {
-  const items = await readActivity();
+  const items = await readItems();
   return new Set(items.filter((i) => i.channel === "public" && i.kind === "paid" && i.hash).map((i) => i.to));
 }
 
@@ -150,30 +160,31 @@ export type ReceiptCheck = { ok: true; item: ActivityItem } | { ok: false; statu
  * Vérifie qu'un hash est une tx réussie `confidential_transfer` du contrat confidentiel, envoyée
  * par l'owner vers `to`, puis l'ajoute en mémoire. Attend jusqu'à ~10 s que le RPC la voie.
  */
-export async function verifyVaultReceipt(to: string, hash: string): Promise<ReceiptCheck> {
+export async function verifyVaultReceipt(to: string, hash: string, lang: Lang = "en"): Promise<ReceiptCheck> {
+  const t = T[lang];
   let r = await server.getTransaction(hash);
   for (let i = 0; i < 5 && r.status === rpc.Api.GetTransactionStatus.NOT_FOUND; i++) {
     await new Promise((s) => setTimeout(s, 2000));
     r = await server.getTransaction(hash);
   }
-  if (r.status === rpc.Api.GetTransactionStatus.NOT_FOUND) return { ok: false, status: 404, error: "tx introuvable on-chain (encore en attente ?)" };
-  if (r.status !== rpc.Api.GetTransactionStatus.SUCCESS) return { ok: false, status: 422, error: "tx échouée on-chain" };
+  if (r.status === rpc.Api.GetTransactionStatus.NOT_FOUND) return { ok: false, status: 404, error: t.errReceiptNotFound };
+  if (r.status !== rpc.Api.GetTransactionStatus.SUCCESS) return { ok: false, status: 422, error: t.errReceiptFailed };
   const call = decodeInvoke(r.envelopeXdr.toXDR("base64"));
   if (!call || call.contract !== CT.token || call.fn !== "confidential_transfer") {
-    return { ok: false, status: 422, error: "cette tx n'est pas un transfert du contrat confidentiel" };
+    return { ok: false, status: 422, error: t.errReceiptNotVault };
   }
   if (call.args[0] !== C.ownerAddress || call.args[1] !== to) {
-    return { ok: false, status: 422, error: "émetteur ou destinataire différent de ce reçu" };
+    return { ok: false, status: 422, error: t.errReceiptMismatch };
   }
-  const item: ActivityItem = {
+  const item: Item = {
     at: new Date((r.createdAt ?? Date.now() / 1000) * 1000).toISOString(),
     kind: "paid",
     channel: "private",
     to,
     label: labelFor(to),
     hash,
-    reason: "Signé par l'owner dans le coffre : montant caché.",
+    reason: (m) => m.actPrivate,
   };
   recordActivity(item);
-  return { ok: true, item };
+  return { ok: true, item: render(item, lang) };
 }

@@ -1,7 +1,8 @@
 // « Verse les salaires » (tâche 3), sans réseau : montants fixés par payroll.ts, jamais par le LLM.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decide, vaultPreparedText } from "../../app/lib/agent/gatekeeper.ts";
+import { decide } from "../../app/lib/agent/gatekeeper.ts";
+import { T } from "../../app/lib/agent/i18n.ts";
 import { fallbackPlan, toPlan, type StepT } from "../../app/lib/agent/planner.ts";
 import { execute } from "../../app/lib/agent/executor.ts";
 import { sumUsdc } from "../../app/lib/agent/payroll.ts";
@@ -26,7 +27,7 @@ test("planner de secours : « paie 2 USDC à Bob pour son salaire » reste un pa
 test("paie → needs_vault_signature avec 2 paiements (Carol 3, Bob 2), total 5, aucune tx", async () => {
   const d = decide(payroll, "verse les salaires", null, true);
   assert.equal(d.verdict, "NEEDS_VAULT_SIGNATURE");
-  assert.equal(d.reasons[0], vaultPreparedText(2));
+  assert.equal(d.reasons[0], T.fr.vaultPrepared(2));
   const r = await execute(payroll, d, null);
   assert.deepEqual(r, {
     status: "needs_vault_signature",

@@ -3,6 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { damerauLevenshtein, matchName, recipientClarification } from "../../app/lib/agent/contacts.ts";
+import { T } from "../../app/lib/agent/i18n.ts";
 
 test("distance : 0, substitution, insertion, suppression", () => {
   assert.equal(damerauLevenshtein("alice", "alice"), 0);
@@ -30,8 +31,8 @@ test("adresse G valide → pas de clarification", () => {
 });
 
 test("faute à distance 1 → « Tu veux dire Alice ? », pas d'exécution", () => {
-  assert.match(recipientClarification("Alise")!, /^Tu veux dire Alice \?/);
-  assert.match(recipientClarification("Ailce")!, /^Tu veux dire Alice \?/);
+  assert.match(recipientClarification("Alise", undefined, "fr")!, /^Tu veux dire Alice \?/);
+  assert.match(recipientClarification("Ailce")!, /^Did you mean Alice\?/); // sans message ni client : anglais
 });
 
 test("faute à distance 2 → suggestion aussi (Bobb y, Karoll)", () => {
@@ -41,7 +42,8 @@ test("faute à distance 2 → suggestion aussi (Bobb y, Karoll)", () => {
 });
 
 test("distance > 2 → « Je ne connais pas … : donne-moi son adresse G… »", () => {
-  assert.equal(recipientClarification("Charlie"), "Je ne connais pas « Charlie » : donne-moi son adresse G….");
+  assert.equal(recipientClarification("Charlie", undefined, "fr"), T.fr.unknownName("Charlie"));
+  assert.equal(recipientClarification("Charlie"), T.en.unknownName("Charlie"));
   assert.equal(matchName("Zébulon").kind, "unknown");
 });
 
@@ -53,7 +55,8 @@ test("égalité entre deux contacts → les deux sont proposés", () => {
 });
 
 test("adresse G tronquée ou invalide → demande de vérifier, jamais de suggestion de nom", () => {
-  assert.match(recipientClarification("GCIFXLBRK2CHODLILPTZ")!, /n'est pas une adresse Stellar valide/);
+  assert.match(recipientClarification("GCIFXLBRK2CHODLILPTZ", undefined, "fr")!, /n'est pas une adresse Stellar valide/);
+  assert.match(recipientClarification("GCIFXLBRK2CHODLILPTZ")!, /is not a valid Stellar address/);
 });
 
 test("règle d'or : une correction n'est jamais un nom résolu", () => {
@@ -65,4 +68,12 @@ test("LLM qui corrige tout seul (« Alise » → plan « Alice ») → clarifica
   assert.equal(recipientClarification("Alice", "paie 2 USDC à Alice"), null);
   assert.equal(recipientClarification("Bob", "pay robert 2 usdc"), null);
   assert.equal(recipientClarification("Bob", "Paie 2 USDC à Bob."), null);
+});
+
+test("planner de secours : un nom hors carnet est recopié tel quel, puis vérifié par A1 (jamais payé)", async () => {
+  const { fallbackPlan } = await import("../../app/lib/agent/planner.ts");
+  const p = fallbackPlan("pay 1 USDC to Zorglub");
+  assert.ok(p.type === "actions" && p.steps[0].action === "pay" && p.steps[0].to === "Zorglub");
+  assert.equal(recipientClarification("Zorglub", "pay 1 USDC to Zorglub"), T.en.unknownName("Zorglub"));
+  assert.equal(fallbackPlan("pay 2 USDC to me").type, "clarify");
 });

@@ -150,7 +150,7 @@ Remboursements d'alice vers le smart account : [`42d70ea9…`](https://stellar.e
 
 `withdraw(from, to = smart account de l'agent, amount)` du coffre confidentiel : la sortie est **publique** (montant visible), le solde du coffre reste caché. Même appel `submitWithdraw` que le bouton (`ConfidentialVault.withdraw(amount, onPhase, to)`), testé avec `npm run ct:withdraw-to-contract -- CC5D…43KA` : smart account 60 → **61 USDC**, [`8a0cd48d…`](https://stellar.expert/explorer/testnet/tx/8a0cd48dce90c11d384136524cfdfe27121e662ad9ff0753c9e0867a455b3ea8).
 
-### Tests automatisés P1 — `npm test` dans `contracts/` : 79/79 ✅ (2026-10-25 soir, branche `p1-agent-route`)
+### Tests automatisés P1 — `npm test` dans `contracts/` : 94/94 ✅ (2026-10-25 soir, branche `p1-agent-route`)
 
 Lanceur `node:test` via `tsx`, sans dépendance ajoutée. Les tests on-chain sont des **simulations signées** : les auths du smart account sont exécutées en mode enforcing (`__check_auth` + policy), mais **aucune tx n'est envoyée** (budget et USDC inchangés). Ils sont placés dans `contracts/` parce qu'ils lisent les clés agent/owner dans le keystore du Stellar CLI.
 
@@ -197,7 +197,10 @@ Règle produit : dans le coffre, l'IA propose et Sarah (owner) signe ; dehors, l
 | A7 lectures `budget` / `address` | executor | `routing.test.ts` + LLM réel |
 | B4 pause / reprise (XDR non signés) | `app/lib/agent/pause.ts`, `PauseBanner.tsx` | simulation : `remove_context_rule(1)` ~0,10 XLM de frais totaux ; `add_context_rule` ~0,021 XLM de frais ressources (dry-run reset-agent). Non envoyées. |
 | Activité reconstruite on-chain, aucun montant privé | `app/lib/agent/activity.ts` | 38 éléments lus, 0 montant privé ; reçu `75db195e…` accepté, `1dfb0e87…` refusé (pas confidentiel) |
-| Éval parsing | `eval/parsing.jsonl`, `npm run eval` | 44/44 (LLM sur 20/44, 429 Groq sur le reste → planner de secours) |
+| Éval parsing | `eval/parsing.jsonl`, `npm run eval` | 60/60, langue de réponse vérifiée (LLM sur 26/60, 429 Groq sur le reste → planner de secours) |
+| i18n en / fr / pt de toutes les phrases du serveur | `app/lib/agent/i18n.ts` | `i18n.test.ts` : chaque phrase produite par le vrai code dans les 3 langues |
+
+Remise à zéro après les tests du soir : `npm run reset-agent` (règle de l'agent 1 → 2, retrouvée on-chain par l'app sans redéploiement) puis refund alice → smart account 52,5 USDC [`36eb4657…`](https://stellar.expert/explorer/testnet/tx/36eb465786acd4726a01f850fba997ebd216ff28eddd6624175366e81baecbfd) (2026-10-25 21:38 UTC) : smart account **83 USDC**, alice 0, budget agent 8 / 10 restants. `npm test` : 106/106.
 
 Rétention `getEvents` sur le RPC testnet : `ledgerRetentionWindow = 120960` ledgers (~7 jours), mesuré via `getHealth` le 2026-10-25.
 
@@ -217,6 +220,8 @@ Presque tout est du **loyer** (`rent_fee_charged`) : chaque paiement ajoute un `
 | [`e2a14595…`](https://stellar.expert/explorer/testnet/tx/e2a145957c68894f946a59eb7cc81d216610bea76507203e0e58244c137b962a) (0,5 USDC, 16:11 UTC, via la prod) | 7 → 8 | 11,146 | 11,144 |
 
 Pourquoi ça monte : `stellar network settings --internal` (testnet, 16:15 UTC) donne `soroban_state_target_size_bytes` = 4,0 Go, `live_soroban_state_size_window` 4,056 → 4,141 Go sur ~2,7 h, `soroban_state_rent_fee_growth_factor` = 5000 : au-dessus de la cible, le loyer par octet grimpe. Simulation du paiement suivant : ~12,8 XLM. Solde XLM de l'agent : 9926,7 XLM → ~770 paiements au tarif du moment (moins si le tarif monte encore). Le reset (`add_context_rule`, payé par l'owner, 7543 XLM) est estimé à ~56,8 XLM en dry-run. Mainnet non mesuré.
+
+Le soir même (règle 2, après reset) : premier paiement de l'agent [`635685b9…`](https://stellar.expert/explorer/testnet/tx/635685b9ed8f9fc2c9340a2eab762b003fefef78deccaeb29be5cfd5e682d55b) 0,0406 XLM (création de l'entrée), puis [`6d344bf8…`](https://stellar.expert/explorer/testnet/tx/6d344bf8030bf3e23ed9c2077e09889293e270001c5b3e7c4cb5204574d0dd33) 0,0048 XLM. `stellar network settings --internal` (~21:45 UTC) : `soroban_state_target_size_bytes` = **7,0 Go** (4,0 Go à 16:15 UTC), état ~4,28 Go → sous la cible, loyer bas. Le coût suit donc surtout le tarif du loyer du réseau.
 
 ## Contract IDs (testnet)
 

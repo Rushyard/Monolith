@@ -43,6 +43,8 @@ export type IntentResponse = {
   planner?: "llm" | "fallback";
   /** « owner » : Sarah connectée (paiements réels). « simulation » : visiteur, rien n'est envoyé. */
   mode?: "owner" | "simulation";
+  /** Langue des textes écrits par le serveur (message → client → anglais). */
+  lang?: "en" | "fr" | "pt";
 };
 
 export type OwnerApproval = Extract<ExecutionResult, { status: "needs_owner_approval" }>;

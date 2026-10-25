@@ -14,6 +14,7 @@ import { vaultChannel } from "@/lib/agent/vault";
 import { paidAddresses, recordActivity } from "@/lib/agent/activity";
 import { AGENT_CONFIG, agentRuleStatus } from "@/lib/agent/config";
 import { clientIp, isOwnerRequest, rateLimit } from "@/lib/agent/session";
+import { T, pickLang, requestLang } from "@/lib/agent/i18n";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,47 +23,52 @@ const Body = z.object({
   message: z.string().trim().min(1).max(1000),
   /** Derniers tours (optionnel) : sert seulement à compléter la réponse à nos propres questions. */
   history: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string().max(1000) })).max(12).optional(),
+  /** Langue du site côté client (optionnel) : utilisée si le message ne suffit pas à la détecter. */
+  lang: z.enum(["en", "fr", "pt"]).optional(),
 });
 
 export async function POST(req: Request) {
   // Owner = cookie de session signé (Freighter). Sinon : mode démo, rien n'est envoyé (fail-closed).
   const owner = isOwnerRequest(req, AGENT_CONFIG.ownerAddress);
   const mode = owner ? "owner" : "simulation";
+  const clientLang = requestLang(req);
   if (!owner) {
     const rl = rateLimit(clientIp(req));
     if (!rl.ok) {
       return NextResponse.json(
-        { error: `Trop de messages : réessaie dans ${Math.ceil(rl.retryAfterS / 60)} min (limite de la démo publique).` },
+        { error: T[clientLang].errRateLimit(Math.ceil(rl.retryAfterS / 60)) },
         { status: 429, headers: { "Retry-After": String(rl.retryAfterS) } },
       );
     }
   }
   const body = Body.safeParse(await req.json().catch(() => null));
-  if (!body.success) return NextResponse.json({ error: "message requis (1 à 1000 caractères)" }, { status: 400 });
+  if (!body.success) return NextResponse.json({ error: T[clientLang].errMessageRequired }, { status: 400 });
   // A3 : « paie alice » → « Combien ? » → « 5 » devient « paie alice 5 », puis tout le pipeline.
   const message = withMemory(body.data.message, body.data.history);
+  // Langue des textes du serveur : celle du message, sinon celle du client, sinon anglais.
+  const lang = pickLang(message, body.data.lang ?? clientLang);
 
   const spendingP = readAgentSpending(); // en parallèle de l'appel LLM
   const planned = await planIntent(message);
   const out = planned.output;
 
   // Safety net sur le message brut, quel que soit ce que le planner a compris (même un « clarify »).
-  const screened = screenMessage(message);
+  const screened = screenMessage(message, lang);
   if (screened) {
     const plan = out.type === "actions" ? toPlan(out, planned.source) : null;
-    return NextResponse.json({ plan, planner: planned.source, verdict: screened, result: { status: "blocked" }, reasoning: screened.reasons.join(" "), mode });
+    return NextResponse.json({ plan, planner: planned.source, verdict: screened, result: { status: "blocked" }, reasoning: screened.reasons.join(" "), mode, lang });
   }
 
   // A2 : montant ou destinataire manquant, vérifié en code sur le message brut (même si le LLM a deviné).
-  const missing = slotQuestion(message);
+  const missing = slotQuestion(message, lang);
   if (missing && (out.type === "clarify" || (out.type === "actions" && out.steps.some((s) => s.action === "pay")))) {
-    return NextResponse.json({ plan: null, verdict: null, result: { status: "needs_clarification", text: missing }, reasoning: missing, planner: planned.source, mode });
+    return NextResponse.json({ plan: null, verdict: null, result: { status: "needs_clarification", text: missing }, reasoning: missing, planner: planned.source, mode, lang });
   }
 
   if (out.type !== "actions") {
     const text = out.type === "clarify" ? out.question : out.type === "reply" ? out.text : out.reason;
     const status = out.type === "clarify" ? "needs_clarification" : out.type === "reply" ? "reply" : "unsupported";
-    return NextResponse.json({ plan: null, verdict: null, result: { status, text }, reasoning: text, planner: planned.source, mode });
+    return NextResponse.json({ plan: null, verdict: null, result: { status, text }, reasoning: text, planner: planned.source, mode, lang });
   }
 
   const plan = toPlan(out, planned.source);
@@ -72,8 +78,8 @@ export async function POST(req: Request) {
   // A1 : destinataire écrit par le planner résolu côté serveur. Faute de frappe → clarification, jamais de paiement.
   const pays = plan.steps.filter((s) => s.action === "pay");
   for (const p of pays) {
-    const text = recipientClarification(p.to, message);
-    if (text) return NextResponse.json({ plan, verdict: null, result: { status: "needs_clarification", text }, reasoning: text, mode });
+    const text = recipientClarification(p.to, message, lang);
+    if (text) return NextResponse.json({ plan, verdict: null, result: { status: "needs_clarification", text }, reasoning: text, mode, lang });
   }
 
   // Paie : tous les salariés doivent être dans le coffre.
@@ -82,9 +88,9 @@ export async function POST(req: Request) {
   const toCheck = isPayroll ? payrollLines().map((l) => l.recipient.address) : single ? [single.address] : [];
   let inVault = false;
   if (toCheck.length) {
-    const checks = await Promise.all(toCheck.map((a) => vaultChannel(a)));
+    const checks = await Promise.all(toCheck.map((a) => vaultChannel(a, undefined, lang)));
     const failed = checks.find((c) => !c.ok);
-    if (failed && !failed.ok) return NextResponse.json({ plan, verdict: null, result: { status: "error", error: failed.error }, reasoning: failed.error, mode }, { status: 503 });
+    if (failed && !failed.ok) return NextResponse.json({ plan, verdict: null, result: { status: "error", error: failed.error }, reasoning: failed.error, mode, lang }, { status: 503 });
     inVault = checks.every((c) => c.ok && c.inVault);
   }
 
@@ -100,7 +106,7 @@ export async function POST(req: Request) {
   const paused = single && !inVault ? (await agentRuleStatus()).state === "paused" : false;
 
   const spending = await spendingP;
-  const decision = decide(plan, message, spending, inVault, { paidBefore, paused });
+  const decision = decide(plan, message, spending, inVault, { paidBefore, paused, lang });
   logVerdict(decision);
   try {
     const result = await execute(plan, decision, spending, owner ? "live" : "simulation");
@@ -110,11 +116,12 @@ export async function POST(req: Request) {
       result,
       reasoning: [plan.reasoning, ...decision.reasons].filter(Boolean).join(" "),
       mode,
+      lang,
     });
   } catch (err) {
     console.error("[intent] executor", err);
     return NextResponse.json(
-      { plan, verdict: decision, result: { status: "error", error: err instanceof Error ? err.message : String(err) }, reasoning: decision.reasons.join(" "), mode },
+      { plan, verdict: decision, result: { status: "error", error: T[lang].errServer(err instanceof Error ? err.message : String(err)) }, reasoning: decision.reasons.join(" "), mode, lang },
       { status: 500 },
     );
   }
@@ -132,7 +139,7 @@ function logVerdict(d: ReturnType<typeof decide>) {
       to: p.recipient.address,
       label: p.recipient.label,
       amountUsdc: channel === "public" ? p.amountUsdc : undefined,
-      reason: d.verdict === "BLOCKED" ? "Bloqué par le gatekeeper." : "En attente de la signature de l'owner dans le coffre.",
+      reason: d.verdict === "BLOCKED" ? (t) => t.actBlocked : (t) => t.actWaiting,
     });
   }
 }
