@@ -251,6 +251,28 @@ the vendored SDK's VKs (`packages/ct-sdk/circuits/vks`) are byte-identical to
 `OpenZeppelin/stellar-contracts` → `packages/confidential/circuits/vks`
 (audited circuits). Still a developer preview — testnet only.
 
+### Paie confidentielle — membres du coffre (2026-10-25, `npm run ct:register-member`)
+
+Personnages : **Sarah** = owner `GCIF…RS7B` (Freighter), **Alice** et **Bob** = salariés, **Marc** = comptable = auditeur #1.
+[`scripts/register-member.ts`](../scripts/register-member.ts) ouvre un compte coffre pour une clé passée en `MEMBER_SECRET` :
+trustline USDC si absente, puis `register` avec l'auditeur #1. La clé confidentielle est dérivée comme dans l'app avec Freighter
+(signature Ed25519 du payload SEP-53 de `skSigningMessage(token, compte)`, puis `deriveSk`) : rien n'est écrit sur disque, et le même
+compte importé dans Freighter retrouve la même clé dans `/vault`. Idempotent (relancé sur Bob : « already registered »).
+
+| Membre | Adresse | Étape | Tx (testnet) |
+|---|---|---|---|
+| Bob (clé : keystore Stellar CLI local, alias `bob`) | `GA5HRQORQCUWGG6ACM6SMLWJO75Q7BWFGERVOBLR4FVSSQGZPPHE5NJH` | friendbot `create_account` | [`5f682661…`](https://stellar.expert/explorer/testnet/tx/5f68266116239d27f190d2dd0f9218cfa69d0b37e2c41911a4a47b7a91a6eb85) |
+| | | trustline USDC | [`d07ca741…`](https://stellar.expert/explorer/testnet/tx/d07ca741601f7f71020e23f09c7d2721f69fc3130b7ba6af04870dff7d654a8c) |
+| | | `register` (auditeur #1, preuve vérifiée on-chain), ledger 5387045 | [`44db85ba…`](https://stellar.expert/explorer/testnet/tx/44db85ba5ff4b044b6c3388661469a6ad847d279791b9a83c0dbad049fa6def6) |
+| Alice (carnet de l'agent, clé : identité `alice` de P1) | `GDY5SERGYNGQF2R4SRZ4AHQPJ7HQOLEPLAFISMD37CM2XCTGW4KUBXH6` | `isRegistered` = **false** au 2026-10-25 20:05 UTC | à faire : `MEMBER_SECRET=$(stellar keys show alice) npm run ct:register-member` |
+
+**Coffre de Sarah** (lu on-chain le 2026-10-25 ~20:05 UTC) : inscrite, auditeur #1, solde en attente vide.
+Événements publics : `deposit` 10 USDC [`4bd33026…`](https://stellar.expert/explorer/testnet/tx/4bd330265fcdfcfef343a8ca26ec667e92f0fa8cab39de771cda44b06e81ca04),
+`deposit` 1 USDC [`17156e05…`](https://stellar.expert/explorer/testnet/tx/17156e05a6f2a3d55ac2e22c9d49a76550515b2beb21af7e80965f5d73fa950f),
+`withdraw` 1 USDC vers le smart account [`8978784f…`](https://stellar.expert/explorer/testnet/tx/8978784fc5ab921df21c98ed3e65e8a9e0a036d41bed4d3c6f480353535eba46),
+et un `confidential_transfer` au montant caché vers `GDTM…XPH3` [`75db195e…`](https://stellar.expert/explorer/testnet/tx/75db195e4ad59a0cf12e0a15e99a21f44b59b5813d62012cb2f7a4e224256bfc).
+Solde disponible = 10 − (montant caché) < 10 USDC. Solde USDC public : 9 USDC.
+
 ### v2 run — our auditor, 2026-10-25 13:34 UTC (`npm run ct:e2e`)
 
 Token `CAYYT5UW…LERJ`. alice = `GB7OT6KYOLWATWCNEPDTZZIP6CHI3L4X3YXH6BX7IVCPY2ENMPKIIKXP`, bob = `GBCQZMHQWCIQJRCQJHAI7L2GS56A3EVY5E2E26DU2RX5SRSU4Y5B32GV`

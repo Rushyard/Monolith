@@ -17,6 +17,7 @@
     "ct:e2e": "tsx scripts/e2e-ct.ts",
     "ct:auditor": "tsx scripts/deploy-auditor.ts",
     "ct:withdraw-to-contract": "tsx scripts/withdraw-to-contract.ts",
+    "ct:register-member": "tsx scripts/register-member.ts",
     "dev": "npm run dev -w @monolith/app",
     "build": "npm run build -w @monolith/app",
     "hero:video": "bash scripts/hero-video.sh",
