@@ -3,6 +3,7 @@
 // reste derrière cette frontière : on ne lui passe que la clé secrète (string) et des URLs.
 import "server-only";
 import { decodePaymentResponseHeader, wrapFetchWithPayment, x402Client, type PaymentPolicy } from "@x402/fetch";
+import type { SpendControls } from "@x402/core/client";
 import { createEd25519Signer } from "@x402/stellar";
 import { ExactStellarScheme } from "@x402/stellar/exact/client";
 import { X402_MAX_PRICE_USDC, X402_NETWORK, X402_USDC_SAC, toAtomic } from "./config";
@@ -25,6 +26,14 @@ export function agentPaymentPolicy(maxUsdc: string = X402_MAX_PRICE_USDC, asset:
     });
 }
 
+/**
+ * Spend controls du SDK x402 (appliqués avant la politique) : notre SAC USDC est déclaré
+ * explicitement avec un plafond atomique, sans dépendre de la table d'assets par défaut.
+ */
+export function agentSpendControls(maxUsdc: string = X402_MAX_PRICE_USDC, asset: string = X402_USDC_SAC): SpendControls {
+  return { allowedAssets: [{ network: X402_NETWORK, asset, maxAmountPerPayment: toAtomic(maxUsdc).toString() }] };
+}
+
 /** Client x402 signé par la clé du compte G de l'agent (Ed25519, string `S…`). */
 export function createAgentX402Client(agentSecret: string, opts: { rpcUrl?: string; maxUsdc?: string } = {}) {
   const signer = createEd25519Signer(agentSecret.trim(), X402_NETWORK);
@@ -32,6 +41,7 @@ export function createAgentX402Client(agentSecret: string, opts: { rpcUrl?: stri
     address: signer.address,
     client: new x402Client()
       .register(X402_NETWORK, new ExactStellarScheme(signer, opts.rpcUrl ? { url: opts.rpcUrl } : undefined))
+      .setSpendControls(agentSpendControls(opts.maxUsdc))
       .registerPolicy(agentPaymentPolicy(opts.maxUsdc)),
   };
 }

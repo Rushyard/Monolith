@@ -2,7 +2,9 @@
 // Utilisé par app/app/api/premium/market-data/route.ts via withX402 (@x402/next).
 // Aucune dépendance au SDK Stellar v17 : voir l'en-tête de ./config.ts.
 import "server-only";
+import { NextResponse, type NextRequest } from "next/server";
 import { HTTPFacilitatorClient, x402ResourceServer, type FacilitatorClient, type RouteConfig } from "@x402/core/server";
+import { withX402 } from "@x402/next";
 import { ExactStellarScheme } from "@x402/stellar/exact/server";
 import {
   MARKET_DATA_PATH,
@@ -56,3 +58,8 @@ export function marketDataPayload(now = new Date()) {
 }
 
 export type MarketData = ReturnType<typeof marketDataPayload>;
+
+/** Handler GET de la route premium : withX402 + données. Paramétrable pour les tests (facilitator factice). */
+export function createMarketDataHandler(server: x402ResourceServer = createResourceServer(), now: () => Date = () => new Date()) {
+  return withX402(async (_req: NextRequest) => NextResponse.json(marketDataPayload(now())), marketDataRoute, server);
+}
