@@ -34,7 +34,14 @@ export default function AgentPage() {
       const res = await fetch("/api/intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: m }),
+        // Derniers tours : le serveur s'en sert seulement pour compléter la réponse à ses propres questions.
+        body: JSON.stringify({
+          message: m,
+          history: turns.slice(-6).flatMap((t) => [
+            { role: "user", text: t.message },
+            ...(t.response?.result && "text" in t.response.result ? [{ role: "assistant", text: t.response.result.text }] : []),
+          ]),
+        }),
       });
       const body = await res.json();
       const turn: Turn = body?.result

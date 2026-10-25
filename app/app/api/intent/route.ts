@@ -8,6 +8,7 @@ import { planIntent, toPlan } from "@/lib/agent/planner";
 import { decide, screenMessage } from "@/lib/agent/gatekeeper";
 import { execute, readAgentSpending } from "@/lib/agent/executor";
 import { recipientClarification, resolveRecipient } from "@/lib/agent/contacts";
+import { slotQuestion, withMemory } from "@/lib/agent/slots";
 import { payrollLines } from "@/lib/agent/payroll";
 import { vaultChannel } from "@/lib/agent/vault";
 import { paidAddresses, recordActivity } from "@/lib/agent/activity";
@@ -17,7 +18,11 @@ import { clientIp, isOwnerRequest, rateLimit } from "@/lib/agent/session";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const Body = z.object({ message: z.string().trim().min(1).max(1000) });
+const Body = z.object({
+  message: z.string().trim().min(1).max(1000),
+  /** Derniers tours (optionnel) : sert seulement à compléter la réponse à nos propres questions. */
+  history: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string().max(1000) })).max(12).optional(),
+});
 
 export async function POST(req: Request) {
   // Owner = cookie de session signé (Freighter). Sinon : mode démo, rien n'est envoyé (fail-closed).
@@ -34,7 +39,8 @@ export async function POST(req: Request) {
   }
   const body = Body.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "message requis (1 à 1000 caractères)" }, { status: 400 });
-  const message = body.data.message;
+  // A3 : « paie alice » → « Combien ? » → « 5 » devient « paie alice 5 », puis tout le pipeline.
+  const message = withMemory(body.data.message, body.data.history);
 
   const spendingP = readAgentSpending(); // en parallèle de l'appel LLM
   const planned = await planIntent(message);
@@ -45,6 +51,12 @@ export async function POST(req: Request) {
   if (screened) {
     const plan = out.type === "actions" ? toPlan(out, planned.source) : null;
     return NextResponse.json({ plan, planner: planned.source, verdict: screened, result: { status: "blocked" }, reasoning: screened.reasons.join(" "), mode });
+  }
+
+  // A2 : montant ou destinataire manquant, vérifié en code sur le message brut (même si le LLM a deviné).
+  const missing = slotQuestion(message);
+  if (missing && (out.type === "clarify" || (out.type === "actions" && out.steps.some((s) => s.action === "pay")))) {
+    return NextResponse.json({ plan: null, verdict: null, result: { status: "needs_clarification", text: missing }, reasoning: missing, planner: planned.source, mode });
   }
 
   if (out.type !== "actions") {
