@@ -281,7 +281,8 @@ export async function sendAndWait(tx: BuiltTx, signer?: Keypair): Promise<Invoke
   if (signer) tx.sign(signer);
   const sent = await server.sendTransaction(tx);
   if (sent.status === "ERROR") {
-    return { ok: false, stage: "onchain", hash: sent.hash, error: sent.errorResult?.toXdr("base64") ?? "send error" };
+    // ex. txTooLate (XDR expiré), txBadSeq (le compte source a envoyé une autre tx entre-temps)
+    return { ok: false, stage: "onchain", hash: sent.hash, error: sent.errorResult?.result.type ?? "send error" };
   }
   const res = await server.pollTransaction(sent.hash, { attempts: 30 });
   if (res.status === rpc.Api.GetTransactionStatus.SUCCESS) {
