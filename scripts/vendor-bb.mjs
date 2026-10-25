@@ -12,11 +12,12 @@ import { cp, mkdir } from "node:fs/promises";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const sdkDir = realpathSync(resolve(here, "..", "packages", "ct-sdk"));
-const { VERSIONS } = await import(join(sdkDir, "dist", "index.js"));
+// pathToFileURL : import() exige une URL ; sous Windows un chemin « C:… » est lu comme un protocole « c: ».
+const { VERSIONS } = await import(pathToFileURL(join(sdkDir, "dist", "index.js")).href);
 
 const readPkg = (dir) => JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
 
