@@ -5,6 +5,7 @@ import "server-only";
 import { resolveRecipient, type Recipient } from "./contacts";
 import type { Plan } from "./planner";
 import { fromUsdc, type SpendingState } from "./core";
+import { MARKET_DATA_PATH, MARKET_DATA_PRICE_USDC, TOPUP_MAX_USDC, X402_MAX_PRICE_USDC } from "../x402/config";
 
 export type Verdict = "AUTO_EXECUTE" | "NEEDS_APPROVAL" | "BLOCKED" | "INFO";
 
@@ -15,6 +16,10 @@ export type GateDecision = {
   reasons: string[];
   /** Paiement retenu (un seul par message), destinataire résolu. */
   payment?: { amountUsdc: string; recipient: Recipient };
+  /** Topup retenu : smart account → compte G de l'agent (règle B). */
+  topup?: { amountUsdc: string };
+  /** Achat x402 retenu, payé par le compte G de l'agent. */
+  x402?: { resource: string; priceUsdc: string };
   budget?: { limitUsdc: number; spentUsdc: number; remainingUsdc: number };
 };
 
@@ -91,16 +96,81 @@ export function screenMessage(message: string): GateDecision | null {
 
 // ---------- décision ----------
 
+const budgetOf = (s: SpendingState) => ({ limitUsdc: fromUsdc(s.limit), spentUsdc: fromUsdc(s.spent), remainingUsdc: fromUsdc(s.remaining) });
+
+/**
+ * Topup (x402, option B) : le smart account vire au plus TOPUP_MAX_USDC vers le compte G de
+ * l'agent, signé par l'agent via la règle B, donc compté dans la spending-limit. Le destinataire
+ * est fixe (la clé de l'agent) : il n'y a pas de chemin d'approbation owner, tout doute → BLOCKED.
+ */
+function decideTopup(amountUsdc: string, message: string, spending: SpendingState | null): GateDecision {
+  const amount = Number(amountUsdc);
+  const topup = { amountUsdc };
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { verdict: "BLOCKED", triggered: ["invalid-amount"], reasons: ["Je n'ai pas pu lire un montant valide, donc rien n'a été fait."] };
+  }
+  if (amount > TOPUP_MAX_USDC) {
+    return { verdict: "BLOCKED", triggered: ["topup-max"], reasons: [`Un topup du compte de l'agent est limité à ${TOPUP_MAX_USDC} USDC par opération.`], topup };
+  }
+  if (!spending) {
+    return { verdict: "BLOCKED", triggered: ["budget-unreadable"], reasons: ["Je n'ai pas pu lire le budget on-chain de l'agent, donc je ne recharge pas son compte."], topup };
+  }
+  const budget = budgetOf(spending);
+  const triggered: string[] = [];
+  const reasons: string[] = [];
+  if (amount > budget.remainingUsdc) {
+    triggered.push("spending-limit");
+    reasons.push(`Ça dépasse le budget restant de l'agent (${budget.remainingUsdc} USDC sur ${budget.limitUsdc}) : le réseau refuserait sa signature.`);
+  }
+  const signals = messageSignals(message);
+  if (signals.pressure.length) {
+    triggered.push("pressure-wording");
+    reasons.push("Ton message me pousse à sauter mes vérifications, donc je ne recharge pas le compte de l'agent.");
+  }
+  if (signals.amounts.length && !signals.amounts.includes(String(amount))) {
+    triggered.push("amount-mismatch");
+    reasons.push(`Le montant compris (${amount} USDC) ne correspond pas à celui écrit dans ton message (${signals.amounts.join(", ")}).`);
+  }
+  if (triggered.length) return { verdict: "BLOCKED", triggered, reasons, topup, budget };
+  return {
+    verdict: "AUTO_EXECUTE",
+    triggered: [],
+    reasons: [`Topup de ${amountUsdc} USDC vers le compte de l'agent, signé par l'agent (règle B), compté dans son budget (${budget.remainingUsdc} USDC restants sur ${budget.limitUsdc}).`],
+    topup,
+    budget,
+  };
+}
+
+/** Achat x402 : prix fixe, payé par le compte G de l'agent (hors smart account). */
+function decideMarketData(message: string): GateDecision {
+  const x402 = { resource: MARKET_DATA_PATH, priceUsdc: MARKET_DATA_PRICE_USDC };
+  if (messageSignals(message).pressure.length) {
+    return { verdict: "BLOCKED", triggered: ["pressure-wording"], reasons: ["Ton message me pousse à sauter mes vérifications, donc je n'achète rien."], x402 };
+  }
+  return {
+    verdict: "AUTO_EXECUTE",
+    triggered: [],
+    reasons: [
+      `Achat x402 des données de marché : ${MARKET_DATA_PRICE_USDC} USDC, payés par le compte de l'agent (rechargé par topup depuis le smart account), jamais plus de ${X402_MAX_PRICE_USDC} USDC.`,
+    ],
+    x402,
+  };
+}
+
 export function decide(plan: Plan, message: string, spending: SpendingState | null): GateDecision {
   const steps = plan.steps;
   const pays = steps.filter((s) => s.action === "pay");
+  const moving = steps.filter((s) => s.action === "pay" || s.action === "topup" || s.action === "market_data");
 
-  if (pays.length === 0) {
+  if (moving.length === 0) {
     return { verdict: "INFO", triggered: [], reasons: ["Simple consultation : aucun fonds ne bouge."] };
   }
-  if (pays.length > 1) {
+  if (moving.length > 1) {
     return { verdict: "BLOCKED", triggered: ["multiple-payments"], reasons: ["Un seul paiement par message, pour que chaque montant soit vérifié séparément."] };
   }
+  const only = moving[0];
+  if (only.action === "topup") return decideTopup(only.amount, message, spending);
+  if (only.action === "market_data") return decideMarketData(message);
 
   const pay = pays[0];
   const amount = Number(pay.amount);

@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   const spending = await spendingP;
   const decision = decide(plan, message, spending);
   try {
-    const result = await execute(plan, decision, spending);
+    const result = await execute(plan, decision, spending, { origin: new URL(req.url).origin });
     return NextResponse.json({
       plan,
       verdict: decision,

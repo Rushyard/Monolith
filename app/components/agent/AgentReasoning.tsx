@@ -14,6 +14,8 @@ const VERDICT_LABEL: Record<string, string> = {
 function describeStep(s: NonNullable<IntentResponse["plan"]>["steps"][number]): string {
   if (s.action === "pay") return `Payer ${s.amount} ${s.asset} à ${s.to.startsWith("G") && s.to.length === 56 ? short(s.to) : s.to}`;
   if (s.action === "balance") return "Consulter le solde et le budget de l'agent";
+  if (s.action === "topup") return `Recharger le compte de l'agent de ${s.amount} ${s.asset} (depuis le smart account)`;
+  if (s.action === "market_data") return "Acheter les données de marché premium (x402)";
   return "Consulter l'historique des paiements de l'agent";
 }
 
@@ -86,6 +88,40 @@ function Outcome({ response }: { response: IntentResponse }) {
           Transaction préparée pour l&apos;owner (règle {r.rule}).
         </p>
       );
+    case "topped_up":
+      return (
+        <p style={p}>
+          {r.amountUsdc} USDC virés du smart account vers le compte de l&apos;agent {short(r.agentAddress)} (règle {r.rule}, compté dans le budget)
+          {r.agentUsdc !== null ? `, solde de l'agent : ${r.agentUsdc} USDC` : ""}.{" "}
+          <a href={r.explorerUrl} target="_blank" rel="noreferrer">
+            Voir la transaction ↗
+          </a>
+        </p>
+      );
+    case "x402_paid":
+      return (
+        <div style={p}>
+          <p style={p}>
+            Payé {r.priceUsdc} USDC en x402 depuis le compte de l&apos;agent {short(r.payer)} vers {short(r.payTo)}.{" "}
+            {r.settlement?.explorerUrl && (
+              <a href={r.settlement.explorerUrl} target="_blank" rel="noreferrer">
+                Voir le règlement ↗
+              </a>
+            )}
+          </p>
+          <ul style={ul}>
+            {r.data.pairs.map((d) => (
+              <li key={d.pair}>
+                {d.pair} : {d.price} ({d.change24hPct > 0 ? "+" : ""}
+                {d.change24hPct} % sur 24 h)
+              </li>
+            ))}
+          </ul>
+          <p style={muted}>{r.data.disclaimer}</p>
+        </div>
+      );
+    case "needs_topup":
+      return <p style={p}>{r.text}</p>;
     case "info":
       return (
         <div style={p}>

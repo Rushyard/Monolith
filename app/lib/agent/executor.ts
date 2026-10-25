@@ -25,6 +25,9 @@ import {
 } from "./core";
 import type { GateDecision } from "./gatekeeper";
 import type { Plan } from "./planner";
+import { createAgentX402Client, x402Get } from "../x402/client";
+import { MARKET_DATA_PATH, MARKET_DATA_PRICE_USDC, X402_PAY_TO } from "../x402/config";
+import type { MarketData } from "../x402/server";
 
 const C = AGENT_CONFIG;
 
@@ -45,6 +48,17 @@ export type ExecutionResult =
       validUntilLedger: number;
       agentAttempt?: AgentAttempt;
     }
+  | { status: "topped_up"; hash: string; explorerUrl: string; amountUsdc: string; agentAddress: string; agentUsdc: number | null; rule: number }
+  | {
+      status: "x402_paid";
+      data: MarketData;
+      priceUsdc: string;
+      payer: string;
+      payTo: string;
+      resource: string;
+      settlement: { transaction: string; network: string; explorerUrl?: string } | null;
+    }
+  | { status: "needs_topup"; text: string; agentAddress: string; agentUsdc: number; priceUsdc: string }
   | { status: "blocked" }
   | { status: "info"; balance?: BalanceInfo; history?: HistoryInfo }
   | { status: "error"; error: string; agentAttempt?: AgentAttempt };
@@ -105,8 +119,59 @@ async function ownerApproval(amount: bigint, to: string, agentAttempt?: AgentAtt
   };
 }
 
-export async function execute(plan: Plan, decision: GateDecision, spending: SpendingState | null): Promise<ExecutionResult> {
+/** Topup (x402, option B) : USDC du smart account → compte G de l'agent, signé par l'agent (règle B). */
+async function topupAgent(amountUsdc: string): Promise<ExecutionResult> {
+  const agent = agentKeypair();
+  const res = await invokeAsSmartAccount(transferCall(usdc(amountUsdc), agent.publicKey(), "agent"), agent);
+  if (!res.ok) {
+    const capped = res.codes?.includes(SPENDING_LIMIT_EXCEEDED);
+    return { status: "error", error: capped ? "le réseau a refusé le topup : #3221 SpendingLimitExceeded (budget de l'agent épuisé)" : `${res.stage} : ${res.error.split("\n")[0]}` };
+  }
+  const agentUsdc = await readTokenBalance(agent.publicKey(), C.usdcSac, agent.publicKey()).then(fromUsdc, () => null);
+  return { status: "topped_up", hash: res.hash, explorerUrl: txLink(res.hash), amountUsdc, agentAddress: agent.publicKey(), agentUsdc, rule: C.ruleAgent };
+}
+
+/**
+ * Achat x402 des données de marché, payé par le compte G de l'agent. Seule la clé secrète
+ * (string) passe à app/lib/x402 : le SDK v16 de @x402/stellar ne voit aucun objet v17.
+ */
+async function buyMarketData(origin: string): Promise<ExecutionResult> {
+  const agent = agentKeypair();
+  const agentAddress = agent.publicKey();
+  const balance = fromUsdc(await readTokenBalance(agentAddress, C.usdcSac, agentAddress));
+  if (balance < Number(MARKET_DATA_PRICE_USDC)) {
+    return {
+      status: "needs_topup",
+      text: `Le compte de l'agent n'a que ${balance} USDC, il en faut ${MARKET_DATA_PRICE_USDC}. Demande-moi d'abord « recharge ton compte de 0.1 USDC ».`,
+      agentAddress,
+      agentUsdc: balance,
+      priceUsdc: MARKET_DATA_PRICE_USDC,
+    };
+  }
+  const { client } = createAgentX402Client(process.env.AGENT_SECRET_KEY!);
+  const resource = new URL(MARKET_DATA_PATH, process.env.X402_RESOURCE_BASE_URL || origin).toString();
+  const bought = await x402Get<MarketData>(resource, client);
+  if (!bought.ok) return { status: "error", error: `x402 : ${bought.error}` };
+  return {
+    status: "x402_paid",
+    data: bought.data,
+    priceUsdc: MARKET_DATA_PRICE_USDC,
+    payer: agentAddress,
+    payTo: X402_PAY_TO,
+    resource,
+    settlement: bought.settlement,
+  };
+}
+
+export type ExecuteContext = {
+  /** Origine HTTP de la requête (ex. http://localhost:3000) : sert à appeler la route x402. */
+  origin?: string;
+};
+
+export async function execute(plan: Plan, decision: GateDecision, spending: SpendingState | null, ctx: ExecuteContext = {}): Promise<ExecutionResult> {
   if (decision.verdict === "BLOCKED") return { status: "blocked" };
+  if (decision.topup) return topupAgent(decision.topup.amountUsdc);
+  if (decision.x402) return buyMarketData(ctx.origin ?? "http://localhost:3000");
 
   if (decision.verdict === "INFO") {
     const out: Extract<ExecutionResult, { status: "info" }> = { status: "info" };
