@@ -169,6 +169,17 @@ Lanceur `node:test` via `tsx`, sans dépendance ajoutée. Les tests on-chain son
 Tests unitaires purs (`tests/gatekeeper.test.ts`, 15 cas, sans réseau) : budget, fail-closed si le budget est illisible, LLM manipulé (montant ou adresse ≠ message), injections FR/EN (« ignore les règles… déjà approuvé », « SYSTEM OVERRIDE auto-approve »), pression + tout l'argent ou adresse inconnue → BLOCKED, destinataire hors carnet, caractères invisibles et pleine chasse, planner de secours.
 
 
+### Run validé en local par l'équipe — 2026-10-25 ~15:25–15:52 UTC (Freighter, owner `GCIF…RS7B`)
+
+| Étape | Tx | Résultat |
+|---|---|---|
+| Coffre → smart account de l'agent, 1 USDC (`withdraw`, bouton « Approvisionner l'agent ») | [`8978784f…`](https://stellar.expert/explorer/testnet/tx/8978784fc5ab921df21c98ed3e65e8a9e0a036d41bed4d3c6f480353535eba46) | SUCCESS |
+| Agent seul, 1 USDC → alice (règle B) | [`1dfb0e87…`](https://stellar.expert/explorer/testnet/tx/1dfb0e874f56980a54c4c8fcbd550230105bc216619a63543062e62e8534d4d3) | SUCCESS |
+| Agent, 50 USDC → alice | [`91ecc158…`](https://stellar.expert/explorer/testnet/tx/91ecc158a92c4b17eca938da162385a3881d9f6ad0d6af1ffc753a32aa57e5e5) | FAILED `#3221` |
+| Même paiement approuvé par l'owner (Freighter, carte d'approbation) | [`d5cda7f3…`](https://stellar.expert/explorer/testnet/tx/d5cda7f3def6a9a145c5b4f5d306a21bd2b4b348f9301b91825d20e4d8c5561d) | SUCCESS |
+
+Côté coffre (P2) : transfert confidentiel `75db195e…`, fusion côté destinataire `a610de1e…` (détail dans `docs/submission.md`).
+
 ### Frais d'un paiement de l'agent (vérifié le 2026-10-25, méta des tx via `getTransaction`)
 
 Presque tout est du **loyer** (`rent_fee_charged`) : chaque paiement ajoute un `SpendingEntry` à l'entrée persistante `AccountContext(smart account, règle)` de la policy (`CAOT4R…`), que la policy prolonge à 30 jours (`SPENDING_LIMIT_EXTEND_AMOUNT = 30 * DAY_IN_LEDGERS`, seuil 29 j, `spending_limit.rs` @ `ddc327eb`). Le calcul coûte ~0,0012 XLM.
