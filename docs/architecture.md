@@ -119,6 +119,15 @@ Pour la tx b), la simulation échoue et ne fournit donc pas d'empreinte de stock
 | HTTP `POST /api/intent` « paie 0.3 USDC à Alice » | AUTO_EXECUTE | [`7b59cc04…`](https://stellar.expert/explorer/testnet/tx/7b59cc0492681770cbf321c60c52d0e585b0a554d78c8593fd7f351caa18b9ac) |
 | HTTP `POST /api/intent` « paie 50 USDC à Alice » | needs_owner_approval + rejet on-chain #3221 | [`3560dba5…`](https://stellar.expert/explorer/testnet/tx/3560dba557df6c6bedc61c863111d0942bedce6bf1fafb93db89d119fb4c3f0c) |
 
+### Démo navigateur — `/agent-p1` avec Freighter (owner = Account 2 `GCIF…RS7B`, testnet), 2026-10-25 ~14:29 UTC
+
+Flux complet validé manuellement : chat → planner → gatekeeper → tentative de l'agent → carte d'approbation → signature Freighter (`signTransaction`) → `POST /api/agent/submit`.
+
+| Étape | Résultat | Tx |
+|---|---|---|
+| Tentative de l'agent au-dessus du plafond (source = agent, règle B) | **FAILED on-chain**, `SpendingLimitExceeded` #3221, ledger 5382987 | [`eb70b4a2…`](https://stellar.expert/explorer/testnet/tx/eb70b4a2cd5eaf80d7df9bed9aacac25ee7e99a100f0d35d0b92015f16293676) |
+| Approbation de l'owner signée dans Freighter (source = owner, règle A) | ✅ SUCCESS, ledger 5382996 | [`39a0634f…`](https://stellar.expert/explorer/testnet/tx/39a0634f3ea7df229504c3b152342fc111d60be057df00e5007ebb5b34884243) |
+
 Remboursements d'alice vers le smart account : [`42d70ea9…`](https://stellar.expert/explorer/testnet/tx/42d70ea967e2643ae63aec7d923a6626720f8ebc95f1a3445fe3297888510c81), [`ea88ec4d…`](https://stellar.expert/explorer/testnet/tx/ea88ec4d58642946ee0a215dbc0de6822984e381b73a86a8cd68fab5612f932d).
 
 
