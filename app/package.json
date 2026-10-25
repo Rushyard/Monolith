@@ -4,12 +4,13 @@
   "private": true,
   "scripts": {
     "vendor:bb": "node ../scripts/vendor-bb.mjs",
-    "predev": "npm run vendor:bb",
+    "predev": "npm run build:sdk && npm run vendor:bb",
     "dev": "next dev --webpack",
-    "prebuild": "npm run vendor:bb",
+    "prebuild": "npm run build:sdk && npm run vendor:bb",
     "build": "next build --webpack",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:sdk": "tsc -p ../packages/ct-sdk/tsconfig.json"
   },
   "dependencies": {
     "@stellar/stellar-sdk": "^17.3.0",
