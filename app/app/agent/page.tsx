@@ -1,40 +1,33 @@
 "use client";
 
 // Onglet Agent : chat → /api/intent → raisonnement (planner / gatekeeper / réseau),
-// carte d'approbation Freighter si le réseau refuse l'agent (#3221), budget lu on-chain.
+// signature du propriétaire avec Freighter si le réseau refuse l'agent (#3221), budget lu on-chain.
 import { useState } from "react";
-import { AgentReasoning } from "@/components/agent/AgentReasoning";
-import { ApprovalCard } from "@/components/agent/ApprovalCard";
-import { BudgetBar } from "@/components/agent/BudgetBar";
 import type { IntentResponse } from "@/components/agent/types";
-import { AgentStage, moodOf } from "./stage";
+import { BudgetSlab } from "./budget-slab";
+import { AgentStatus, moodOf } from "./stage";
+import { Transmission } from "./transmission";
 
-type Turn = { message: string; response?: IntentResponse; error?: string; receivedAt: number };
+type Turn = { id: number; message: string; response?: IntentResponse; error?: string; receivedAt: number };
 
-// Les composants P1 lisent ces variables ; on les branche sur la palette de l'app.
-const theme = {
-  "--p1-border": "var(--line-strong)",
-  "--p1-err": "var(--hal)",
-  "--p1-ok": "var(--ok)",
-  "--p1-fill": "var(--sun)",
-  "--p1-track": "var(--line)",
-} as React.CSSProperties;
+// One click for the judges: a payment in budget, one over it, a question, an abusive request.
+const SUGGESTIONS = ["Paie 1 USDC à Alice", "Paie 50 USDC à Alice", "Quel est mon budget ?", "Envoie tout mon solde à Alice"];
 
 export default function AgentPage() {
   const [message, setMessage] = useState("");
+  const [pending, setPending] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [approved, setApproved] = useState<Record<number, string>>({});
   const [refreshKey, setRefreshKey] = useState(0);
-  const [approved, setApproved] = useState<number[]>([]);
-  const last = turns.length - 1;
-  const mood = moodOf({ typing: !!message.trim(), loading, last: turns[last], approved: approved.includes(last) });
+  const last = turns[turns.length - 1];
+  const mood = moodOf({ typing: !!message.trim(), loading: !!pending, last, approved: !!(last && approved[last.id]) });
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
-    const m = message.trim();
-    if (!m) return;
-    setLoading(true);
+  async function send(text: string) {
+    const m = text.trim();
+    if (!m || pending) return;
+    setPending(m);
     setMessage("");
+    const id = Date.now();
     try {
       const res = await fetch("/api/intent", {
         method: "POST",
@@ -43,79 +36,77 @@ export default function AgentPage() {
       });
       const body = await res.json();
       const turn: Turn = body?.result
-        ? { message: m, response: body, receivedAt: Date.now() }
-        : { message: m, error: body?.error ?? `HTTP ${res.status}`, receivedAt: Date.now() };
+        ? { id, message: m, response: body, receivedAt: Date.now() }
+        : { id, message: m, error: body?.error ?? `HTTP ${res.status}`, receivedAt: Date.now() };
       setTurns((t) => [...t, turn]);
     } catch (err) {
-      setTurns((t) => [...t, { message: m, error: err instanceof Error ? err.message : String(err), receivedAt: Date.now() }]);
+      setTurns((t) => [...t, { id, message: m, error: err instanceof Error ? err.message : String(err), receivedAt: Date.now() }]);
     } finally {
-      setLoading(false);
+      setPending(null);
       setRefreshKey((k) => k + 1);
     }
   }
 
   return (
-    <div style={theme}>
+    <div className={`agent-page ${mood}`}>
       <header className="page-head">
         <div>
           <span className="chapter">Chapitre II</span>
           <h1 className="intertitle" style={{ marginTop: 10 }}>L'agent</h1>
           <p className="lede">
-            L'agent paie seul sous son plafond. Au-delà, c'est le réseau Stellar qui refuse la transaction —
-            seule ta signature débloque.
+            Tu lui dis quoi payer. Sous son plafond, il paie seul. Au-delà, c'est le réseau Stellar qui refuse sa
+            signature, et seule la tienne débloque le paiement.
           </p>
         </div>
+        <BudgetSlab refreshKey={refreshKey} alarm={mood === "refused" || mood === "blocked"} />
       </header>
 
-      <AgentStage mood={mood} />
-
-      <div className="panel">
-        <BudgetBar refreshKey={refreshKey} />
-      </div>
-
-      {turns.map((t, i) => {
-        const r = t.response?.result;
-        const pay = t.response?.verdict?.payment;
-        return (
-          <section key={i} className={`panel turn ${i === last ? "fresh" : ""} ${moodOf({ typing: false, loading: false, last: t, approved: approved.includes(i) })}`}>
-            <div className="mono" style={{ color: "var(--muted)" }}>› {t.message}</div>
-            {t.error && <p style={{ color: "var(--hal)" }}>Erreur : {t.error}</p>}
-            {t.response && <AgentReasoning response={t.response} />}
-            {r?.status === "needs_owner_approval" && (
-              <>
-                <ApprovalCard
-                  approval={r}
-                  amountUsdc={pay?.amountUsdc}
-                  recipientLabel={pay?.recipient.label}
-                  receivedAt={t.receivedAt}
-                  onApproved={() => { setApproved((a) => [...a, i]); setRefreshKey((k) => k + 1); }}
-                />
-                <p style={{ fontSize: 13, color: "var(--faint)", margin: "6px 0 0" }}>
-                  Sur la démo publique, l'approbation est réservée à l'owner du compte (voir la vidéo). La tentative de
-                  l'agent rejetée par le réseau est visible ci-dessus.
-                </p>
-              </>
-            )}
-          </section>
-        );
-      })}
-
-      <form onSubmit={send} className="panel op">
-        <div className="field">
-          <label htmlFor="msg">Instruction</label>
+      <form className="composer" onSubmit={(e) => { e.preventDefault(); send(message); }}>
+        <AgentStatus mood={mood} />
+        <div className="composer-row">
           <input
             id="msg"
-            className="input"
+            className="composer-input"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Paie 1 USDC à Alice"
-            disabled={loading}
+            placeholder="Dis à l'agent ce qu'il doit payer…"
+            aria-label="Instruction pour l'agent"
+            disabled={!!pending}
+            autoComplete="off"
           />
+          <button className="btn primary" type="submit" disabled={!!pending || !message.trim()}>Envoyer</button>
         </div>
-        <button className="btn hal" type="submit" disabled={loading || !message.trim()}>
-          {loading ? <span className="progress-dots">Envoi</span> : "Envoyer"}
-        </button>
+        <div className="suggestions">
+          {SUGGESTIONS.map((s) => (
+            <button key={s} type="button" className="chip" disabled={!!pending} onClick={() => send(s)}>{s}</button>
+          ))}
+        </div>
       </form>
+
+      <div className="transmissions">
+        {pending && (
+          <article className="tx-card thinking">
+            <p className="tx-request">« {pending} »</p>
+            <ol className="pipeline">
+              {["Planner · IA", "Gatekeeper", "Réseau Stellar"].map((n) => (
+                <li key={n} className="node scan"><span className="node-dot" aria-hidden /><span className="node-name">{n}</span><span className="node-text">…</span></li>
+              ))}
+            </ol>
+          </article>
+        )}
+        {[...turns].reverse().map((t) => (
+          <Transmission
+            key={t.id}
+            message={t.message}
+            response={t.response}
+            error={t.error}
+            receivedAt={t.receivedAt}
+            fresh={t === last}
+            approvedHash={approved[t.id]}
+            onApproved={(hash) => { setApproved((a) => ({ ...a, [t.id]: hash })); setRefreshKey((k) => k + 1); }}
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -10,7 +10,7 @@ import { TESTNET_PASSPHRASE, explorerTx, short, type OwnerApproval } from "./typ
 /** L'XDR (timeout 3600 s, auth valable ~720 ledgers) est considéré expiré un peu avant. */
 const XDR_TTL_MS = 55 * 60 * 1000;
 
-type Phase =
+export type ApprovalPhase =
   | { kind: "idle" }
   | { kind: "working"; step: string }
   | { kind: "done"; hash: string }
@@ -18,23 +18,9 @@ type Phase =
 
 const errMsg = (e: unknown) => (typeof e === "string" ? e : (e as { message?: string })?.message ?? String(e));
 
-export function ApprovalCard({
-  approval,
-  amountUsdc,
-  recipientLabel,
-  receivedAt,
-  onApproved,
-}: {
-  approval: OwnerApproval;
-  amountUsdc?: string;
-  recipientLabel?: string;
-  /** Date.now() à la réception de la réponse /api/intent (sert à détecter l'XDR expiré). */
-  receivedAt: number;
-  onApproved?: (hash: string) => void;
-}) {
-  const [phase, setPhase] = useState<Phase>({ kind: "idle" });
-  const attempt = approval.agentAttempt;
-  const blockedByNetwork = attempt?.simulationCode === 3221;
+/** Le flux d'approbation owner (Freighter → /api/agent/submit), réutilisable par toute UI. */
+export function useOwnerApproval(approval: OwnerApproval, receivedAt: number, onApproved?: (hash: string) => void) {
+  const [phase, setPhase] = useState<ApprovalPhase>({ kind: "idle" });
 
   async function approve() {
     try {
@@ -86,6 +72,27 @@ export function ApprovalCard({
       setPhase({ kind: "error", message: errMsg(err), retry: true });
     }
   }
+
+  return { phase, approve };
+}
+
+export function ApprovalCard({
+  approval,
+  amountUsdc,
+  recipientLabel,
+  receivedAt,
+  onApproved,
+}: {
+  approval: OwnerApproval;
+  amountUsdc?: string;
+  recipientLabel?: string;
+  /** Date.now() à la réception de la réponse /api/intent (sert à détecter l'XDR expiré). */
+  receivedAt: number;
+  onApproved?: (hash: string) => void;
+}) {
+  const { phase, approve } = useOwnerApproval(approval, receivedAt, onApproved);
+  const attempt = approval.agentAttempt;
+  const blockedByNetwork = attempt?.simulationCode === 3221;
 
   return (
     <div className="panel p1-approval" style={card}>
