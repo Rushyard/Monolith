@@ -8,12 +8,15 @@
     "node": ">=20"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "app"
   ],
   "scripts": {
     "postinstall": "npm run build -w stellar-confidential-token-sdk",
     "ct:deploy": "tsx scripts/deploy-ct.ts",
-    "ct:e2e": "tsx scripts/e2e-ct.ts"
+    "ct:e2e": "tsx scripts/e2e-ct.ts",
+    "dev": "npm run dev -w @monolith/app",
+    "build": "npm run build -w @monolith/app"
   },
   "devDependencies": {
     "@stellar/stellar-sdk": "^14.2.0",
