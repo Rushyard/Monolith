@@ -48,6 +48,16 @@ export type ExecutionResult =
       agentAttempt?: AgentAttempt;
     }
   | VaultSignatureRequest
+  | {
+      /** Mode démo (visiteur) : la tx de l'agent a été SIMULÉE, rien n'a été envoyé. */
+      status: "simulated";
+      wouldSucceed: boolean;
+      /** Code renvoyé par la simulation (3221 = SpendingLimitExceeded), null si elle passe. */
+      code: number | null;
+      /** Ce qui se serait passé : l'agent aurait payé seul, ou il aurait fallu l'accord de l'owner. */
+      wouldNeed: "nothing" | "owner_approval";
+      text: string;
+    }
   | { status: "blocked" }
   | { status: "info"; balance?: BalanceInfo; history?: HistoryInfo }
   | { status: "error"; error: string; agentAttempt?: AgentAttempt };
@@ -108,7 +118,29 @@ async function ownerApproval(amount: bigint, to: string, agentAttempt?: AgentAtt
   };
 }
 
-export async function execute(plan: Plan, decision: GateDecision, spending: SpendingState | null): Promise<ExecutionResult> {
+/** « live » : owner connecté, l'agent paie pour de vrai. « simulation » : visiteur, rien n'est envoyé. */
+export type ExecMode = "live" | "simulation";
+
+/** Visiteur : on simule la tx de l'agent (auth signée, policy exécutée) sans l'envoyer ni soumettre de rejet. */
+async function simulateForVisitor(decision: GateDecision): Promise<ExecutionResult> {
+  const { amountUsdc, recipient } = decision.payment!;
+  const { enforced } = await prepareSmartAccountCall(await transferCall(usdc(amountUsdc), recipient.address, "agent"));
+  const code = rpc.Api.isSimulationError(enforced) ? (simulationErrorCode(enforced.error) ?? -1) : null;
+  const wouldSucceed = code === null;
+  const what = `${amountUsdc} USDC → ${recipient.label}`;
+  const wouldNeed = decision.verdict === "AUTO_EXECUTE" && wouldSucceed ? "nothing" : "owner_approval";
+  const text =
+    code === SPENDING_LIMIT_EXCEEDED
+      ? `Simulation : ce paiement (${what}) aurait été refusé par le réseau (#3221, plafond de l'agent). Seule Sarah pourrait l'approuver avec Freighter. Rien n'a été envoyé.`
+      : code !== null
+        ? `Simulation : ce paiement (${what}) aurait été refusé par le réseau${code > 0 ? ` (#${code})` : ""}. Rien n'a été envoyé.`
+        : wouldNeed === "nothing"
+          ? `Simulation : ce paiement (${what}) aurait été exécuté par l'agent seul, sous son plafond. Rien n'a été envoyé.`
+          : `Simulation : le réseau aurait accepté la signature de l'agent, mais le gatekeeper aurait demandé l'accord de Sarah (${decision.triggered.join(", ")}). Rien n'a été envoyé.`;
+  return { status: "simulated", wouldSucceed, code, wouldNeed, text };
+}
+
+export async function execute(plan: Plan, decision: GateDecision, spending: SpendingState | null, mode: ExecMode = "live"): Promise<ExecutionResult> {
   if (decision.verdict === "BLOCKED") return { status: "blocked" };
 
   // Coffre : l'agent n'a pas les clés de Sarah, il ne signe et ne prouve rien. Il prépare la liste.
@@ -143,6 +175,8 @@ export async function execute(plan: Plan, decision: GateDecision, spending: Spen
     }
     return out;
   }
+
+  if (mode === "simulation") return simulateForVisitor(decision);
 
   const { amountUsdc, recipient } = decision.payment!;
   const amount = usdc(amountUsdc);

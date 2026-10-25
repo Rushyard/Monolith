@@ -4,14 +4,32 @@ import { AGENT_CONFIG } from "@/lib/agent/config";
 import { NETWORK_PASSPHRASE, TransactionBuilder, fromUsdc, readTokenBalance, sendAndWait, txLink } from "@/lib/agent/core";
 import { readAgentSpending } from "@/lib/agent/executor";
 import { readActivity, verifyVaultReceipt } from "@/lib/agent/activity";
+import {
+  clearSessionCookieHeader,
+  createChallenge,
+  isOwnerRequest,
+  makeSessionToken,
+  sessionCookieHeader,
+  sessionSecret,
+  verifyLogin,
+} from "@/lib/agent/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // GET /api/agent/balance · GET /api/agent/history · GET /api/agent/activity
-export async function GET(_req: Request, { params }: { params: Promise<{ path: string[] }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
   const route = path.join("/");
+  // GET /api/agent/session → { enabled, owner, ownerAddress } · GET /api/agent/challenge → { message, token }
+  if (route === "session") {
+    return NextResponse.json({ enabled: !!sessionSecret(), owner: isOwnerRequest(req, AGENT_CONFIG.ownerAddress), ownerAddress: AGENT_CONFIG.ownerAddress });
+  }
+  if (route === "challenge") {
+    const secret = sessionSecret();
+    if (!secret) return NextResponse.json({ error: "connexion owner désactivée (SESSION_SECRET absent) : tout le monde est en simulation" }, { status: 503 });
+    return NextResponse.json({ ...createChallenge(secret), ownerAddress: AGENT_CONFIG.ownerAddress }, { headers: { "Cache-Control": "no-store" } });
+  }
   if (route === "activity") {
     try {
       return NextResponse.json({ items: await readActivity() });
@@ -50,8 +68,23 @@ export async function GET(_req: Request, { params }: { params: Promise<{ path: s
 const SubmitBody = z.object({ signedXdr: z.string().min(1).max(20_000) });
 const ReceiptBody = z.object({ to: z.string().regex(/^G[A-Z2-7]{55}$/), hash: z.string().regex(/^[0-9a-f]{64}$/i) }).strict();
 
+// POST /api/agent/session { message, token, signature } : connexion owner (signature SEP-53 Freighter).
+const LoginBody = z.object({ message: z.string().min(1).max(500), token: z.string().min(1).max(200), signature: z.string().min(1).max(200) }).strict();
+
 export async function POST(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
+  if (path.join("/") === "session") {
+    const secret = sessionSecret();
+    if (!secret) return NextResponse.json({ error: "connexion owner désactivée (SESSION_SECRET absent)" }, { status: 503 });
+    const body = LoginBody.safeParse(await req.json().catch(() => null));
+    if (!body.success) return NextResponse.json({ error: "{ message, token, signature } requis" }, { status: 400 });
+    const check = verifyLogin(body.data, AGENT_CONFIG.ownerAddress, secret);
+    if (!check.ok) return NextResponse.json({ error: check.error }, { status: 401 });
+    return NextResponse.json(
+      { enabled: true, owner: true, ownerAddress: AGENT_CONFIG.ownerAddress },
+      { headers: { "Set-Cookie": sessionCookieHeader(makeSessionToken(AGENT_CONFIG.ownerAddress, secret)) } },
+    );
+  }
   if (path.join("/") === "vault-receipt") {
     const body = ReceiptBody.safeParse(await req.json().catch(() => null));
     if (!body.success) return NextResponse.json({ error: "{ to: G…, hash } requis, sans montant" }, { status: 400 });
@@ -76,4 +109,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
   return res.ok
     ? NextResponse.json({ status: "submitted", hash: res.hash, explorerUrl: txLink(res.hash) })
     : NextResponse.json({ status: "failed", error: res.error, hash: res.hash, explorerUrl: res.hash ? txLink(res.hash) : undefined }, { status: 502 });
+}
+
+// DELETE /api/agent/session : déconnexion.
+export async function DELETE(_req: Request, { params }: { params: Promise<{ path: string[] }> }) {
+  const { path } = await params;
+  if (path.join("/") !== "session") return NextResponse.json({ error: "not found" }, { status: 404 });
+  return NextResponse.json({ owner: false }, { headers: { "Set-Cookie": clearSessionCookieHeader() } });
 }
