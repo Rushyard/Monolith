@@ -512,11 +512,11 @@ export async function secondsPerLedger(sample = 100): Promise<number> {
 export const AGENT_RULE = { name: "agent-usdc-10-24h", limit: usdc(10), periodLedgers: 17_280 } as const;
 
 /** Arguments de add_context_rule pour la règle B : CallContract(USDC SAC), signer External(verifier, agent), spending_limit. */
-export function addAgentRuleArgs(usdcSac: string, verifier: string, agentRawPublicKey: Uint8Array, policy: string): xdr.ScVal[] {
+export function addAgentRuleArgs(usdcSac: string, verifier: string, agentRawPublicKey: Uint8Array, policy: string, validUntil: number | null = null): xdr.ScVal[] {
   return [
     callContractRule(usdcSac),
     nativeToScVal(AGENT_RULE.name, { type: "string" }),
-    xdr.ScVal.scvVoid(),
+    validUntil === null ? xdr.ScVal.scvVoid() : nativeToScVal(validUntil, { type: "u32" }), // mandat (valid_until, ledger inclus)
     xdr.ScVal.scvVec([externalSigner(verifier, agentRawPublicKey)]),
     xdr.ScVal.scvMap([
       new xdr.ScMapEntry({ key: new Address(policy).toScVal(), val: spendingLimitParams(AGENT_RULE.limit, AGENT_RULE.periodLedgers) }),

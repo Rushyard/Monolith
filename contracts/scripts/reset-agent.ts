@@ -21,6 +21,7 @@ import {
   rpc,
   saveDeployments,
   scValToNative,
+  server,
   txLink,
   xdr,
   type SmartAccountCall,
@@ -54,7 +55,10 @@ const asOwner = (fn: string, args: xdr.ScVal[]): SmartAccountCall => ({
 });
 
 const removeCall = asOwner("remove_context_rule", [nativeToScVal(oldRule, { type: "u32" })]);
-const addCall = asOwner("add_context_rule", addAgentRuleArgs(d.usdcSac, d.ed25519Verifier!, agent.rawPublicKey(), d.spendingLimitPolicy!));
+// --days N : nouvelle règle avec un mandat (valid_until = ledger courant + N jours à ~5 s/ledger). Sans option : sans expiration.
+const daysIdx = process.argv.indexOf("--days");
+const mandateUntil = daysIdx === -1 ? null : (await server.getLatestLedger()).sequence + Math.round((Number(process.argv[daysIdx + 1]) * 86400) / 5);
+const addCall = asOwner("add_context_rule", addAgentRuleArgs(d.usdcSac, d.ed25519Verifier!, agent.rawPublicKey(), d.spendingLimitPolicy!, mandateUntil));
 
 const before = await readSpendingState(owner.publicKey(), d.spendingLimitPolicy!, SA, oldRule);
 console.log(`Smart account ${SA}`);
