@@ -1,0 +1,24 @@
+{
+  "name": "monolith",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Confidential treasury + on-chain capped AI agent on Stellar testnet (HackMeridian 2026).",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "postinstall": "npm run build -w stellar-confidential-token-sdk",
+    "ct:deploy": "tsx scripts/deploy-ct.ts",
+    "ct:e2e": "tsx scripts/e2e-ct.ts"
+  },
+  "devDependencies": {
+    "@stellar/stellar-sdk": "^14.2.0",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

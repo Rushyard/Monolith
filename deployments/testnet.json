@@ -1,0 +1,18 @@
+{
+  "network": "testnet",
+  "protocol": "stellar-confidential 0.8.0",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "passphrase": "Test SDF Network ; September 2015",
+  "kind": "vanilla",
+  "deployedAtLedger": 5380562,
+  "deployTx": "712ea387cb5c55ea5ed5cfaac2d160715d6a2bf26abe32e8456b6db6eea4064e",
+  "deployer": "GBYIYBD6U4VSXD4AVXGTLVPK2PW5YQZKX6QN4RTBV27BDIFTMEQ3AOBW",
+  "auditorId": 0,
+  "contracts": {
+    "token": "CB4T3MNGCLUNVM7A4LCMXSOFRCWA6OODNDLFNDHRUHSDAOLRLAUYJMDD",
+    "verifier": "CAN45PFA5CVUCU3JB77IE2JNWNTRCDWMRNG55U452L3N2IOCAGOLTUVQ",
+    "auditor": "CBQZRK72Y6KJ5DR4CUHKLHMHIKBMOZNSYTWHRUQPEXA35PRCBMSPBZTW",
+    "factory": "CAWPCXMW47UET5Z4N5T44PRDGAY6CZVP2O2JDEBL7YWEUHJGQ2BR4L6R",
+    "underlying": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA"
+  }
+}
