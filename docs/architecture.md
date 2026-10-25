@@ -403,3 +403,15 @@ Account `GD46SGQRPKDSWAS665C7OWIPY6TBWRMSSNZLAHZJDFBDAMPBRCYLRLAB`, recipient `G
 | `/auditor` decrypts the transfer → 2.50, sender balance after → 7.50 | off-chain | — |
 
 Final vault balance 6.50 USDC (10 − 2.5 − 1), public balance 41 USDC.
+
+### GO 0h30 — paie confidentielle depuis l'URL de prod, 2026-10-25 21:31–21:32 UTC ✅
+
+https://monolith-nine-rosy.vercel.app/agent (déploiement `f2b6462`), Sarah connectée (session owner), « verse les salaires » → VaultPayCard → Freighter.
+
+| Paiement | Tx | Ledger | Public | Marc (auditeur #1) |
+|---|---|---|---|---|
+| Sarah → Carol `GDTM…XPH3` | [`2b62fa17…`](https://stellar.expert/explorer/testnet/tx/2b62fa17c9d4dd442275bd3385f6adf7179341e2e1c4cf7c22884192486c1b1e) | 5388065 | SUCCESS, montant absent de l'événement | **3.00 USDC** (solde de Sarah après : 6.00) |
+| Sarah → Bob `GBCQ…32GV` | [`2d116efd…`](https://stellar.expert/explorer/testnet/tx/2d116efd9f90d83ee466dad7f5f798a7d8a5e31f99eaa3ceae05ae6da6b34c9d) | 5388068 | SUCCESS, montant absent de l'événement | **2.00 USDC** (solde de Sarah après : 4.00) |
+
+Clé d'audit vérifiée contre le registre (`k·H == get_key(1)`), les deux canaux d'audit concordent. `GET /api/agent/activity` (prod) : deux reçus privés `paid`, sans montant.
+Après ce run, le coffre de Sarah contient 4.00 USDC : recharger (≥ 5) avant la prochaine paie.
