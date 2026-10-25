@@ -8,9 +8,6 @@
     "gonogo": "tsx scripts/gonogo.ts",
     "status": "tsx scripts/status.ts"
   },
-  "dependencies": {
-    "@stellar/stellar-sdk": "^17.4.0"
-  },
   "devDependencies": {
     "@types/node": "^22",
     "tsx": "^4.23.15",

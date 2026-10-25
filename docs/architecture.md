@@ -78,7 +78,7 @@ Valeurs aussi dans `contracts/deployments.testnet.json`, produit par `npm run de
 
 | id | Nom | Type | Signer | Policy |
 |---|---|---|---|---|
-| 0 (A) | `multisig` (nom codé en dur dans le constructeur de l'exemple OZ) | `Default` | `Delegated(owner GCIFXLBR…RS7B)` | aucune : plein pouvoir |
+| 0 (A) | `owner` (créée `multisig` par le constructeur de l'exemple OZ, renommée) | `Default` | `Delegated(owner GCIFXLBR…RS7B)` | aucune : plein pouvoir |
 | 1 (B) | `agent-usdc-10-24h` | `CallContract(USDC SAC)` | `External(vérificateur Ed25519, 123a7d56…2a3a)` = clé publique de l'agent | spending_limit : `spending_limit = 100000000` (10 USDC), `period_ledgers = 17280` (~24 h) |
 
 #### Tx de déploiement / configuration
@@ -92,6 +92,7 @@ Valeurs aussi dans `contracts/deployments.testnet.json`, produit par `npm run de
 | Upload WASM smart account | [`aa7b707b…`](https://stellar.expert/explorer/testnet/tx/aa7b707b3aab032a739d38f7d1c6835868c2a2b8e7d089ecfa8504d610243792) |
 | Création smart account + règle A (constructeur) | [`a9781d7c…`](https://stellar.expert/explorer/testnet/tx/a9781d7c5bba0cecae0eee844ea0fc9b8bcb2b70b90d425ca74bef2601690768) |
 | `add_context_rule` règle B, autorisée par l'owner via la règle A (auth Delegated) | [`3f92c989…`](https://stellar.expert/explorer/testnet/tx/3f92c989446c0f8957be7c74a91e26e99cdfd40fef7232615034c58f6f1202b2) |
+| `update_context_rule_name(0, "owner")`, flux d'approbation owner : owner = source de la tx, auth imbriquée `__check_auth` en credentials « source account », une seule signature d'enveloppe (ce que fait Freighter) | [`f3c762b4…`](https://stellar.expert/explorer/testnet/tx/f3c762b4bc658eaa18fcda5fbbe67e9d55f3272c0bad400d252b5872bafc35a4) |
 
 ### Go/no-go P1 — 2026-10-25 (`npm run gonogo` dans `contracts/`) : 🟢 GO
 

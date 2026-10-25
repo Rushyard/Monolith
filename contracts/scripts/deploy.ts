@@ -6,8 +6,11 @@
 // Règle B : CallContract(USDC SAC), signer = agent (External Ed25519), policy = spending_limit.
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import { Address, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
 import {
+  Address,
+  nativeToScVal,
+  scValToNative,
+  xdr,
   DEPLOYMENTS_FILE,
   USDC_ISSUER,
   callContractRule,
@@ -71,7 +74,8 @@ if (d.ruleAgent === undefined) {
       val: spendingLimitParams(SPENDING_LIMIT, PERIOD_LEDGERS),
     }),
   ]);
-  const res = await invokeAsSmartAccount({
+  const res = await invokeAsSmartAccount(
+    {
     contract: d.smartAccount,
     fn: "add_context_rule",
     args: [
@@ -84,8 +88,10 @@ if (d.ruleAgent === undefined) {
     smartAccount: d.smartAccount,
     ruleId: d.ruleOwner ?? 0,
     signer: { kind: "delegated", keypair: owner },
-    feePayer: owner,
-  });
+    source: owner.publicKey(),
+    },
+    owner,
+  );
   if (!res.ok) throw new Error(`add_context_rule a échoué (${res.stage}) : ${res.error}`);
   const rule = scValToNative(res.returnValue!);
   d.ruleAgent = Number(rule.id);

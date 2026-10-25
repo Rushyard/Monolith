@@ -1,10 +1,9 @@
 // État du smart account Monolith (lecture seule, aucune tx envoyée).
 //   npm run status            (depuis contracts/)
-import { Address, nativeToScVal, scValToNative } from "@stellar/stellar-sdk";
-import { contractLink, keypairFromCli, loadDeployments, readContract, server } from "./lib.ts";
+import { Address, contractLink, keypairFromCli, loadDeployments, nativeToScVal, readContract, scValToNative, server } from "./lib.ts";
 
 const d = loadDeployments();
-const reader = keypairFromCli("owner"); // simple compte source pour simuler
+const reader = keypairFromCli("owner").publicKey(); // simple compte source pour simuler
 const alice = keypairFromCli("alice").publicKey();
 const SA = d.smartAccount!;
 const fmt = (v: bigint) => `${(Number(v) / 1e7).toFixed(2)} USDC`;

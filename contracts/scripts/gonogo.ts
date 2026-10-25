@@ -5,8 +5,11 @@
 //   c) owner → 50 USDC vers alice  : doit RÉUSSIR
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { Address, nativeToScVal, rpc, scValToNative } from "@stellar/stellar-sdk";
 import {
+  Address,
+  nativeToScVal,
+  rpc,
+  scValToNative,
   invokeAsClassic,
   invokeAsSmartAccount,
   keypairFromCli,
@@ -41,16 +44,17 @@ const transfer = (amount: bigint, who: "agent" | "owner"): SmartAccountCall => (
   smartAccount: SA,
   ruleId: who === "agent" ? d.ruleAgent! : d.ruleOwner!,
   signer: who === "agent" ? agentSigner : ownerSigner,
-  feePayer: who === "agent" ? agent : owner,
+  source: who === "agent" ? agent.publicKey() : owner.publicKey(),
 });
+const kp = (who: "agent" | "owner") => (who === "agent" ? agent : owner);
 
 const fmt = (v: bigint) => `${Number(v) / 1e7} USDC`;
 async function balance(addr: string) {
-  return BigInt(scValToNative((await readContract(owner, d.usdcSac, "balance", [new Address(addr).toScVal()]))!));
+  return BigInt(scValToNative((await readContract(owner.publicKey(), d.usdcSac, "balance", [new Address(addr).toScVal()]))!));
 }
 async function spent() {
   const data = scValToNative(
-    (await readContract(owner, d.spendingLimitPolicy!, "get_spending_limit_data", [
+    (await readContract(owner.publicKey(), d.spendingLimitPolicy!, "get_spending_limit_data", [
       nativeToScVal(d.ruleAgent!, { type: "u32" }),
       new Address(SA).toScVal(),
     ]))!,
@@ -69,7 +73,7 @@ await state("avant");
 
 // a) agent → 5 USDC
 console.log("\na) agent → 5 USDC vers alice (attendu : SUCCÈS)");
-const a = await invokeAsSmartAccount(transfer(usdc(5), "agent"));
+const a = await invokeAsSmartAccount(transfer(usdc(5), "agent"), kp("agent"));
 if (a.ok) console.log(`  ✅ succès  ${txLink(a.hash)}`);
 else console.log(`  ❌ échec inattendu (${a.stage}) : ${a.error}`);
 pass &&= a.ok;
@@ -99,7 +103,7 @@ await state("après b");
 
 // c) owner → 50 USDC
 console.log("\nc) owner → 50 USDC vers alice (attendu : SUCCÈS)");
-const c = await invokeAsSmartAccount(transfer(usdc(50), "owner"));
+const c = await invokeAsSmartAccount(transfer(usdc(50), "owner"), kp("owner"));
 if (c.ok) console.log(`  ✅ succès  ${txLink(c.hash)}`);
 else console.log(`  ❌ échec inattendu (${c.stage}) : ${c.error}`);
 pass &&= c.ok;
