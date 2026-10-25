@@ -443,3 +443,101 @@ export const T: Record<Lang, Messages> = { en, fr, pt };
 /** Les trois traductions d'une phrase sans paramètre (ex. reconnaître nos propres questions). */
 export const allLangs = (key: { [K in keyof Messages]: Messages[K] extends string ? K : never }[keyof Messages]): string[] =>
   LANGS.map((l) => T[l][key] as string);
+
+// ---------- bloc « mandate » : mandat de l'agent (droits qui expirent on-chain, valid_until OZ) ----------
+
+/** Durée lisible : « 6 days 23 h » / « 5 h 10 min » / « 3 min ». */
+const span = (sec: number, u: { d: string; h: string; m: string }) => {
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return d > 0 ? `${d} ${u.d} ${h} h` : h > 0 ? `${h} h ${m} min` : `${Math.max(m, 1)} min`;
+};
+
+const mandateEn = {
+  expired: "The agent's mandate has expired: Sarah must renew it.",
+  leftover: (usdc: string) => `There are ${usdc} USDC left in the petty cash. Do you want me to put them back in the vault?`,
+  left: (sec: number) => `Mandate: expires in about ${span(sec, { d: "days", h: "h", m: "min" })}.`,
+  none: "Mandate: no expiry.",
+  expiredShort: "Mandate: expired.",
+  howLong: "For how long? (between 1 hour and 30 days)",
+  range: "A mandate lasts between 1 hour and 30 days: how long should it be?",
+  granted: (until: string) => `Until ${until} (UTC, approximately), I'll be able to pay on my own under your cap. After that, I won't be able to pay anything. Renewing doesn't reset the budget already spent.`,
+  simulated: (until: string) => `Simulation: Sarah would sign a mandate until ${until} (UTC, approximately). Nothing was sent.`,
+  ownerOnly: "Only Sarah, signed in, can give the agent a mandate.",
+  badgeLeft: (sec: number) => `Mandate: ${span(sec, { d: "d", h: "h", m: "min" })} left`,
+  badgeNone: "No expiry",
+  badgeExpired: "Expired: renew",
+  sign: "Sign the mandate in Freighter",
+  fee: (fee: number) => `Simulated fee: ~${fee} XLM (paid by Sarah).`,
+};
+type MandateMessages = typeof mandateEn;
+
+const mandateFr: MandateMessages = {
+  expired: "Le mandat de l'agent a expiré : Sarah doit le renouveler.",
+  leftover: (usdc) => `Il reste ${usdc} USDC dans la petite caisse. Veux-tu que je les remette dans le coffre ?`,
+  left: (sec) => `Mandat : expire dans environ ${span(sec, { d: "jours", h: "h", m: "min" })}.`,
+  none: "Mandat : sans expiration.",
+  expiredShort: "Mandat : expiré.",
+  howLong: "Pour combien de temps ? (entre 1 heure et 30 jours)",
+  range: "Un mandat dure entre 1 heure et 30 jours : combien de temps veux-tu ?",
+  granted: (until) => `Jusqu'au ${until} (UTC, environ), je pourrai payer seul sous ton plafond. Après, je ne pourrai plus rien payer. Le renouvellement ne remet pas à zéro le budget déjà dépensé.`,
+  simulated: (until) => `Simulation : Sarah signerait un mandat jusqu'au ${until} (UTC, environ). Rien n'a été envoyé.`,
+  ownerOnly: "Seule Sarah, connectée, peut donner un mandat à l'agent.",
+  badgeLeft: (sec) => `Mandat : ${span(sec, { d: "j", h: "h", m: "min" })} restants`,
+  badgeNone: "Sans expiration",
+  badgeExpired: "Expiré : à renouveler",
+  sign: "Signer le mandat dans Freighter",
+  fee: (fee) => `Frais simulés : ~${fee} XLM (payés par Sarah).`,
+};
+
+const mandatePt: MandateMessages = {
+  expired: "O mandato do agente expirou: Sarah precisa renová-lo.",
+  leftover: (usdc) => `Restam ${usdc} USDC no caixa. Quer que eu os devolva ao cofre?`,
+  left: (sec) => `Mandato: expira em cerca de ${span(sec, { d: "dias", h: "h", m: "min" })}.`,
+  none: "Mandato: sem expiração.",
+  expiredShort: "Mandato: expirado.",
+  howLong: "Por quanto tempo? (entre 1 hora e 30 dias)",
+  range: "Um mandato dura entre 1 hora e 30 dias: por quanto tempo?",
+  granted: (until) => `Até ${until} (UTC, aproximadamente), poderei pagar sozinho abaixo do seu limite. Depois, não poderei pagar mais nada. A renovação não zera o orçamento já gasto.`,
+  simulated: (until) => `Simulação: Sarah assinaria um mandato até ${until} (UTC, aproximadamente). Nada foi enviado.`,
+  ownerOnly: "Só Sarah, conectada, pode dar um mandato ao agente.",
+  badgeLeft: (sec) => `Mandato: ${span(sec, { d: "d", h: "h", m: "min" })} restantes`,
+  badgeNone: "Sem expiração",
+  badgeExpired: "Expirado: renovar",
+  sign: "Assinar o mandato no Freighter",
+  fee: (fee) => `Taxa simulada: ~${fee} XLM (paga por Sarah).`,
+};
+
+export const MT: Record<Lang, MandateMessages> = { en: mandateEn, fr: mandateFr, pt: mandatePt };
+
+/** État du mandat à afficher : `validUntil` (ledger, inclus) comparé au ledger courant. */
+export type MandateView = { validUntil: number | null; ledger: number; secondsPerLedger: number };
+
+export function mandateLine(m: MandateView, lang: Lang): string {
+  if (m.validUntil === null) return MT[lang].none;
+  if (m.validUntil < m.ledger) return MT[lang].expiredShort;
+  return MT[lang].left((m.validUntil - m.ledger + 1) * m.secondsPerLedger);
+}
+
+/** Mots-clés du mandat (texte sans accents) et durée « 7 jours / 3 days / 12 h / 2 semanas ». */
+export const MANDATE_KEYWORDS = {
+  mandate: /\b(mandat|mandate|mandato|acces|access|acesso|droits?|rights?|direitos?)\b/,
+  duration: /(\d+(?:[.,]\d+)?)\s*(jours?|days?|dias?|j|d|heures?|hours?|horas?|hrs?|h|semaines?|weeks?|semanas?|minutes?|minutos?|min)\b/,
+};
+
+/** « 7 days » → 168 (heures), ou null. Les minutes sont converties (et seront hors plage si < 1 h). */
+export function mandateHours(text: string): number | null {
+  const m = MANDATE_KEYWORDS.duration.exec(text);
+  if (!m) return null;
+  const n = Number(m[1].replace(",", "."));
+  const unit = m[2];
+  if (/^(semaine|week|semana)/.test(unit)) return n * 168;
+  if (/^(jour|day|dia|j$|d$)/.test(unit)) return n * 24;
+  if (/^(min)/.test(unit)) return n / 60;
+  return n;
+}
+
+/** Date lisible d'une expiration, dans la langue de la réponse (UTC). */
+export const mandateDate = (iso: string, lang: Lang) =>
+  new Intl.DateTimeFormat({ en: "en-US", fr: "fr-FR", pt: "pt-BR" }[lang], { dateStyle: "long", timeStyle: "short", timeZone: "UTC" }).format(new Date(iso));
