@@ -280,3 +280,13 @@ table.data td.num { white-space: nowrap; }
 .curve-card { position: relative; overflow: hidden; }
 .curve-card > :not(.curve-point) { position: relative; }
 .curve-point { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .55; pointer-events: none; }
+
+/* ---------- fx: 3D monolith hero (full-bleed) ---------- */
+html, body { overflow-x: clip; }
+.monolith3d {
+  position: relative; left: 50%; width: 100vw; margin-left: -50vw;
+  height: min(72vh, 720px); min-height: 400px; background: #000;
+}
+.hero-dawn.is-3d { padding-top: 0; }
+.hero-dawn.is-3d .hero-copy { margin-top: 28px; position: relative; z-index: 1; }
+.hero-hint { font-family: var(--mono); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--faint); margin: -16px 0 32px; }
