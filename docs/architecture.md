@@ -2,6 +2,22 @@
 
 > Chaque contract ID et chaque tx hash de démo est ajouté ici dès qu'il existe (testnet).
 
+## Démo live
+
+**https://monolith-nine-rosy.vercel.app** — public (pas de Deployment Protection), testnet.
+
+| | |
+|---|---|
+| Pages | [`/`](https://monolith-nine-rosy.vercel.app/) · [`/vault`](https://monolith-nine-rosy.vercel.app/vault) · [`/auditor`](https://monolith-nine-rosy.vercel.app/auditor) · [`/agent`](https://monolith-nine-rosy.vercel.app/agent) |
+| Hébergement | Vercel, projet `monolith` (Root Directory `app`, Next.js), lié à `Rushyard/Monolith` |
+| Code déployé | branche `claude/awesome-mccarthy-y5fgfb` (déploiement de production) |
+| Isolation cross-origin | `COOP: same-origin` + `COEP: credentialless` sur toutes les routes → `window.crossOriginIsolated === true` (requis par bb.js) ; `/vendor/bb/index.js` servi en 200 |
+
+Vérifié avec Playwright (Chromium) le 2026-10-25 : les 4 pages répondent 200, aucune erreur JS,
+et `/auditor` lit la chaîne puis révèle le transfert confidentiel `59b6c363…` (« chiffré » on-chain) = **7.50 USDC**.
+La vue auditeur lit les événements via le RPC Soroban, dont la fenêtre de rétention est d'environ 7 jours :
+au-delà, il faudra rejouer `npm run ct:e2e` pour avoir des transactions récentes à montrer.
+
 ## Schéma
 
 ```
