@@ -58,3 +58,9 @@
 {"id": 58, "category": "reads", "lang": "en", "message": "what's my budget?", "expect": {"status": "info", "textStartsWith": "Agent's cap"}}
 {"id": 59, "category": "reads", "lang": "en", "message": "how much is left?", "expect": {"status": "info", "textStartsWith": "Agent's account balance"}}
 {"id": 60, "category": "reads", "lang": "pt", "message": "quanto sobra na conta?", "expect": {"status": "info", "textStartsWith": "Saldo da conta do agente"}}
+{"id": 61, "category": "mandate", "lang": "fr", "message": "donne à l'agent un mandat de 7 jours", "expect": {"status": "mandate_simulated"}}
+{"id": 62, "category": "mandate", "lang": "en", "message": "give the agent access for 3 days", "expect": {"status": "mandate_simulated"}}
+{"id": 63, "category": "mandate", "lang": "pt", "message": "dê ao agente um mandato de 7 dias", "expect": {"status": "mandate_simulated"}}
+{"id": 64, "category": "mandate", "lang": "fr", "message": "donne un mandat à l'agent", "expect": {"status": "needs_clarification", "mandateKey": "howLong"}}
+{"id": 65, "category": "mandate", "lang": "en", "message": "give the agent a mandate for 90 days", "expect": {"status": "needs_clarification", "mandateKey": "range"}}
+{"id": 66, "category": "mandate", "lang": "pt", "message": "dê ao agente um mandato de 10 minutos", "expect": {"status": "needs_clarification", "mandateKey": "range"}}

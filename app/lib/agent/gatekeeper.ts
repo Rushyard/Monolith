@@ -8,7 +8,7 @@ import type { Plan } from "./planner";
 import { fromUsdc, type SpendingState } from "./core";
 import { MT, T, pickLang, type Lang, type MandateView, type Messages } from "./i18n";
 
-export type Verdict = "AUTO_EXECUTE" | "NEEDS_APPROVAL" | "NEEDS_VAULT_SIGNATURE" | "BLOCKED" | "INFO" | "PAUSED" | "EXPIRED";
+export type Verdict = "AUTO_EXECUTE" | "NEEDS_APPROVAL" | "NEEDS_VAULT_SIGNATURE" | "BLOCKED" | "INFO" | "PAUSED" | "EXPIRED" | "MANDATE";
 
 
 export type GateDecision = {
@@ -27,6 +27,8 @@ export type GateDecision = {
   lang: Lang;
   /** Mandat de l'agent (lu on-chain), pour la lecture `budget`. */
   mandate?: MandateView;
+  /** Mandat demandé (heures, 1 h – 30 j), verdict MANDATE. */
+  mandateHours?: number;
 };
 
 // ---------- safety net : lecture du message brut, indépendante du LLM ----------
@@ -125,6 +127,12 @@ export function decide(plan: Plan, message: string, spending: SpendingState | nu
   const t = T[lang];
   const steps = plan.steps;
   if (steps.some((s) => s.action === "payroll")) return decidePayroll(plan, message, inVault, lang);
+  const mandateStep = steps.find((s) => s.action === "mandate");
+  if (mandateStep && mandateStep.action === "mandate") {
+    // Pression / injection ou autre action dans le même message → BLOCKED. Durée vérifiée avant (route).
+    if (steps.length > 1 || messageSignals(message).pressure.length) return { verdict: "BLOCKED", triggered: ["mandate-suspicious"], reasons: [t.refusal], lang };
+    return { verdict: "MANDATE", triggered: ["mandate"], reasons: [], lang, mandateHours: mandateStep.hours };
+  }
   const pays = steps.filter((s) => s.action === "pay");
 
   if (pays.length === 0) {

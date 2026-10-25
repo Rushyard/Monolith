@@ -153,3 +153,14 @@ test("B4 (simulation) : XDR de pause = remove_context_rule de la règle trouvée
   const resume = await prepareResume();
   assert.ok(!resume.ok && /isn't paused/.test(resume.error));
 });
+
+test("mandat (simulation) : XDR update_context_rule_valid_until préparé sur la règle de l'agent, visiteur = simulation", async () => {
+  process.env.AGENT_SECRET_KEY ??= agent.secret();
+  const { prepareMandate } = await import("../../app/lib/agent/mandate.ts");
+  const prep = await prepareMandate(168, "en");
+  assert.ok(prep.ok, !prep.ok ? prep.error : "");
+  assert.ok(prep.ok && prep.action === "mandate" && prep.feeXlm > 0 && prep.mandateUntilLedger > 0);
+  const p = toPlan({ type: "actions", steps: [{ action: "mandate", hours: 168 } as never], reasoning: "" }, "llm");
+  const r = await execute(p, decide(p, "give the agent a 7-day mandate", budget), budget, "simulation");
+  assert.ok(r.status === "mandate_simulated" && /^Simulation: Sarah would sign a mandate until/.test(r.text), JSON.stringify(r));
+});

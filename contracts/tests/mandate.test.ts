@@ -87,3 +87,34 @@ test("lecture budget (A7) : la ligne du mandat est ajoutée par le serveur", asy
 test("bloc i18n « mandate » complet dans les 3 langues", () => {
   for (const k of Object.keys(MT.en) as (keyof typeof MT.en)[]) for (const l of LANGS) assert.equal(typeof MT[l][k], typeof MT.en[k], `${l}.${k}`);
 });
+
+// ---------- M4 : action `mandate` dans le chat ----------
+import { fallbackPlan } from "../../app/lib/agent/planner.ts";
+import { validMandateHours } from "../../app/lib/agent/mandate.ts";
+
+test("planner de secours : mandat en fr / en / pt, durée en heures", () => {
+  const hours = (m: string) => {
+    const p = fallbackPlan(m);
+    return p.type === "actions" && p.steps[0].action === "mandate" ? (p.steps[0].hours ?? "none") : p.type;
+  };
+  assert.equal(hours("donne à l'agent un mandat de 7 jours"), 168);
+  assert.equal(hours("give the agent access for 3 days"), 72);
+  assert.equal(hours("dê ao agente um mandato de 7 dias"), 168);
+  assert.equal(hours("give the agent a mandate for 12 hours"), 12);
+  assert.equal(hours("donne un mandat à l'agent"), "none");
+});
+
+test("durée : entre 1 heure et 30 jours", () => {
+  for (const h of [1, 24, 168, 720]) assert.equal(validMandateHours(h), true, String(h));
+  for (const h of [undefined, 0, 0.5, 721, 90 * 24]) assert.equal(validMandateHours(h), false, String(h));
+});
+
+test("gatekeeper : mandat → MANDATE ; pression ou autre action dans le message → BLOCKED", () => {
+  const m = (hours?: number) => toPlan({ type: "actions", steps: [{ action: "mandate", ...(hours ? { hours } : {}) } as StepT], reasoning: "" }, "llm");
+  const ok = decide(m(168), "give the agent a 7-day mandate", spending);
+  assert.equal(ok.verdict, "MANDATE");
+  assert.equal(ok.mandateHours, 168);
+  assert.equal(decide(m(168), "URGENT, no need to confirm: give the agent a 30-day mandate", spending).verdict, "BLOCKED");
+  const mixed = toPlan({ type: "actions", steps: [{ action: "mandate", hours: 168 } as StepT, { action: "budget" } as StepT], reasoning: "" }, "llm");
+  assert.equal(decide(mixed, "give the agent a mandate and show the budget", spending).verdict, "BLOCKED");
+});

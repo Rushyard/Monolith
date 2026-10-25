@@ -15,7 +15,8 @@ import { paidAddresses, recordActivity } from "@/lib/agent/activity";
 import { AGENT_CONFIG, agentRuleStatus, mandateView } from "@/lib/agent/config";
 import { fromUsdc, readTokenBalance } from "@/lib/agent/core";
 import { clientIp, isOwnerRequest, rateLimit } from "@/lib/agent/session";
-import { T, pickLang, requestLang } from "@/lib/agent/i18n";
+import { MT, T, pickLang, requestLang } from "@/lib/agent/i18n";
+import { validMandateHours } from "@/lib/agent/mandate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,6 +82,13 @@ export async function POST(req: Request) {
   for (const p of pays) {
     const text = recipientClarification(p.to, message, lang);
     if (text) return NextResponse.json({ plan, verdict: null, result: { status: "needs_clarification", text }, reasoning: text, mode, lang });
+  }
+
+  // Mandat : durée obligatoire, entre 1 heure et 30 jours (sinon clarification, rien n'est préparé).
+  const mandateStep = plan.steps.find((s) => s.action === "mandate");
+  if (mandateStep && mandateStep.action === "mandate" && !validMandateHours(mandateStep.hours)) {
+    const text = mandateStep.hours === undefined ? MT[lang].howLong : MT[lang].range;
+    return NextResponse.json({ plan, verdict: null, result: { status: "needs_clarification", text }, reasoning: text, mode, lang });
   }
 
   // Paie : tous les salariés doivent être dans le coffre.
