@@ -6,7 +6,8 @@
   "scripts": {
     "deploy": "tsx scripts/deploy.ts",
     "gonogo": "tsx scripts/gonogo.ts",
-    "status": "tsx scripts/status.ts"
+    "status": "tsx scripts/status.ts",
+    "refund": "tsx scripts/refund.ts"
   },
   "devDependencies": {
     "@types/node": "^22",
