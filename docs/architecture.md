@@ -22,6 +22,16 @@
 
 Le pré-check côté serveur sert à l'affichage. La vraie barrière est la policy on-chain.
 
+## Comptes testnet (P1)
+
+Comptes classiques créés avec `stellar keys generate <nom> --network testnet --fund` (financés par friendbot). Les secrets restent dans le keystore local du Stellar CLI (`~/.config/stellar/identity/`), jamais dans le repo.
+
+| Rôle | Adresse |
+|---|---|
+| owner (Delegated signer, Freighter) | `GCIFXLBRK2CHODLILPTZIPEAK36TOS3MG4QRZGCTJ7PA52PAOP75RS7B` |
+| agent (signer Ed25519 externe, server-only) | `GAJDU7KW7ZZ7DOOTEHV5WILNF2CPBAWJE332I7PEAFLSU7LIVIVDUD33` |
+| alice (destinataire de démo) | `GDY5SERGYNGQF2R4SRZ4AHQPJ7HQOLEPLAFISMD37CM2XCTGW4KUBXH6` |
+
 ## Contract IDs (testnet)
 
 | Contrat | ID |
