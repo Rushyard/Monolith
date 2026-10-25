@@ -25,7 +25,7 @@ import type { IntentResponse } from "@/components/agent/types";
 
 ### `POST /api/intent` `{ "message": "paie 1 USDC à Alice" }` → `{ plan, verdict, result, reasoning }`
 
-`result.status` vaut `submitted` (l'agent a payé), `needs_owner_approval`, `info` (solde / historique), `blocked`, `needs_clarification` / `reply` / `unsupported` (`plan` vaut alors `null`, le texte est dans `result.text`) ou `error`.
+`result.status` vaut `submitted` (l'agent a payé), `needs_owner_approval`, `info` (solde / historique), `blocked`, `topped_up` / `x402_paid` / `needs_topup` (x402, cf. `docs/x402-howto-test.md`), `needs_clarification` / `reply` / `unsupported` (`plan` vaut alors `null`, le texte est dans `result.text`) ou `error`.
 
 Paiement dans le budget :
 ```json

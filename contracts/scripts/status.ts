@@ -30,6 +30,7 @@ const remaining = limit > spent ? limit - spent : 0n;
 console.log(`Smart account      ${SA}\n                   ${contractLink(SA)}`);
 console.log(`Solde smart account ${fmt(await balance(SA))}`);
 console.log(`Solde alice         ${fmt(await balance(alice))}`);
+console.log(`Solde agent (G)     ${fmt(await balance(keypairFromCli("agent").publicKey()))}   ← rechargé par topup, paie en x402`);
 console.log(`\nAgent (règle ${d.ruleAgent}, fenêtre glissante de ${data.period_ledgers} ledgers ≈ ${((data.period_ledgers * 5) / 3600).toFixed(1)} h)`);
 console.log(`  plafond           ${fmt(limit)}`);
 console.log(`  dépensé (fenêtre) ${fmt(spent)}`);

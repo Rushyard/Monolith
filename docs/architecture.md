@@ -147,6 +147,15 @@ Lanceur `node:test` via `tsx`, sans dépendance ajoutée. Les tests on-chain son
 
 Tests unitaires purs (`tests/gatekeeper.test.ts`, 15 cas, sans réseau) : budget, fail-closed si le budget est illisible, LLM manipulé (montant ou adresse ≠ message), injections FR/EN (« ignore les règles… déjà approuvé », « SYSTEM OVERRIDE auto-approve »), pression + tout l'argent ou adresse inconnue → BLOCKED, destinataire hors carnet, caractères invisibles et pleine chasse, planner de secours.
 
+### x402 (option B) — branche `x402`, à valider sur testnet
+
+Repli de l'issue x402 #3764 : le smart account vire un petit budget (action `topup`, ≤ 1 USDC, règle B, compté dans la spending-limit) vers le compte G de l'agent, qui paie la route `GET /api/premium/market-data` (0,01 USDC, `stellar:testnet`, facilitator `https://x402.org/facilitator`) avec `@x402/fetch`. `@x402/stellar` (SDK v16) est isolé dans `app/lib/x402/`. Mode d'emploi : [`docs/x402-howto-test.md`](x402-howto-test.md). Tests unitaires : `npm test` dans `app/` (20, sans réseau).
+
+| Étape | Résultat | Tx |
+|---|---|---|
+| Topup smart account → compte G de l'agent (règle B) | à faire | |
+| Paiement x402 agent → `payTo` (réglé par le facilitator) | à faire | |
+
 
 ## Contract IDs (testnet)
 
