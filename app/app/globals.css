@@ -492,6 +492,18 @@ html, body { overflow-x: clip; }
 .vault-pay-line.done .vp-step { color: var(--sun); }
 .vault-pay-line.error .vp-step { color: var(--hal); }
 .vault-pay-line .approve-error, .vault-pay-line .fine { grid-column: 1 / -1; margin-top: 2px; }
+.activity { margin-top: 40px; }
+.activity-title { font: 400 11px/1 var(--mono); letter-spacing: .28em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+.activity-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.activity-item { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.activity-item .badge { font: 400 10px/1 var(--mono); letter-spacing: .18em; text-transform: uppercase; padding: 4px 6px; border: 1px solid var(--line-strong); }
+.activity-item .badge.private { color: var(--sun); border-color: var(--sun); }
+.activity-item .badge.public { color: var(--muted); }
+.activity-item .act-who em { font: 400 12px/1 var(--mono); font-style: normal; color: var(--faint); margin-left: 6px; }
+.activity-item .act-amt { font-family: var(--mono); font-size: 13px; text-align: right; }
+.activity-item .act-kind { grid-column: 2; font-size: 12px; color: var(--faint); }
+.activity-item .act-tx { grid-column: 3; text-align: right; font-size: 12px; }
+.activity-item.refused .act-kind, .activity-item.blocked .act-kind { color: var(--hal); }
 .tx-details { margin-top: 14px; font-size: 13px; color: var(--faint); }
 .tx-details summary { cursor: pointer; font: 400 10px/1 var(--mono); letter-spacing: .22em; text-transform: uppercase; }
 .tx-details summary:hover { color: var(--muted); }

@@ -4,6 +4,7 @@
 // Freighter signature when the network refuses the agent (#3221), budget read on-chain.
 import { useState } from "react";
 import type { IntentResponse } from "@/components/agent/types";
+import { ActivityFeed } from "@/components/agent/ActivityFeed";
 import { BudgetSlab } from "./budget-slab";
 import { AgentStatus, moodOf } from "./stage";
 import { Transmission } from "./transmission";
@@ -129,6 +130,8 @@ export default function AgentPage() {
           />
         ))}
       </div>
+
+      <ActivityFeed refreshKey={refreshKey} />
     </div>
   );
 }
