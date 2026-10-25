@@ -16,6 +16,7 @@
     "ct:deploy": "tsx scripts/deploy-ct.ts",
     "ct:e2e": "tsx scripts/e2e-ct.ts",
     "ct:auditor": "tsx scripts/deploy-auditor.ts",
+    "ct:withdraw-to-contract": "tsx scripts/withdraw-to-contract.ts",
     "dev": "npm run dev -w @monolith/app",
     "build": "npm run build -w @monolith/app"
   },
