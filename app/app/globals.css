@@ -1,0 +1,25 @@
+:root {
+  --bg: #0b0b0f;
+  --fg: #ececf1;
+  --muted: #8a8a99;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, sans-serif;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #222;
+}
+
+header nav { display: flex; gap: 16px; }
+a { color: inherit; }
+main { padding: 16px; max-width: 960px; margin: 0 auto; }
