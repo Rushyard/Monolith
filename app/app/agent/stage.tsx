@@ -25,6 +25,9 @@ export function outcomeOf(turn: { response?: IntentResponse; error?: string }, a
     case "needs_vault_signature": return approved ? "approved" : "pending";
     case "simulated": return "simulated";
     case "paused": return "paused";
+    case "expired": return "paused";
+    case "mandate_simulated": return "simulated";
+    case "needs_mandate_signature": return approved ? "approved" : "pending";
     case "blocked": return "blocked";
     case "error": return "error";
     default: return "reply";

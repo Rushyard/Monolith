@@ -6,6 +6,7 @@ import { readAgentSpending } from "@/lib/agent/executor";
 import { readActivity, verifyVaultReceipt } from "@/lib/agent/activity";
 import { agentRuleStatus, invalidateAgentRuleCache, mandateView } from "@/lib/agent/config";
 import { preparePause, prepareResume } from "@/lib/agent/pause";
+import { prepareSweep } from "@/lib/agent/sweep";
 import { T, requestLang } from "@/lib/agent/i18n";
 import {
   clearSessionCookieHeader,
@@ -113,6 +114,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
     if (!body.success) return NextResponse.json({ error: t.errPauseBody }, { status: 400 });
     const prep = body.data.action === "pause" ? await preparePause(lang) : await prepareResume(lang);
     return prep.ok ? NextResponse.json({ ...prep, scope: t.pauseScope }) : NextResponse.json({ error: prep.error }, { status: 409 });
+  }
+  // POST /api/agent/sweep (owner connecté) → XDR non signé : tout l'USDC de la petite caisse vers Sarah (règle A).
+  if (path.join("/") === "sweep") {
+    if (!isOwnerRequest(req, AGENT_CONFIG.ownerAddress)) return NextResponse.json({ error: t.ownerOnly }, { status: 401 });
+    const prep = await prepareSweep();
+    return prep.ok ? NextResponse.json(prep) : NextResponse.json({ error: prep.error, empty: prep.empty }, { status: 409 });
   }
   if (path.join("/") === "vault-receipt") {
     const body = ReceiptBody.safeParse(await req.json().catch(() => null));
