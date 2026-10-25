@@ -293,7 +293,15 @@ L'agent n'a ni la clé du coffre ni son solde. URL : https://monolith-git-p2-vau
 
 Vérifié : les deux événements `transfer` du token n'ont pas de champ montant (seulement les chiffrés `vTilde`, `vAudR`, `vAudS`…) ;
 `GET /api/agent/activity` liste les deux reçus en `channel: private`, `kind: paid`, sans `amountUsdc`.
-Lecture par Marc dans `/auditor` : à vérifier avec la clé d'audit (non présente sur cette machine).
+**Lecture par Marc (auditeur #1), 2026-10-25 ~20:50 UTC** : clé d'audit vérifiée contre le registre (`k·H == get_key(1)`),
+puis déchiffrement des événements, en script (`auditTransfer`) et dans la page `/auditor` (dev local) :
+
+| Tx | Public (stellar.expert, `/auditor` sans clé) | Marc |
+|---|---|---|
+| `5b1f9b15…` Sarah → Carol | chiffré | **3.00 USDC**, solde de Sarah après : 6.00 |
+| `038ecfcf…` Sarah → Bob | chiffré | **2.00 USDC**, solde de Sarah après : 4.00 |
+
+Les deux canaux d'audit (destinataire, émetteur) concordent. Solde du coffre de Sarah après la paie : 4.00 USDC (lu par l'auditeur).
 
 ### v2 run — our auditor, 2026-10-25 13:34 UTC (`npm run ct:e2e`)
 
