@@ -26,6 +26,7 @@ import {
 import type { VaultSignatureRequest } from "../../components/agent/types";
 import type { GateDecision } from "./gatekeeper";
 import { sumUsdc } from "./payroll";
+import { recipientClarification, resolveRecipient } from "./contacts";
 import type { Plan } from "./planner";
 
 const C = AGENT_CONFIG;
@@ -59,7 +60,15 @@ export type ExecutionResult =
       text: string;
     }
   | { status: "blocked" }
-  | { status: "info"; balance?: BalanceInfo; history?: HistoryInfo }
+  | {
+      status: "info";
+      balance?: BalanceInfo;
+      history?: HistoryInfo;
+      budget?: BalanceInfo["budget"];
+      address?: { label: string; address: string };
+      /** Réponse composée par le serveur à partir des valeurs on-chain / du carnet, jamais par le LLM ("" si rien). */
+      text: string;
+    }
   | { status: "error"; error: string; agentAttempt?: AgentAttempt };
 
 export type BalanceInfo = { smartAccountUsdc: number; budget: { limitUsdc: number; spentUsdc: number; remainingUsdc: number; periodLedgers: number } };
@@ -155,7 +164,7 @@ export async function execute(plan: Plan, decision: GateDecision, spending: Spen
   }
 
   if (decision.verdict === "INFO") {
-    const out: Extract<ExecutionResult, { status: "info" }> = { status: "info" };
+    const out: Extract<ExecutionResult, { status: "info" }> = { status: "info", text: "" };
     if (plan.steps.some((s) => s.action === "balance") && spending) {
       out.balance = {
         smartAccountUsdc: fromUsdc(await readTokenBalance(C.ownerAddress, C.usdcSac, C.smartAccount)),
@@ -173,6 +182,31 @@ export async function execute(plan: Plan, decision: GateDecision, spending: Spen
         contractUrl: `https://stellar.expert/explorer/testnet/contract/${C.smartAccount}`,
       };
     }
+    const texts: string[] = [];
+    if (plan.steps.some((s) => s.action === "budget")) {
+      if (spending) {
+        out.budget = { limitUsdc: fromUsdc(spending.limit), spentUsdc: fromUsdc(spending.spent), remainingUsdc: fromUsdc(spending.remaining), periodLedgers: spending.periodLedgers };
+        const b = out.budget;
+        texts.push(`Plafond de l'agent : ${b.limitUsdc} USDC sur ~${Math.round((b.periodLedgers * 5) / 3600)} h glissantes. Dépensé : ${b.spentUsdc} USDC. Restant : ${b.remainingUsdc} USDC. (Lu on-chain dans la spending-limit policy.)`);
+      } else texts.push("Je n'ai pas pu lire le budget on-chain de l'agent : réessaie dans un instant.");
+    }
+    const addr = plan.steps.find((s) => s.action === "address");
+    if (addr && addr.action === "address") {
+      if (!addr.of) {
+        out.address = { label: "Compte de l'agent (smart account)", address: C.smartAccount };
+        texts.push(`Adresse du compte de l'agent (smart account) : ${C.smartAccount}`);
+      } else {
+        const r = resolveRecipient(addr.of);
+        if (r?.known) {
+          out.address = { label: r.label, address: r.address };
+          texts.push(`Adresse de ${r.label} : ${r.address}`);
+        } else texts.push(recipientClarification(addr.of) ?? `Je ne connais pas « ${addr.of} ».`);
+      }
+    }
+    if (out.balance) {
+      texts.unshift(`Solde du compte de l'agent : ${out.balance.smartAccountUsdc} USDC. Budget restant : ${out.balance.budget.remainingUsdc} / ${out.balance.budget.limitUsdc} USDC.`);
+    }
+    out.text = texts.join(" ");
     return out;
   }
 

@@ -83,3 +83,29 @@ test("B1 : adresse déjà payée → pas de « premier paiement » (mais toujour
 test("B1 : un contact du carnet n'est jamais concerné (Alice 1 USDC → AUTO_EXECUTE)", () => {
   assert.ok(!decide(plan(pay("1", "Alice")), "paie 1 USDC à Alice", spending, false, { paidBefore: false }).triggered.includes("first-payment"));
 });
+
+// ---------- A7 : lectures budget / adresse composées par le serveur ----------
+import { fallbackPlan as fp } from "../../app/lib/agent/planner.ts";
+
+test("A7 : budget → texte serveur avec plafond, dépensé, restant (valeurs de la policy, pas du LLM)", async () => {
+  const p = plan({ action: "budget" } as StepT);
+  const r = await execute(p, decide(p, "quel est mon budget ?", spending), spending);
+  assert.ok(r.status === "info" && r.budget?.remainingUsdc === 5);
+  assert.ok(r.status === "info" && /Plafond de l'agent : 10 USDC .* Dépensé : 5 USDC\. Restant : 5 USDC/.test(r.text), r.status === "info" ? r.text : "");
+});
+
+test("A7 : adresse d'un contact = carnet ; contact inconnu → pas d'adresse inventée", async () => {
+  const p = plan({ action: "address", of: "Robert" } as StepT);
+  const r = await execute(p, decide(p, "adresse de robert ?", spending), spending);
+  assert.ok(r.status === "info" && r.address?.address === BOB && r.text.endsWith(BOB));
+  const q = plan({ action: "address", of: "Charlie" } as StepT);
+  const u = await execute(q, decide(q, "adresse de charlie ?", spending), spending);
+  assert.ok(u.status === "info" && !u.address && !/G[A-Z2-7]{55}/.test(u.text));
+});
+
+test("A7 : planner de secours — « quel est mon budget ? » → budget, « adresse de Bob » → address", () => {
+  const b = fp("quel est mon budget ?");
+  assert.ok(b.type === "actions" && b.steps[0].action === "budget");
+  const a = fp("c'est quoi l'adresse de bob ?");
+  assert.ok(a.type === "actions" && a.steps[0].action === "address" && (a.steps[0] as { of?: string }).of === "bob");
+});
