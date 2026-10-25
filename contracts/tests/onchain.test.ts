@@ -4,8 +4,10 @@
 // Codes OZ v0.8.0 : 3002 UnvalidatedContext, 3221 SpendingLimitExceeded, 3223 NotAllowed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { agentRuleId } from "../../app/lib/agent/config.ts";
 import {
   Address,
+  findAgentRule,
   keypairFromCli,
   loadDeployments,
   nativeToScVal,
@@ -44,6 +46,13 @@ async function simulate(call: SmartAccountCall): Promise<"ok" | number[]> {
 }
 
 const budget = await readSpendingState(owner.publicKey(), d.spendingLimitPolicy!, SA, d.ruleAgent!);
+
+test("règle de l'agent retrouvée on-chain = deployments.testnet.json (et l'app suit)", async () => {
+  const onchain = await findAgentRule(owner.publicKey(), SA, d.ed25519Verifier!, agent.rawPublicKey(), d.spendingLimitPolicy!);
+  assert.equal(onchain, d.ruleAgent);
+  delete process.env.RULE_AGENT_ID;
+  assert.equal(await agentRuleId(), d.ruleAgent);
+});
 
 test("agent sous le plafond (règle B) : simulation OK", { skip: budget.remaining === 0n && "budget de l'agent épuisé (npm run reset-agent)" }, async () => {
   const amount = budget.remaining < usdc(0.01) ? budget.remaining : usdc(0.01);
