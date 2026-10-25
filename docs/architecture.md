@@ -150,7 +150,7 @@ Remboursements d'alice vers le smart account : [`42d70ea9…`](https://stellar.e
 
 `withdraw(from, to = smart account de l'agent, amount)` du coffre confidentiel : la sortie est **publique** (montant visible), le solde du coffre reste caché. Même appel `submitWithdraw` que le bouton (`ConfidentialVault.withdraw(amount, onPhase, to)`), testé avec `npm run ct:withdraw-to-contract -- CC5D…43KA` : smart account 60 → **61 USDC**, [`8a0cd48d…`](https://stellar.expert/explorer/testnet/tx/8a0cd48dce90c11d384136524cfdfe27121e662ad9ff0753c9e0867a455b3ea8).
 
-### Tests automatisés P1 — `npm test` dans `contracts/` : 24/24 ✅ (2026-10-25, + découverte on-chain de la règle agent)
+### Tests automatisés P1 — `npm test` dans `contracts/` : 79/79 ✅ (2026-10-25 soir, branche `p1-agent-route`)
 
 Lanceur `node:test` via `tsx`, sans dépendance ajoutée. Les tests on-chain sont des **simulations signées** : les auths du smart account sont exécutées en mode enforcing (`__check_auth` + policy), mais **aucune tx n'est envoyée** (budget et USDC inchangés). Ils sont placés dans `contracts/` parce qu'ils lisent les clés agent/owner dans le keystore du Stellar CLI.
 
@@ -179,6 +179,27 @@ Tests unitaires purs (`tests/gatekeeper.test.ts`, 15 cas, sans réseau) : budget
 | Même paiement approuvé par l'owner (Freighter, carte d'approbation) | [`d5cda7f3…`](https://stellar.expert/explorer/testnet/tx/d5cda7f3def6a9a145c5b4f5d306a21bd2b4b348f9301b91825d20e4d8c5561d) | SUCCESS |
 
 Côté coffre (P2) : transfert confidentiel `75db195e…`, fusion côté destinataire `a610de1e…` (détail dans `docs/submission.md`).
+
+### Paie confidentielle préparée par l'IA — branche `p1-agent-route` (2026-10-25 soir)
+
+Règle produit : dans le coffre, l'IA propose et Sarah (owner) signe ; dehors, l'IA agit seule mais plafonnée. Aucune transaction réelle envoyée pour ces tâches : tout est vérifié par simulation ou en lecture.
+
+| Élément | Où | Vérifié |
+|---|---|---|
+| Contrat P1↔P2 : `VaultPayment`, `needs_vault_signature`, `ActivityItem` | `app/components/agent/types.ts` | `tsc` + build |
+| Carnet : Alice `GDY5…BXH6` (hors coffre), Bob `GBCQZMHQ…B32GV` (bob du run e2e, inscrit, auditeur 1, clé non conservée), Carol `GDTMYTVU…XPH3` (inscrite, auditeur 1) | `app/lib/agent/contacts.ts` | `isRegistered` en simulation : Bob ✅, Carol ✅, Alice non inscrite |
+| Routage privé / public, fail-closed | `app/lib/agent/vault.ts`, `app/app/api/intent/route.ts` | tests `routing.test.ts` + on-chain (Bob / Alice) |
+| Paie (Carol 3, Bob 2) | `app/lib/agent/payroll.ts` | `payroll.test.ts` + LLM réel (fr/en/pt) |
+| B12 session owner (SEP-53), mode démo simulé, 20 msg / 10 min / IP | `app/lib/agent/session.ts`, `OwnerSession.tsx` | `session.test.ts` ; flux complet testé avec la clé owner du keystore CLI (même digest SEP-53 que l'extension Freighter, lu dans `signBlob.ts` / `encodeSep53Message`) ; pas encore cliqué avec Freighter |
+| B1 premier paiement | gatekeeper + `paidAddresses()` (Horizon) | `routing.test.ts` |
+| A1 fautes de frappe (Damerau-Levenshtein) | `contacts.ts` | `names.test.ts` (12 tests) + LLM réel |
+| A2/A3 champs manquants en code + mémoire 6 tours | `app/lib/agent/slots.ts` | `slots.test.ts` + LLM réel (« paie » → « 2 usdc » → « bob ») |
+| A7 lectures `budget` / `address` | executor | `routing.test.ts` + LLM réel |
+| B4 pause / reprise (XDR non signés) | `app/lib/agent/pause.ts`, `PauseBanner.tsx` | simulation : `remove_context_rule(1)` ~0,10 XLM de frais totaux ; `add_context_rule` ~0,021 XLM de frais ressources (dry-run reset-agent). Non envoyées. |
+| Activité reconstruite on-chain, aucun montant privé | `app/lib/agent/activity.ts` | 38 éléments lus, 0 montant privé ; reçu `75db195e…` accepté, `1dfb0e87…` refusé (pas confidentiel) |
+| Éval parsing | `eval/parsing.jsonl`, `npm run eval` | 44/44 (LLM sur 20/44, 429 Groq sur le reste → planner de secours) |
+
+Rétention `getEvents` sur le RPC testnet : `ledgerRetentionWindow = 120960` ledgers (~7 jours), mesuré via `getHealth` le 2026-10-25.
 
 ### Frais d'un paiement de l'agent (vérifié le 2026-10-25, méta des tx via `getTransaction`)
 

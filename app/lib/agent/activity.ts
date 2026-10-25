@@ -136,6 +136,12 @@ export async function readActivity(): Promise<ActivityItem[]> {
   return items;
 }
 
+/** Adresses déjà payées par le smart account (paiements publics réussis, historique Horizon). */
+export async function paidAddresses(): Promise<Set<string>> {
+  const items = await readActivity();
+  return new Set(items.filter((i) => i.channel === "public" && i.kind === "paid" && i.hash).map((i) => i.to));
+}
+
 // ---------- reçu de coffre ----------
 
 export type ReceiptCheck = { ok: true; item: ActivityItem } | { ok: false; status: number; error: string };

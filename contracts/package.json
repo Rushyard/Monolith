@@ -9,8 +9,9 @@
     "status": "tsx scripts/status.ts",
     "refund": "tsx scripts/refund.ts",
     "reset-agent": "tsx scripts/reset-agent.ts",
-    "test": "tsx --conditions react-server --test tests/gatekeeper.test.ts tests/routing.test.ts tests/payroll.test.ts tests/onchain.test.ts",
-    "test:unit": "tsx --conditions react-server --test tests/gatekeeper.test.ts tests/routing.test.ts tests/payroll.test.ts"
+    "eval": "tsx --tsconfig ../app/tsconfig.json --conditions react-server scripts/eval.ts",
+    "test": "tsx --conditions react-server --test tests/gatekeeper.test.ts tests/routing.test.ts tests/payroll.test.ts tests/session.test.ts tests/names.test.ts tests/slots.test.ts tests/onchain.test.ts",
+    "test:unit": "tsx --conditions react-server --test tests/gatekeeper.test.ts tests/routing.test.ts tests/payroll.test.ts tests/session.test.ts tests/names.test.ts tests/slots.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22",

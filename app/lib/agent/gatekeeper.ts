@@ -7,7 +7,11 @@ import { payrollLines, sumUsdc, type PayrollLine } from "./payroll";
 import type { Plan } from "./planner";
 import { fromUsdc, type SpendingState } from "./core";
 
-export type Verdict = "AUTO_EXECUTE" | "NEEDS_APPROVAL" | "NEEDS_VAULT_SIGNATURE" | "BLOCKED" | "INFO";
+export type Verdict = "AUTO_EXECUTE" | "NEEDS_APPROVAL" | "NEEDS_VAULT_SIGNATURE" | "BLOCKED" | "INFO" | "PAUSED";
+
+/** B4 : la règle de l'agent a été retirée par l'owner. Ne concerne que la petite caisse publique. */
+export const PAUSED_TEXT =
+  "L'agent est en pause : Sarah a retiré sa règle on-chain, sa signature ne vaut plus rien. Seule la petite caisse publique est coupée ; dans le coffre, Sarah signe déjà chaque paiement.";
 
 /** Texte de réponse quand l'IA a préparé des paiements que Sarah signe dans le coffre. */
 export const vaultPreparedText = (n: number) =>
@@ -106,7 +110,17 @@ export function screenMessage(message: string): GateDecision | null {
  * Coffre : l'agent ne paie jamais ; les signaux suspects (pression, montant ou adresse qui ne
  * collent pas au message) → BLOCKED, sinon NEEDS_VAULT_SIGNATURE (Sarah signe dans son navigateur).
  */
-export function decide(plan: Plan, message: string, spending: SpendingState | null, inVault = false): GateDecision {
+/** Texte affiché quand le smart account n'a jamais payé cette adresse (B1). */
+export const FIRST_PAYMENT_REASON = "Premier paiement vers cette adresse : je demande ton accord, même sous le plafond.";
+
+export type DecideOptions = {
+  /** Le smart account a déjà payé ce destinataire (historique on-chain). null = historique illisible. */
+  paidBefore?: boolean | null;
+  /** B4 : aucune règle de l'agent on-chain (findAgentRule === null). */
+  paused?: boolean;
+};
+
+export function decide(plan: Plan, message: string, spending: SpendingState | null, inVault = false, opts: DecideOptions = {}): GateDecision {
   const steps = plan.steps;
   if (steps.some((s) => s.action === "payroll")) return decidePayroll(plan, message, inVault);
   const pays = steps.filter((s) => s.action === "pay");
@@ -130,6 +144,7 @@ export function decide(plan: Plan, message: string, spending: SpendingState | nu
 
   const payment = { amountUsdc: pay.amount, recipient };
   if (inVault) return decideVault(payment, message);
+  if (opts.paused) return { verdict: "PAUSED", channel: "public", triggered: ["agent-paused"], reasons: [PAUSED_TEXT], payment };
   const triggered: string[] = [];
   const reasons: string[] = [];
 
@@ -151,6 +166,11 @@ export function decide(plan: Plan, message: string, spending: SpendingState | nu
   if (!recipient.known) {
     triggered.push("unknown-recipient");
     reasons.push("Ce destinataire n'est pas dans ton carnet, donc je demande ton accord.");
+    // B1 : adresse jamais payée par le smart account (ou historique illisible → fail-closed).
+    if (opts.paidBefore !== true) {
+      triggered.push("first-payment");
+      reasons.push(opts.paidBefore === null ? `${FIRST_PAYMENT_REASON} (Historique on-chain illisible.)` : FIRST_PAYMENT_REASON);
+    }
   }
 
   const net = safetyNet(message, amount, recipient.address);

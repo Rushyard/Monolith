@@ -9,6 +9,8 @@ import { BudgetSlab } from "./budget-slab";
 import { AgentStatus, moodOf } from "./stage";
 import { Transmission } from "./transmission";
 import { useI18n } from "@/lib/i18n/react";
+import { OwnerSession } from "@/components/agent/OwnerSession";
+import { PauseBanner } from "@/components/agent/PauseBanner";
 
 type Turn = { id: number; message: string; response?: IntentResponse; error?: string; receivedAt: number };
 
@@ -40,6 +42,7 @@ export default function AgentPage() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [approved, setApproved] = useState<Record<number, string>>({});
   const [refreshKey, setRefreshKey] = useState(0);
+  const [owner, setOwner] = useState(false); // session Sarah (Freighter) : sinon l'agent ne fait que simuler
   const last = turns[turns.length - 1];
   const mood = moodOf({ typing: !!message.trim(), loading: !!pending, last, approved: !!(last && approved[last.id]) });
 
@@ -53,7 +56,14 @@ export default function AgentPage() {
       const res = await fetch("/api/intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: m }),
+        // Derniers tours : le serveur s'en sert seulement pour compléter la réponse à ses propres questions.
+        body: JSON.stringify({
+          message: m,
+          history: turns.slice(-6).flatMap((t) => [
+            { role: "user", text: t.message },
+            ...(t.response?.result && "text" in t.response.result ? [{ role: "assistant", text: t.response.result.text }] : []),
+          ]),
+        }),
       });
       const body = await res.json();
       const turn: Turn = body?.result
@@ -75,9 +85,12 @@ export default function AgentPage() {
           <span className="chapter">{t("chapter.n", { n: "II" })}</span>
           <h1 className="intertitle" style={{ marginTop: 10 }}>{t("ch.agent")}</h1>
           <p className="lede">{t("agent.lede")}</p>
+          <OwnerSession onChange={setOwner} />
         </div>
         <BudgetSlab refreshKey={refreshKey} alarm={mood === "refused" || mood === "blocked"} />
       </header>
+
+      <PauseBanner owner={owner} refreshKey={refreshKey} />
 
       <form className="composer" onSubmit={(e) => { e.preventDefault(); send(message); }}>
         <AgentStatus mood={mood} />

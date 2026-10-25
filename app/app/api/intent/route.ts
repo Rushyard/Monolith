@@ -7,20 +7,40 @@ import { z } from "zod";
 import { planIntent, toPlan } from "@/lib/agent/planner";
 import { decide, screenMessage } from "@/lib/agent/gatekeeper";
 import { execute, readAgentSpending } from "@/lib/agent/executor";
-import { resolveRecipient } from "@/lib/agent/contacts";
+import { recipientClarification, resolveRecipient } from "@/lib/agent/contacts";
+import { slotQuestion, withMemory } from "@/lib/agent/slots";
 import { payrollLines } from "@/lib/agent/payroll";
 import { vaultChannel } from "@/lib/agent/vault";
-import { recordActivity } from "@/lib/agent/activity";
+import { paidAddresses, recordActivity } from "@/lib/agent/activity";
+import { AGENT_CONFIG, agentRuleStatus } from "@/lib/agent/config";
+import { clientIp, isOwnerRequest, rateLimit } from "@/lib/agent/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const Body = z.object({ message: z.string().trim().min(1).max(1000) });
+const Body = z.object({
+  message: z.string().trim().min(1).max(1000),
+  /** Derniers tours (optionnel) : sert seulement à compléter la réponse à nos propres questions. */
+  history: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string().max(1000) })).max(12).optional(),
+});
 
 export async function POST(req: Request) {
+  // Owner = cookie de session signé (Freighter). Sinon : mode démo, rien n'est envoyé (fail-closed).
+  const owner = isOwnerRequest(req, AGENT_CONFIG.ownerAddress);
+  const mode = owner ? "owner" : "simulation";
+  if (!owner) {
+    const rl = rateLimit(clientIp(req));
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: `Trop de messages : réessaie dans ${Math.ceil(rl.retryAfterS / 60)} min (limite de la démo publique).` },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterS) } },
+      );
+    }
+  }
   const body = Body.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "message requis (1 à 1000 caractères)" }, { status: 400 });
-  const message = body.data.message;
+  // A3 : « paie alice » → « Combien ? » → « 5 » devient « paie alice 5 », puis tout le pipeline.
+  const message = withMemory(body.data.message, body.data.history);
 
   const spendingP = readAgentSpending(); // en parallèle de l'appel LLM
   const planned = await planIntent(message);
@@ -30,21 +50,33 @@ export async function POST(req: Request) {
   const screened = screenMessage(message);
   if (screened) {
     const plan = out.type === "actions" ? toPlan(out, planned.source) : null;
-    return NextResponse.json({ plan, planner: planned.source, verdict: screened, result: { status: "blocked" }, reasoning: screened.reasons.join(" ") });
+    return NextResponse.json({ plan, planner: planned.source, verdict: screened, result: { status: "blocked" }, reasoning: screened.reasons.join(" "), mode });
+  }
+
+  // A2 : montant ou destinataire manquant, vérifié en code sur le message brut (même si le LLM a deviné).
+  const missing = slotQuestion(message);
+  if (missing && (out.type === "clarify" || (out.type === "actions" && out.steps.some((s) => s.action === "pay")))) {
+    return NextResponse.json({ plan: null, verdict: null, result: { status: "needs_clarification", text: missing }, reasoning: missing, planner: planned.source, mode });
   }
 
   if (out.type !== "actions") {
     const text = out.type === "clarify" ? out.question : out.type === "reply" ? out.text : out.reason;
     const status = out.type === "clarify" ? "needs_clarification" : out.type === "reply" ? "reply" : "unsupported";
-    return NextResponse.json({ plan: null, verdict: null, result: { status, text }, reasoning: text, planner: planned.source });
+    return NextResponse.json({ plan: null, verdict: null, result: { status, text }, reasoning: text, planner: planned.source, mode });
   }
 
   const plan = toPlan(out, planned.source);
 
   // Routage : destinataire inscrit dans le coffre → Sarah signe (montant caché). Fail-closed : si
   // l'appartenance est illisible, on ne paie pas en public (ça révélerait le montant).
-  // Paie : tous les salariés doivent être dans le coffre.
+  // A1 : destinataire écrit par le planner résolu côté serveur. Faute de frappe → clarification, jamais de paiement.
   const pays = plan.steps.filter((s) => s.action === "pay");
+  for (const p of pays) {
+    const text = recipientClarification(p.to, message);
+    if (text) return NextResponse.json({ plan, verdict: null, result: { status: "needs_clarification", text }, reasoning: text, mode });
+  }
+
+  // Paie : tous les salariés doivent être dans le coffre.
   const isPayroll = plan.steps.some((s) => s.action === "payroll");
   const single = pays.length === 1 ? resolveRecipient(pays[0].to) : null;
   const toCheck = isPayroll ? payrollLines().map((l) => l.recipient.address) : single ? [single.address] : [];
@@ -52,25 +84,37 @@ export async function POST(req: Request) {
   if (toCheck.length) {
     const checks = await Promise.all(toCheck.map((a) => vaultChannel(a)));
     const failed = checks.find((c) => !c.ok);
-    if (failed && !failed.ok) return NextResponse.json({ plan, verdict: null, result: { status: "error", error: failed.error }, reasoning: failed.error }, { status: 503 });
+    if (failed && !failed.ok) return NextResponse.json({ plan, verdict: null, result: { status: "error", error: failed.error }, reasoning: failed.error, mode }, { status: 503 });
     inVault = checks.every((c) => c.ok && c.inVault);
   }
 
+  // B1 : une adresse hors carnet jamais payée par le smart account → accord de l'owner.
+  let paidBefore: boolean | null | undefined;
+  if (single && !single.known && !inVault) {
+    paidBefore = await paidAddresses()
+      .then((s) => s.has(single.address))
+      .catch((err) => (console.error("[intent] historique illisible", err instanceof Error ? err.message : err), null));
+  }
+
+  // B4 : petite caisse en pause (règle de l'agent retirée on-chain par l'owner).
+  const paused = single && !inVault ? (await agentRuleStatus()).state === "paused" : false;
+
   const spending = await spendingP;
-  const decision = decide(plan, message, spending, inVault);
+  const decision = decide(plan, message, spending, inVault, { paidBefore, paused });
   logVerdict(decision);
   try {
-    const result = await execute(plan, decision, spending);
+    const result = await execute(plan, decision, spending, owner ? "live" : "simulation");
     return NextResponse.json({
       plan,
       verdict: decision,
       result,
       reasoning: [plan.reasoning, ...decision.reasons].filter(Boolean).join(" "),
+      mode,
     });
   } catch (err) {
     console.error("[intent] executor", err);
     return NextResponse.json(
-      { plan, verdict: decision, result: { status: "error", error: err instanceof Error ? err.message : String(err) }, reasoning: decision.reasons.join(" ") },
+      { plan, verdict: decision, result: { status: "error", error: err instanceof Error ? err.message : String(err) }, reasoning: decision.reasons.join(" "), mode },
       { status: 500 },
     );
   }

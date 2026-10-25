@@ -28,24 +28,42 @@ export function agentKeypair(): Keypair {
 }
 
 const RULE_CACHE_MS = 60_000;
-let ruleCache: { id: number; at: number } | null = null;
+export type AgentRuleStatus = { state: "active"; id: number } | { state: "paused" } | { state: "unknown"; error: string };
+let ruleCache: { status: AgentRuleStatus; at: number } | null = null;
+
+/** Oublie le cache (après une pause / réactivation soumise par l'owner). */
+export const invalidateAgentRuleCache = () => {
+  ruleCache = null;
+};
+
+/**
+ * État de la règle B, lu on-chain (cache 60 s) : « active » (id), « paused » (aucune règle avec le
+ * signer de l'agent + la spending-limit : B4), ou « unknown » si le RPC ne répond pas.
+ */
+export async function agentRuleStatus(): Promise<AgentRuleStatus> {
+  if (process.env.RULE_AGENT_ID) return { state: "active", id: Number(process.env.RULE_AGENT_ID) };
+  if (ruleCache && Date.now() - ruleCache.at < RULE_CACHE_MS) return ruleCache.status;
+  const C = AGENT_CONFIG;
+  const agentKey = process.env.AGENT_SECRET_KEY ? agentKeypair() : Keypair.fromPublicKey(C.agentAddress);
+  let status: AgentRuleStatus;
+  try {
+    const id = await findAgentRule(C.ownerAddress, C.smartAccount, C.ed25519Verifier, agentKey.rawPublicKey(), C.spendingLimitPolicy);
+    status = id === null ? { state: "paused" } : { state: "active", id };
+    ruleCache = { status, at: Date.now() };
+  } catch (err) {
+    status = { state: "unknown", error: err instanceof Error ? err.message : String(err) };
+  }
+  return status;
+}
 
 /**
  * Id de la règle B (agent). Ordre : RULE_AGENT_ID (surcharge) → règle trouvée on-chain (cache 60 s)
- * → deployment.json si le RPC ne répond pas. Après `npm run reset-agent`, l'app suit toute seule.
+ * → deployment.json si le RPC ne répond pas ou si l'agent est en pause (la tx échouera alors on-chain).
+ * Après `npm run reset-agent`, l'app suit toute seule.
  */
 export async function agentRuleId(): Promise<number> {
-  if (process.env.RULE_AGENT_ID) return Number(process.env.RULE_AGENT_ID);
-  if (ruleCache && Date.now() - ruleCache.at < RULE_CACHE_MS) return ruleCache.id;
-  const C = AGENT_CONFIG;
-  const agentKey = process.env.AGENT_SECRET_KEY ? agentKeypair() : Keypair.fromPublicKey(C.agentAddress);
-  try {
-    const id = await findAgentRule(C.ownerAddress, C.smartAccount, C.ed25519Verifier, agentKey.rawPublicKey(), C.spendingLimitPolicy);
-    if (id === null) throw new Error("aucune règle avec le signer de l'agent et la spending-limit policy");
-    ruleCache = { id, at: Date.now() };
-    return id;
-  } catch (err) {
-    console.error(`[config] règle de l'agent introuvable on-chain, repli sur deployment.json (${C.ruleAgentFallback})`, err);
-    return C.ruleAgentFallback;
-  }
+  const s = await agentRuleStatus();
+  if (s.state === "active") return s.id;
+  console.error(`[config] règle de l'agent ${s.state === "paused" ? "absente (pause)" : "illisible"}, repli sur deployment.json (${AGENT_CONFIG.ruleAgentFallback})`);
+  return AGENT_CONFIG.ruleAgentFallback;
 }

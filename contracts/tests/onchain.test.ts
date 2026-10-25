@@ -6,6 +6,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { agentRuleId } from "../../app/lib/agent/config.ts";
 import { isInVault } from "../../app/lib/agent/vault.ts";
+import { decide } from "../../app/lib/agent/gatekeeper.ts";
+import { execute } from "../../app/lib/agent/executor.ts";
+import { toPlan } from "../../app/lib/agent/planner.ts";
 import {
   Address,
   findAgentRule,
@@ -123,4 +126,29 @@ test("owner en mode Freighter (source = owner, credentials source-account) : sim
 test("coffre (simulation) : Bob inscrit, Alice non → routage privé / public", async () => {
   assert.equal(await isInVault("GBCQZMHQWCIQJRCQJHAI7L2GS56A3EVY5E2E26DU2RX5SRSU4Y5B32GV"), true);
   assert.equal(await isInVault(alice), false);
+});
+
+test("mode démo (visiteur) : simulation seule — 50 USDC → « aurait été refusé (#3221) », aucune tx", async () => {
+  process.env.AGENT_SECRET_KEY ??= agent.secret();
+  const p = toPlan({ type: "actions", steps: [{ action: "pay", amount: "50", asset: "USDC", to: "Alice" }], reasoning: "" }, "llm");
+  const r = await execute(p, decide(p, "paie 50 USDC à Alice", budget), budget, "simulation");
+  assert.equal(r.status, "simulated");
+  assert.ok(r.status === "simulated" && r.code === 3221 && !r.wouldSucceed && /^Simulation : /.test(r.text));
+});
+
+test("mode démo : sous le plafond → « aurait été exécuté », aucune tx", { skip: budget.remaining === 0n && "budget épuisé" }, async () => {
+  process.env.AGENT_SECRET_KEY ??= agent.secret();
+  const amount = String(Math.min(0.01, Number(budget.remaining) / 1e7));
+  const p = toPlan({ type: "actions", steps: [{ action: "pay", amount, asset: "USDC", to: "Alice" }], reasoning: "" }, "llm");
+  const r = await execute(p, decide(p, `paie ${amount} USDC à Alice`, budget), budget, "simulation");
+  assert.ok(r.status === "simulated" && r.wouldSucceed && r.wouldNeed === "nothing", JSON.stringify(r));
+});
+
+test("B4 (simulation) : XDR de pause = remove_context_rule de la règle trouvée, frais simulés ; reprise refusée tant que l'agent est actif", async () => {
+  const { preparePause, prepareResume } = await import("../../app/lib/agent/pause.ts");
+  const pause = await preparePause();
+  assert.ok(pause.ok, !pause.ok ? pause.error : "");
+  assert.ok(pause.ok && pause.ruleId === d.ruleAgent && pause.feeXlm > 0 && pause.unsignedXdr.length > 100);
+  const resume = await prepareResume();
+  assert.ok(!resume.ok && /pas en pause/.test(resume.error));
 });

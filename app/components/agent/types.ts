@@ -41,9 +41,18 @@ export type IntentResponse = {
   reasoning: string;
   /** Présent quand le planner n'a pas produit de plan (clarify, reply…) ou sur un refus net. */
   planner?: "llm" | "fallback";
+  /** « owner » : Sarah connectée (paiements réels). « simulation » : visiteur, rien n'est envoyé. */
+  mode?: "owner" | "simulation";
 };
 
 export type OwnerApproval = Extract<ExecutionResult, { status: "needs_owner_approval" }>;
+export type SimulatedResult = Extract<ExecutionResult, { status: "simulated" }>;
+
+/** GET /api/agent/pause */
+export type PauseStatus = { paused: boolean; ruleId?: number; scope: string };
+
+/** GET /api/agent/session */
+export type SessionStatus = { enabled: boolean; owner: boolean; ownerAddress: string };
 
 export type BalanceResponse = {
   smartAccount: string;

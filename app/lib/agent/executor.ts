@@ -26,6 +26,7 @@ import {
 import type { VaultSignatureRequest } from "../../components/agent/types";
 import type { GateDecision } from "./gatekeeper";
 import { sumUsdc } from "./payroll";
+import { recipientClarification, resolveRecipient } from "./contacts";
 import type { Plan } from "./planner";
 
 const C = AGENT_CONFIG;
@@ -48,8 +49,27 @@ export type ExecutionResult =
       agentAttempt?: AgentAttempt;
     }
   | VaultSignatureRequest
+  | {
+      /** Mode démo (visiteur) : la tx de l'agent a été SIMULÉE, rien n'a été envoyé. */
+      status: "simulated";
+      wouldSucceed: boolean;
+      /** Code renvoyé par la simulation (3221 = SpendingLimitExceeded), null si elle passe. */
+      code: number | null;
+      /** Ce qui se serait passé : l'agent aurait payé seul, ou il aurait fallu l'accord de l'owner. */
+      wouldNeed: "nothing" | "owner_approval";
+      text: string;
+    }
+  | { status: "paused"; text: string }
   | { status: "blocked" }
-  | { status: "info"; balance?: BalanceInfo; history?: HistoryInfo }
+  | {
+      status: "info";
+      balance?: BalanceInfo;
+      history?: HistoryInfo;
+      budget?: BalanceInfo["budget"];
+      address?: { label: string; address: string };
+      /** Réponse composée par le serveur à partir des valeurs on-chain / du carnet, jamais par le LLM ("" si rien). */
+      text: string;
+    }
   | { status: "error"; error: string; agentAttempt?: AgentAttempt };
 
 export type BalanceInfo = { smartAccountUsdc: number; budget: { limitUsdc: number; spentUsdc: number; remainingUsdc: number; periodLedgers: number } };
@@ -108,8 +128,31 @@ async function ownerApproval(amount: bigint, to: string, agentAttempt?: AgentAtt
   };
 }
 
-export async function execute(plan: Plan, decision: GateDecision, spending: SpendingState | null): Promise<ExecutionResult> {
+/** « live » : owner connecté, l'agent paie pour de vrai. « simulation » : visiteur, rien n'est envoyé. */
+export type ExecMode = "live" | "simulation";
+
+/** Visiteur : on simule la tx de l'agent (auth signée, policy exécutée) sans l'envoyer ni soumettre de rejet. */
+async function simulateForVisitor(decision: GateDecision): Promise<ExecutionResult> {
+  const { amountUsdc, recipient } = decision.payment!;
+  const { enforced } = await prepareSmartAccountCall(await transferCall(usdc(amountUsdc), recipient.address, "agent"));
+  const code = rpc.Api.isSimulationError(enforced) ? (simulationErrorCode(enforced.error) ?? -1) : null;
+  const wouldSucceed = code === null;
+  const what = `${amountUsdc} USDC → ${recipient.label}`;
+  const wouldNeed = decision.verdict === "AUTO_EXECUTE" && wouldSucceed ? "nothing" : "owner_approval";
+  const text =
+    code === SPENDING_LIMIT_EXCEEDED
+      ? `Simulation : ce paiement (${what}) aurait été refusé par le réseau (#3221, plafond de l'agent). Seule Sarah pourrait l'approuver avec Freighter. Rien n'a été envoyé.`
+      : code !== null
+        ? `Simulation : ce paiement (${what}) aurait été refusé par le réseau${code > 0 ? ` (#${code})` : ""}. Rien n'a été envoyé.`
+        : wouldNeed === "nothing"
+          ? `Simulation : ce paiement (${what}) aurait été exécuté par l'agent seul, sous son plafond. Rien n'a été envoyé.`
+          : `Simulation : le réseau aurait accepté la signature de l'agent, mais le gatekeeper aurait demandé l'accord de Sarah (${decision.triggered.join(", ")}). Rien n'a été envoyé.`;
+  return { status: "simulated", wouldSucceed, code, wouldNeed, text };
+}
+
+export async function execute(plan: Plan, decision: GateDecision, spending: SpendingState | null, mode: ExecMode = "live"): Promise<ExecutionResult> {
   if (decision.verdict === "BLOCKED") return { status: "blocked" };
+  if (decision.verdict === "PAUSED") return { status: "paused", text: decision.reasons[0] };
 
   // Coffre : l'agent n'a pas les clés de Sarah, il ne signe et ne prouve rien. Il prépare la liste.
   if (decision.verdict === "NEEDS_VAULT_SIGNATURE") {
@@ -123,7 +166,7 @@ export async function execute(plan: Plan, decision: GateDecision, spending: Spen
   }
 
   if (decision.verdict === "INFO") {
-    const out: Extract<ExecutionResult, { status: "info" }> = { status: "info" };
+    const out: Extract<ExecutionResult, { status: "info" }> = { status: "info", text: "" };
     if (plan.steps.some((s) => s.action === "balance") && spending) {
       out.balance = {
         smartAccountUsdc: fromUsdc(await readTokenBalance(C.ownerAddress, C.usdcSac, C.smartAccount)),
@@ -141,8 +184,35 @@ export async function execute(plan: Plan, decision: GateDecision, spending: Spen
         contractUrl: `https://stellar.expert/explorer/testnet/contract/${C.smartAccount}`,
       };
     }
+    const texts: string[] = [];
+    if (plan.steps.some((s) => s.action === "budget")) {
+      if (spending) {
+        out.budget = { limitUsdc: fromUsdc(spending.limit), spentUsdc: fromUsdc(spending.spent), remainingUsdc: fromUsdc(spending.remaining), periodLedgers: spending.periodLedgers };
+        const b = out.budget;
+        texts.push(`Plafond de l'agent : ${b.limitUsdc} USDC sur ~${Math.round((b.periodLedgers * 5) / 3600)} h glissantes. Dépensé : ${b.spentUsdc} USDC. Restant : ${b.remainingUsdc} USDC. (Lu on-chain dans la spending-limit policy.)`);
+      } else texts.push("Je n'ai pas pu lire le budget on-chain de l'agent : réessaie dans un instant.");
+    }
+    const addr = plan.steps.find((s) => s.action === "address");
+    if (addr && addr.action === "address") {
+      if (!addr.of) {
+        out.address = { label: "Compte de l'agent (smart account)", address: C.smartAccount };
+        texts.push(`Adresse du compte de l'agent (smart account) : ${C.smartAccount}`);
+      } else {
+        const r = resolveRecipient(addr.of);
+        if (r?.known) {
+          out.address = { label: r.label, address: r.address };
+          texts.push(`Adresse de ${r.label} : ${r.address}`);
+        } else texts.push(recipientClarification(addr.of) ?? `Je ne connais pas « ${addr.of} ».`);
+      }
+    }
+    if (out.balance) {
+      texts.unshift(`Solde du compte de l'agent : ${out.balance.smartAccountUsdc} USDC. Budget restant : ${out.balance.budget.remainingUsdc} / ${out.balance.budget.limitUsdc} USDC.`);
+    }
+    out.text = texts.join(" ");
     return out;
   }
+
+  if (mode === "simulation") return simulateForVisitor(decision);
 
   const { amountUsdc, recipient } = decision.payment!;
   const amount = usdc(amountUsdc);
