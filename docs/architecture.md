@@ -14,7 +14,7 @@
 | Isolation cross-origin | `COOP: same-origin` + `COEP: credentialless` sur toutes les routes → `window.crossOriginIsolated === true` (requis par bb.js) ; `/vendor/bb/index.js` servi en 200 |
 
 Vérifié avec Playwright (Chromium) le 2026-10-25 : les 4 pages répondent 200, aucune erreur JS,
-et `/auditor` lit la chaîne puis révèle le transfert confidentiel `59b6c363…` (« chiffré » on-chain) = **7.50 USDC**.
+et `/auditor` lit la chaîne : le transfert confidentiel `1cfe3715…` est « chiffré » ; la clé publique de la démo de référence est refusée (montant illisible) ; notre clé d'audit (collée, vérifiée on-chain) révèle **7.50 USDC**.
 La vue auditeur lit les événements via le RPC Soroban, dont la fenêtre de rétention est d'environ 7 jours :
 au-delà, il faudra rejouer `npm run ct:e2e` pour avoir des transactions récentes à montrer.
 
@@ -46,7 +46,8 @@ Le pré-check côté serveur sert à l'affichage. La vraie barrière est la poli
 | Smart account | |
 | Vérificateur Ed25519 | |
 | Spending-limit policy | |
-| Confidential Token (USDC) | `CB4T3MNGCLUNVM7A4LCMXSOFRCWA6OODNDLFNDHRUHSDAOLRLAUYJMDD` — détails P2 ci-dessous |
+| Confidential Token (USDC) | `CAYYT5UWB22VLV4Z7DU7DN7V6XFPGIDP5ZD3HV4S6HVQMCGLI5CFLERJ` — détails P2 ci-dessous |
+| Registre d'auditeurs Monolith | `CB5YIDSUCNESNOJK2UFFJA6E3O5BGAPYEQ6F353WGNM4UBGGX3H45IGQ` (auditeur #1) |
 
 ## Tx hashes de démo (testnet)
 
@@ -55,32 +56,59 @@ Le pré-check côté serveur sert à l'affichage. La vraie barrière est la poli
 | Agent → 5 USDC (succès) | |
 | Agent → 50 USDC (échec #2221) | |
 | Owner → 50 USDC (approbation) | |
-| Transfert confidentiel (7.5 USDC, montant caché) | [`59b6c363…`](https://stellar.expert/explorer/testnet/tx/59b6c3639e71e797128e4543fc090842d05de0eafeda7d5cdf0aca9d66bd16d8) |
+| Transfert confidentiel (7.5 USDC, montant caché, lisible par notre seul auditeur) | [`1cfe3715…`](https://stellar.expert/explorer/testnet/tx/1cfe37158b1fa2fd25e84468c6d9949bfc69c4710d08bc547630631f007095ff) |
 
 ## P2 — Confidential vault (Confidential Tokens, `stellar-confidential` 0.8.0)
 
 | Contract | ID | Owner |
 |---|---|---|
-| **Monolith confidential USDC** (vanilla token, no admin / no freeze / no clawback) | `CB4T3MNGCLUNVM7A4LCMXSOFRCWA6OODNDLFNDHRUHSDAOLRLAUYJMDD` | ours — deployed via the factory, [tx](https://stellar.expert/explorer/testnet/tx/712ea387cb5c55ea5ed5cfaac2d160715d6a2bf26abe32e8456b6db6eea4064e), ledger 5380562 |
+| **Monolith confidential USDC v2** (vanilla token, no admin / no freeze / no clawback) | `CAYYT5UWB22VLV4Z7DU7DN7V6XFPGIDP5ZD3HV4S6HVQMCGLI5CFLERJ` | ours — factory `deploy_vanilla_token` with **our** registry, [tx](https://stellar.expert/explorer/testnet/tx/8694ce7a180a59cc6ccc34c10eaf674be89ddbd861b73d96b6089526a13dc6d7), ledger 5382322 |
+| **Monolith auditor registry** (OZ `confidential_auditor_example` wasm `b8b24767…`) | `CB5YIDSUCNESNOJK2UFFJA6E3O5BGAPYEQ6F353WGNM4UBGGX3H45IGQ` | ours — admin/manager `GAZ2FGMN…ZQE4A4EM`, [create](https://stellar.expert/explorer/testnet/tx/ee207713564ab7731ad3afd56707be1b765704c1b9d0caa53135365d7644b491), [register_key(1)](https://stellar.expert/explorer/testnet/tx/78c52ed8b22bc1768f6bfbb84d020d2974fc3a2f27ef67270ebf905ae725536e) |
 | Underlying: USDC SAC (Circle testnet `GBBD47IF…LLFLA5`) | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` | Circle |
 | UltraHonk verifier (VK registry) | `CAN45PFA5CVUCU3JB77IE2JNWNTRCDWMRNG55U452L3N2IOCAGOLTUVQ` | shared, deployed by `brozorec/stellar-confidential-token-demo` |
-| Auditor registry (we use `auditor_id = 0`) | `CBQZRK72Y6KJ5DR4CUHKLHMHIKBMOZNSYTWHRUQPEXA35PRCBMSPBZTW` | shared, idem |
 | Token factory | `CAWPCXMW47UET5Z4N5T44PRDGAY6CZVP2O2JDEBL7YWEUHJGQ2BR4L6R` | shared, idem |
+| *v1 token (history, shared public auditor 0)* | `CB4T3MNGCLUNVM7A4LCMXSOFRCWA6OODNDLFNDHRUHSDAOLRLAUYJMDD` | ours, [tx](https://stellar.expert/explorer/testnet/tx/712ea387cb5c55ea5ed5cfaac2d160715d6a2bf26abe32e8456b6db6eea4064e) — not used by the app anymore |
+| *Shared auditor registry (v1)* | `CBQZRK72Y6KJ5DR4CUHKLHMHIKBMOZNSYTWHRUQPEXA35PRCBMSPBZTW` | shared; its auditor 0 secret is public |
 
-Machine-readable copy: [`deployments/testnet.json`](../deployments/testnet.json).
+Machine-readable: [`deployments/testnet.json`](../deployments/testnet.json) (v2),
+[`deployments/auditor.json`](../deployments/auditor.json) (registry + public key),
+[`deployments/testnet-v1-shared-auditor.json`](../deployments/testnet-v1-shared-auditor.json) (v1).
 
-**Honest caveat — auditor key.** The shared auditor id 0 has a *publicly known*
-secret key (published by the reference demo so anyone can play the auditor).
-So today anyone can decrypt amounts on our token. Fine for a demo; a real
-deployment registers its own auditor key. Planned: deploy our own verifier +
-auditor if time allows.
+**Our auditor (v2).** v1 used the shared registry's auditor id 0, whose secret
+the reference demo publishes, so anyone could decrypt v1 amounts. Only the
+registry's admin can add keys, so `npm run ct:auditor`
+([`scripts/deploy-auditor.ts`](../scripts/deploy-auditor.ts)):
+1. checks the key convention on the shared registry (`K_aud = k·H`) before deploying anything;
+2. generates a Grumpkin auditor secret (kept in `.keys/testnet.json`, git-ignored, never in the app);
+3. creates our registry instance from OpenZeppelin's registry wasm already installed on testnet (`createCustomContract`, constructor `(admin, manager)`), no compilation, no new contract code;
+4. `register_key(1, k·H)` and reads it back;
+5. deploys a vanilla confidential USDC through the shared factory with our registry.
+
+Accounts pick `auditor_id = 1` at `register`. The auditor page checks a pasted
+key with `k·H == get_key(1)` before decrypting.
 
 **Why these contracts are trustworthy-ish:** the verifier's registered VKs and
 the vendored SDK's VKs (`packages/ct-sdk/circuits/vks`) are byte-identical to
 `OpenZeppelin/stellar-contracts` → `packages/confidential/circuits/vks`
 (audited circuits). Still a developer preview — testnet only.
 
-### Go/no-go run — 2026-10-25 11:08 UTC (`npm run ct:e2e`)
+### v2 run — our auditor, 2026-10-25 13:34 UTC (`npm run ct:e2e`)
+
+Token `CAYYT5UW…LERJ`. alice = `GB7OT6KYOLWATWCNEPDTZZIP6CHI3L4X3YXH6BX7IVCPY2ENMPKIIKXP`, bob = `GBCQZMHQWCIQJRCQJHAI7L2GS56A3EVY5E2E26DU2RX5SRSU4Y5B32GV`
+
+| Step | Public? | Tx |
+|---|---|---|
+| alice buys 30 USDC on the DEX | public | [`31ff38e8…`](https://stellar.expert/explorer/testnet/tx/31ff38e81fd3068661e4a13a721913697048d01918f6b8752003e7bf2b36a01c) |
+| alice / bob `register` (auditor #1) | — | [`0ca7d9fd…`](https://stellar.expert/explorer/testnet/tx/0ca7d9fd38e3b6815b96de8964183b498f228d4bb6384736e3d9e49c725544c5) / [`7c7d8505…`](https://stellar.expert/explorer/testnet/tx/7c7d85059727381454b6d14348352bd9a7c3b9522c0f0f1023b85f0dad81e8cd) |
+| alice `deposit` 20 USDC | **amount public** | [`3f2c290d…`](https://stellar.expert/explorer/testnet/tx/3f2c290d48511402c60e089c6517ee86d4c8a4797b097c276df95cf8b32ca0c7) |
+| alice `merge` | — | [`da659c09…`](https://stellar.expert/explorer/testnet/tx/da659c0990968c4c172b62a453dcec3fdf04d984500b31dd69743680c97a42e8) |
+| **alice → bob `confidential_transfer` 7.5 USDC** | **amount hidden** | [`1cfe3715…`](https://stellar.expert/explorer/testnet/tx/1cfe37158b1fa2fd25e84468c6d9949bfc69c4710d08bc547630631f007095ff) |
+| **our auditor** decrypts it → 7.5 USDC, alice's balance after → 12.5 · **shared public key #0 → unreadable** | off-chain | — |
+| bob `merge` / `withdraw` 7.5 USDC | **withdraw amount public** | [`fa5b5dad…`](https://stellar.expert/explorer/testnet/tx/fa5b5dad661ef32cf6bf6a335b54b3b22914950df0664d32b49fa123d6c1defb) / [`ec88598c…`](https://stellar.expert/explorer/testnet/tx/ec88598c0bdbca215539e3136ef035008afc1425c8494611fdaa4ac4f3211a33) |
+
+Proofs (Node): register 1.5–3.7 s · transfer 4.4 s · withdraw 3.3 s.
+
+### v1 go/no-go run — 2026-10-25 11:08 UTC (shared auditor, token `CB4T3M…`)
 
 alice = `GD74JAC6YD6OFRVCNFSUVLX6UJKWSTWWO3WSZ7IROZQWLZ25F2XRZIA5`, bob = `GC6C2LR643VOW2VDXNZ2UOUHQS3H5GKMIGNGNMSNHAWQQ4WXAPBW3D34`
 
@@ -99,7 +127,7 @@ alice = `GD74JAC6YD6OFRVCNFSUVLX6UJKWSTWWO3WSZ7IROZQWLZ25F2XRZIA5`, bob = `GC6C2
 Proof generation (Node, this machine): register 1.4–1.8 s · transfer 3.4 s ·
 withdraw 2.7 s.
 
-### Browser run — live app + Freighter, 2026-10-25 ~12:55 UTC
+### v1 browser run — live app + Freighter (Firefox), 2026-10-25 ~12:55 UTC
 
 Manual test on https://monolith-nine-rosy.vercel.app/vault, proofs generated in the browser (bb.js).
 Account `GD46SGQRPKDSWAS665C7OWIPY6TBWRMSSNZLAHZJDFBDAMPBRCYLRLAB`, recipient `GCXA…FI3H`.

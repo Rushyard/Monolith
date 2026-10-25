@@ -12,7 +12,7 @@
  *
  * Writes deployments/testnet-e2e.json (tx hashes). Usage: npm run ct:e2e
  */
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Keypair } from "@stellar/stellar-sdk";
@@ -53,11 +53,18 @@ import {
 } from "./_shared.js";
 
 /**
- * Secret key of the shared stack's auditor id 0, published on purpose by
- * brozorec/stellar-confidential-token-demo so anyone can play the auditor.
- * Demo only: a real auditor key never leaves the auditor's machine.
+ * Secret of the shared stack's auditor id 0, published on purpose by
+ * brozorec/stellar-confidential-token-demo. Our token uses our own registry
+ * (scripts/deploy-auditor.ts), so this key must NOT open our transfers.
  */
 const SHARED_AUDITOR_SECRET = "0x1165798bd0efb257cca0ac3d1d88bb549267d30a23fcb3c4e69eea4b7f872bc7";
+
+/** Our auditor's secret, from .keys/testnet.json (git-ignored). */
+function ourAuditorSecret(): bigint {
+  const keys = JSON.parse(readFileSync(join(REPO_ROOT, ".keys", "testnet.json"), "utf8")) as Record<string, string>;
+  if (!keys.auditorGrumpkinSk) throw new Error("no auditor key; run `npm run ct:auditor` first");
+  return BigInt(keys.auditorGrumpkinSk);
+}
 
 const DEPOSIT = 20n * USDC_UNIT;
 const TRANSFER = 75n * (USDC_UNIT / 10n); // 7.5 USDC
@@ -148,9 +155,12 @@ async function main(): Promise<void> {
       const { events } = await fetchEvents(client, { startLedger: dep.deployedAtLedger });
       const ev = events.find((e) => e.type === "transfer" && e.txHash === hashes.confidentialTransfer);
       if (!ev || ev.type !== "transfer") throw new Error("transfer event not found");
-      const d = auditTransfer(BigInt(SHARED_AUDITOR_SECRET), ev);
+      const d = auditTransfer(ourAuditorSecret(), ev);
       assert(d.channelsAgree && d.amount === TRANSFER, `auditor decrypted ${d.amount}`);
-      console.log(`  auditor sees amount = ${usdc(d.amount)}, sender balance after = ${usdc(d.senderBalance)} (✓)`);
+      console.log(`  our auditor sees amount = ${usdc(d.amount)}, sender balance after = ${usdc(d.senderBalance)} (✓)`);
+      const leaked = auditTransfer(BigInt(SHARED_AUDITOR_SECRET), ev);
+      assert(!leaked.channelsAgree && leaked.amount !== TRANSFER, "the shared public auditor key opened our transfer");
+      console.log("  the shared public auditor key (id 0) cannot open it (✓)");
     }
 
     console.log(`\n[merge + withdraw] bob withdraws ${usdc(TRANSFER)} (public)`);

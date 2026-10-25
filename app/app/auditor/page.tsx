@@ -1,27 +1,35 @@
 "use client";
 
-// Vue auditeur (P2) : la clé d'audit révèle les montants des transferts confidentiels.
+// Vue auditeur (P2) : la clé d'audit de Monolith révèle les montants des transferts confidentiels.
+// La clé n'est jamais embarquée dans l'app ni stockée : elle reste dans l'état de la page.
 import { useState } from "react";
 
-import { CT, auditToken, explorerTx, formatUsdc, short, type AuditRow } from "@/lib/confidential";
+import { CT, auditToken, explorerTx, formatUsdc, short, type AuditRow, type KeyStatus } from "@/lib/confidential";
+
+type Attempt = "ours" | "shared";
 
 export default function AuditorPage() {
   const [rows, setRows] = useState<AuditRow[] | null>(null);
-  const [reveal, setReveal] = useState(false);
+  const [key, setKey] = useState("");
+  const [status, setStatus] = useState<{ key: KeyStatus; attempt?: Attempt }>({ key: "none" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  async function load(secretHex = "", attempt?: Attempt) {
     setLoading(true);
     setError(null);
     try {
-      setRows(await auditToken());
+      const r = await auditToken(secretHex);
+      setRows(r.rows);
+      setStatus({ key: r.key, attempt });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
   }
+
+  const revealed = status.key === "valid";
 
   return (
     <>
@@ -31,26 +39,71 @@ export default function AuditorPage() {
           <h1 className="intertitle" style={{ marginTop: 10 }}>L'auditeur</h1>
           <p className="lede">
             À gauche, ce que n'importe qui lit sur la chaîne. À droite, ce que révèle la clé d'audit : le montant
-            de chaque transfert et le solde de l'expéditeur. Rien de plus.
+            de chaque transfert et le solde de l'expéditeur. Rien de plus, et seulement pour l'auditeur désigné.
           </p>
         </div>
       </header>
 
       <section className="panel stack">
         <div className="row" style={{ justifyContent: "space-between" }}>
+          <button className="btn" onClick={() => load()} disabled={loading}>
+            {loading ? <span className="progress-dots">Lecture</span> : rows ? "Relire la chaîne" : "Lire la chaîne"}
+          </button>
+          <span className="mono" style={{ fontSize: 12, color: "var(--muted)" }}>
+            token {short(CT.token, 6)} · registre {short(CT.auditor, 6)} · auditeur #{CT.auditorId}
+          </span>
+        </div>
+
+        <div className="field">
+          <label htmlFor="audit-key">Clé d'audit (secret Grumpkin de l'auditeur désigné)</label>
           <div className="row">
-            <button className="btn" onClick={load} disabled={loading}>
-              {loading ? <span className="progress-dots">Lecture</span> : rows ? "Relire la chaîne" : "Lire la chaîne"}
-            </button>
-            <button className={`btn ${reveal ? "" : "primary"}`} onClick={() => setReveal((r) => !r)} disabled={!rows}>
-              {reveal ? "Masquer" : "Appliquer la clé d'audit"}
+            <input
+              id="audit-key"
+              className="input mono"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="0x…"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <button className="btn primary" onClick={() => load(key, "ours")} disabled={loading || !key.trim()}>
+              Appliquer la clé d'audit
             </button>
           </div>
-          <span className="mono" style={{ fontSize: 12, color: "var(--muted)" }}>token {short(CT.token, 6)}</span>
         </div>
+
+        <div className="row">
+          <button
+            className="btn"
+            onClick={() => load(CT.sharedPublicAuditorSecretHex, "shared")}
+            disabled={loading}
+          >
+            Essayer la clé publique de la démo de référence
+          </button>
+          <span style={{ fontSize: 13, color: "var(--muted)" }}>
+            (auditeur #0 du registre partagé, dont le secret est publié)
+          </span>
+        </div>
+
+        {status.key === "valid" && (
+          <p className="callout info" style={{ margin: 0, fontSize: 14 }}>
+            <span className="tag ok">clé valide</span> k·H correspond à la clé enregistrée on-chain pour l'auditeur
+            #{CT.auditorId}. Montants révélés ci-dessous.
+          </p>
+        )}
+        {status.key === "invalid" && (
+          <p className="callout" style={{ margin: 0, fontSize: 14 }}>
+            <span className="tag hal">clé refusée</span>{" "}
+            {status.attempt === "shared"
+              ? "La clé publique de la démo de référence n'ouvre rien ici : ce token est rattaché à notre propre registre d'auditeurs. Les montants restent chiffrés."
+              : "Cette clé ne correspond pas à l'auditeur enregistré on-chain. Les montants restent chiffrés."}
+          </p>
+        )}
         <p className="callout info" style={{ margin: 0, fontSize: 14 }}>
-          Démo : la clé d'audit est celle du registre partagé (auditor id 0), publiée volontairement par la démo de
-          référence. En production, elle ne quitte jamais la machine de l'auditeur.
+          Chaque compte désigne son auditeur à l'ouverture du coffre (ici le #{CT.auditorId} de notre registre).
+          Sa clé secrète n'est ni dans le code ni sur le serveur : elle ne quitte pas la machine de l'auditeur.
         </p>
         {error && <p className="callout" style={{ margin: 0 }}>{error}</p>}
       </section>
@@ -76,9 +129,13 @@ export default function AuditorPage() {
                       </div>
                     </td>
                     <td>{r.publicAmount === null ? <span className="tag hidden">chiffré</span> : <span className="num">{formatUsdc(r.publicAmount)}</span>}</td>
-                    <td className="num" style={{ color: r.kind === "transfer" && reveal ? "var(--hal)" : undefined }}>
-                      {reveal ? (r.auditedAmount === null ? "illisible" : formatUsdc(r.auditedAmount)) : "•••"}
-                      {reveal && r.senderBalance !== null && (
+                    <td className="num" style={{ color: r.kind === "transfer" && revealed ? "var(--hal)" : undefined }}>
+                      {r.kind !== "transfer"
+                        ? formatUsdc(r.auditedAmount ?? 0n)
+                        : r.auditedAmount === null
+                          ? status.key === "invalid" ? "illisible" : "•••"
+                          : formatUsdc(r.auditedAmount)}
+                      {r.senderBalance !== null && (
                         <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, whiteSpace: "normal" }}>solde après {formatUsdc(r.senderBalance)}</div>
                       )}
                     </td>

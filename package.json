@@ -15,6 +15,7 @@
     "postinstall": "npm run build -w stellar-confidential-token-sdk",
     "ct:deploy": "tsx scripts/deploy-ct.ts",
     "ct:e2e": "tsx scripts/e2e-ct.ts",
+    "ct:auditor": "tsx scripts/deploy-auditor.ts",
     "dev": "npm run dev -w @monolith/app",
     "build": "npm run build -w @monolith/app"
   },
