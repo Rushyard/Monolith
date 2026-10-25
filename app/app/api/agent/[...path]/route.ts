@@ -3,14 +3,23 @@ import { z } from "zod";
 import { AGENT_CONFIG } from "@/lib/agent/config";
 import { NETWORK_PASSPHRASE, TransactionBuilder, fromUsdc, readTokenBalance, sendAndWait, txLink } from "@/lib/agent/core";
 import { readAgentSpending } from "@/lib/agent/executor";
+import { readActivity, verifyVaultReceipt } from "@/lib/agent/activity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET /api/agent/balance · GET /api/agent/history
+// GET /api/agent/balance · GET /api/agent/history · GET /api/agent/activity
 export async function GET(_req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
   const route = path.join("/");
+  if (route === "activity") {
+    try {
+      return NextResponse.json({ items: await readActivity() });
+    } catch (err) {
+      console.error("[activity]", err);
+      return NextResponse.json({ error: "activité on-chain illisible" }, { status: 502 });
+    }
+  }
   if (route !== "balance" && route !== "history") return NextResponse.json({ error: "not found" }, { status: 404 });
 
   const spending = await readAgentSpending();
@@ -37,10 +46,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ path: s
 }
 
 // POST /api/agent/submit { signedXdr } : soumet la tx d'approbation signée par Freighter.
+// POST /api/agent/vault-receipt { to, hash } : reçu d'un transfert confidentiel (sans montant).
 const SubmitBody = z.object({ signedXdr: z.string().min(1).max(20_000) });
+const ReceiptBody = z.object({ to: z.string().regex(/^G[A-Z2-7]{55}$/), hash: z.string().regex(/^[0-9a-f]{64}$/i) }).strict();
 
 export async function POST(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
+  if (path.join("/") === "vault-receipt") {
+    const body = ReceiptBody.safeParse(await req.json().catch(() => null));
+    if (!body.success) return NextResponse.json({ error: "{ to: G…, hash } requis, sans montant" }, { status: 400 });
+    const res = await verifyVaultReceipt(body.data.to, body.data.hash.toLowerCase());
+    return res.ok ? NextResponse.json({ item: res.item }) : NextResponse.json({ error: res.error }, { status: res.status });
+  }
   if (path.join("/") !== "submit") return NextResponse.json({ error: "not found" }, { status: 404 });
   const body = SubmitBody.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "signedXdr requis" }, { status: 400 });
