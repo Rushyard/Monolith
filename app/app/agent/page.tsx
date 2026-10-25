@@ -14,6 +14,24 @@ type Turn = { id: number; message: string; response?: IntentResponse; error?: st
 // One click for the judges: a payment in budget, one over it, a question, an abusive request.
 const SUGGESTIONS = ["agent.s1", "agent.s2", "agent.s3", "agent.s4"] as const;
 
+// Dev only (never in a production build): a simulated payroll answer, same shape and recipients as
+// lib/agent/payroll.ts, to work on the vault card without the agent server. NEXT_PUBLIC_VAULT_PAY_MOCK=1.
+const VAULT_MOCK = process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_VAULT_PAY_MOCK === "1";
+const mockPayroll = (): IntentResponse => ({
+  plan: null,
+  verdict: null,
+  reasoning: "dev mock",
+  result: {
+    status: "needs_vault_signature",
+    payments: [
+      { to: "GDTMYTVUVK24YS33DC7LH2LXF6C4TKOYLPBWZNKKJIIRSAKRJZLSXPH3", label: "Carol", amountUsdc: "3" },
+      { to: "GBCQZMHQWCIQJRCQJHAI7L2GS56A3EVY5E2E26DU2RX5SRSU4Y5B32GV", label: "Bob", amountUsdc: "2" },
+    ],
+    totalUsdc: "5",
+    reasons: ["dev mock"],
+  },
+});
+
 export default function AgentPage() {
   const { t } = useI18n();
   const [message, setMessage] = useState("");
@@ -79,6 +97,11 @@ export default function AgentPage() {
           {SUGGESTIONS.map((s) => (
             <button key={s} type="button" className="chip" disabled={!!pending} onClick={() => send(t(s))}>{t(s)}</button>
           ))}
+          {VAULT_MOCK && (
+            <button type="button" className="chip" onClick={() => setTurns((ts) => [...ts, { id: Date.now(), message: "payroll (dev mock)", response: mockPayroll(), receivedAt: Date.now() }])}>
+              payroll (dev mock)
+            </button>
+          )}
         </div>
       </form>
 
