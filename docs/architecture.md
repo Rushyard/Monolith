@@ -38,6 +38,132 @@ au-delà, il faudra rejouer `npm run ct:e2e` pour avoir des transactions récent
 
 Le pré-check côté serveur sert à l'affichage. La vraie barrière est la policy on-chain.
 
+## P1 — Smart account + agent plafonné
+
+> Section maintenue par P1. Les tableaux partagés « Contract IDs » et « Tx hashes de démo » plus bas sont laissés intacts pour éviter les conflits de merge avec P2 : les valeurs P1 sont ici.
+
+### Comptes testnet (P1)
+
+Comptes classiques créés avec `stellar keys generate <nom> --network testnet --fund` (financés par friendbot). Les secrets restent dans le keystore local du Stellar CLI (`~/.config/stellar/identity/`), jamais dans le repo.
+
+| Rôle | Adresse |
+|---|---|
+| owner (Delegated signer, Freighter) | `GCIFXLBRK2CHODLILPTZIPEAK36TOS3MG4QRZGCTJ7PA52PAOP75RS7B` |
+| agent (signer Ed25519 externe, server-only) | `GAJDU7KW7ZZ7DOOTEHV5WILNF2CPBAWJE332I7PEAFLSU7LIVIVDUD33` |
+| alice (destinataire de démo) | `GDY5SERGYNGQF2R4SRZ4AHQPJ7HQOLEPLAFISMD37CM2XCTGW4KUBXH6` |
+
+### Trustlines USDC (change-trust)
+
+| Compte | Tx hash |
+|---|---|
+| owner | [`4af0b04a…`](https://stellar.expert/explorer/testnet/tx/4af0b04ac1fe19bd7ebdff0d622c914ee7d58674a0752bba15ae263ecd265c0d) |
+| agent | [`988740c5…`](https://stellar.expert/explorer/testnet/tx/988740c558e1ca6aa4a15de70117acc59c6cf6460a19aa87f293346628f12a37) |
+| alice | [`04615991…`](https://stellar.expert/explorer/testnet/tx/046159910798a72759be62ac430d687af1f12d901e3e1adcb8201c44ff49fe83) |
+
+Le smart account est un contrat (`C…`) : il n'a pas besoin de trustline, son solde USDC vit directement dans le SAC.
+
+### Contrats OpenZeppelin (P1)
+
+Source : [`OpenZeppelin/stellar-contracts`](https://github.com/OpenZeppelin/stellar-contracts) tag **`v0.8.0`**, commit **`ddc327eb92d63709436da3a8455f641c2d5476c5`** (`soroban-sdk` 28, testnet en protocole 29). Code non modifié, compilé avec `stellar contract build --package <nom>` (stellar-cli 27.0.0, rustc 1.96.1). WASM versionnés dans `contracts/wasm/`.
+
+| Exemple OZ | WASM | sha256 |
+|---|---|---|
+| `examples/multisig-smart-account/account` | `multisig_account_example.wasm` | `a22a4bf78858e965ae4c2676c974157e340f8acf99d2552bc9d3390b29e25201` |
+| `examples/multisig-smart-account/ed25519-verifier` | `multisig_ed25519_verifier_example.wasm` | `1647f1db6a5fb0a5b1c992f351193dd82633619490ca6a8df094326a6561b898` |
+| `examples/multisig-smart-account/spending-limit-policy` | `multisig_spending_limit_policy_example.wasm` | `997649dfe07b8bf76a6f90123a56a3cb1a5f145ed29b3b3415e3603089f0fbfb` |
+
+Points vérifiés dans le code source v0.8.0 :
+- `SpendingLimitExceeded` = **#3221** (`NotAllowed` = #3223), dans `packages/accounts/src/policies/spending_limit.rs`. MONOLITH.md indiquait #2221, une valeur d'une version antérieure.
+- La fenêtre est exprimée en **ledgers** (`period_ledgers: u32`) et elle est glissante : les dépenses dont `ledger_sequence <= ledger_actuel - period_ledgers` sortent du cumul. 17 280 ledgers × ~5 s ≈ 24 h (clôture moyenne mesurée sur testnet : 5 s).
+- Le **client choisit la règle** : `AuthPayload { signers, context_rule_ids }`. Il n'y a pas de bascule automatique vers une autre règle. Si l'agent cite la règle A, il est rejeté : `get_validated_context_by_id` exige que tous les signers d'une règle sans policy soient présents, donc l'erreur est `UnvalidatedContext` #3002, faute de signature owner.
+- Signer External (agent) : il signe `sha256(XDR(AuthDigestPreimage { account, signature_payload, context_rule_ids }))`.
+- Signer Delegated (owner) : il faut une auth entry supplémentaire pour l'owner, `__check_auth(preimage)` sur le smart account, que la simulation ne renvoie pas. Elle est construite dans `contracts/scripts/lib.ts`.
+
+### Contract IDs P1 (testnet)
+
+| Contrat | ID |
+|---|---|
+| USDC SAC (Circle testnet, `USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`, home_domain `centre.io`) | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` |
+| Smart account (`multisig_account_example`) | [`CC5D2NUS2GXAWMTK2DMSNJHVRGRH5GBEZNUMEPIOPBPQQJN6GDLO43KA`](https://stellar.expert/explorer/testnet/contract/CC5D2NUS2GXAWMTK2DMSNJHVRGRH5GBEZNUMEPIOPBPQQJN6GDLO43KA) |
+| Vérificateur Ed25519 | [`CBBDHCHRKXP2EROB5JN3EMCMZ4VOOIXSOKDNVPJKY4KIJXZ53ZDC3ZVB`](https://stellar.expert/explorer/testnet/contract/CBBDHCHRKXP2EROB5JN3EMCMZ4VOOIXSOKDNVPJKY4KIJXZ53ZDC3ZVB) |
+| Spending-limit policy | [`CAOT4RM7SYJPLT5XQVPYDEX6HKQOZFODZE6KQVUQJZUSVJY6HBWUVGHQ`](https://stellar.expert/explorer/testnet/contract/CAOT4RM7SYJPLT5XQVPYDEX6HKQOZFODZE6KQVUQJZUSVJY6HBWUVGHQ) |
+
+Valeurs aussi dans `contracts/deployments.testnet.json`, produit par `npm run deploy` dans `contracts/`.
+
+#### Règles de contexte du smart account (relues on-chain via `get_context_rule`)
+
+| id | Nom | Type | Signer | Policy |
+|---|---|---|---|---|
+| 0 (A) | `owner` (créée `multisig` par le constructeur de l'exemple OZ, renommée) | `Default` | `Delegated(owner GCIFXLBR…RS7B)` | aucune : plein pouvoir |
+| 1 (B) | `agent-usdc-10-24h` | `CallContract(USDC SAC)` | `External(vérificateur Ed25519, 123a7d56…2a3a)` = clé publique de l'agent | spending_limit : `spending_limit = 100000000` (10 USDC), `period_ledgers = 17280` (~24 h) |
+
+#### Tx de déploiement / configuration
+
+| Étape | Tx |
+|---|---|
+| Upload WASM vérificateur | [`da1fb1a4…`](https://stellar.expert/explorer/testnet/tx/da1fb1a43b2705a19553510ff996a3c1202ee844f027b32cd48ace1051e27702) |
+| Création vérificateur | [`a7b7526c…`](https://stellar.expert/explorer/testnet/tx/a7b7526cb31660f78d70de37e71559c3d0de4c8b3cadb8bb9d6bd22f6a5631a6) |
+| Upload WASM policy | [`042e846b…`](https://stellar.expert/explorer/testnet/tx/042e846b95e2b1ee53867c072899ffd8bf5f60fb3bbc58b8c1ac4492f663578a) |
+| Création policy | [`2b0dfc9b…`](https://stellar.expert/explorer/testnet/tx/2b0dfc9b255cd04e5a234dbc13e1cd52434ad1484a1ed672627806dcce5b1c0e) |
+| Upload WASM smart account | [`aa7b707b…`](https://stellar.expert/explorer/testnet/tx/aa7b707b3aab032a739d38f7d1c6835868c2a2b8e7d089ecfa8504d610243792) |
+| Création smart account + règle A (constructeur) | [`a9781d7c…`](https://stellar.expert/explorer/testnet/tx/a9781d7c5bba0cecae0eee844ea0fc9b8bcb2b70b90d425ca74bef2601690768) |
+| `add_context_rule` règle B, autorisée par l'owner via la règle A (auth Delegated) | [`3f92c989…`](https://stellar.expert/explorer/testnet/tx/3f92c989446c0f8957be7c74a91e26e99cdfd40fef7232615034c58f6f1202b2) |
+| `update_context_rule_name(0, "owner")`, flux d'approbation owner : owner = source de la tx, auth imbriquée `__check_auth` en credentials « source account », une seule signature d'enveloppe (ce que fait Freighter) | [`f3c762b4…`](https://stellar.expert/explorer/testnet/tx/f3c762b4bc658eaa18fcda5fbbe67e9d55f3272c0bad400d252b5872bafc35a4) |
+
+### Go/no-go P1 — 2026-10-25 (`npm run gonogo` dans `contracts/`) : 🟢 GO
+
+État initial : smart account 60 USDC (3 × 20 USDC du faucet Circle, regroupés), budget agent 0 / 10 USDC.
+
+| Scénario | Résultat | Tx |
+|---|---|---|
+| a) agent → 5 USDC vers alice (règle B, signature Ed25519 de l'agent) | ✅ succès, budget agent 5 / 10 | [`4ba72789…`](https://stellar.expert/explorer/testnet/tx/4ba72789cf7825eb285c743da14d92ad2de4971b9e793045b7889576e5449679) |
+| b) agent → 50 USDC vers alice (règle B) | ✅ **rejetée par le réseau** : tx incluse dans un ledger, statut FAILED, `Error(Contract, #3221)` `SpendingLimitExceeded`. La simulation renvoyait déjà #3221. Aucun USDC n'a bougé. | [`cfda69da…`](https://stellar.expert/explorer/testnet/tx/cfda69da1eeeb89228f4e86b7673f214eb4c524843089632d8e7e51cdf01620c) |
+| c) owner → 50 USDC vers alice (règle A, auth Delegated de l'owner) | ✅ succès, budget agent inchangé (5 / 10) | [`a394bd32…`](https://stellar.expert/explorer/testnet/tx/a394bd32034d6b7fdf4b4cb62837193f0b8db9b67c149c805345eec028660eb7) |
+| Remise à zéro : alice renvoie 55 USDC au smart account | ✅ | [`530e836a…`](https://stellar.expert/explorer/testnet/tx/530e836a4021b07c8ff9aa2a6d9f9b9e79d63685eca9acde36c665642b503648) |
+
+Regroupement initial des USDC vers le smart account : owner [`73c36e30…`](https://stellar.expert/explorer/testnet/tx/73c36e3098a5a57b7a48c843a1bf89854805ddfd47fdd515f7aced6c8b44af49), agent [`1df5bcf8…`](https://stellar.expert/explorer/testnet/tx/1df5bcf88ef10cf5179d96e84fb9ba4787b564ddd55d7b7584cc9667b209f8aa), alice [`d56034e3…`](https://stellar.expert/explorer/testnet/tx/d56034e33ec5c670185ab70859804c0c2c534a973c3c21f67ec3cd2603837d9a).
+
+Pour la tx b), la simulation échoue et ne fournit donc pas d'empreinte de stockage (footprint). Le script la récupère en simulant un transfert de 1 USDC avec le même nonce, puis soumet la tx de 50 USDC signée : c'est le réseau qui l'exécute et la rejette.
+
+### Pipeline agent (`/api/intent`), testé sur testnet le 2026-10-25
+
+| Test | Résultat | Tx |
+|---|---|---|
+| Executor : « paie 0.5 USDC à Alice » | AUTO_EXECUTE, signé par l'agent (règle B) | [`39a1395f…`](https://stellar.expert/explorer/testnet/tx/39a1395fdc44c211abf0a364a814e4bd8685dbb75177e8cc0441eb2962be8ab8) |
+| Executor : « paie 6 USDC à Alice » (budget restant 4.5) | NEEDS_APPROVAL, tentative de l'agent **rejetée on-chain #3221** | [`bf62de1d…`](https://stellar.expert/explorer/testnet/tx/bf62de1d045d446bcd98028c652126970f96917f100d67dd4d6f08a6cebb3da7) |
+| … puis `unsignedXdr` signé par l'owner (signature d'enveloppe, comme Freighter) | ✅ règle A | [`2a07f513…`](https://stellar.expert/explorer/testnet/tx/2a07f513e5a0a68426cf909df3375043a55808e3e6518a34b0a7cdce54821e2b) |
+| HTTP `POST /api/intent` « paie 0.3 USDC à Alice » | AUTO_EXECUTE | [`7b59cc04…`](https://stellar.expert/explorer/testnet/tx/7b59cc0492681770cbf321c60c52d0e585b0a554d78c8593fd7f351caa18b9ac) |
+| HTTP `POST /api/intent` « paie 50 USDC à Alice » | needs_owner_approval + rejet on-chain #3221 | [`3560dba5…`](https://stellar.expert/explorer/testnet/tx/3560dba557df6c6bedc61c863111d0942bedce6bf1fafb93db89d119fb4c3f0c) |
+
+### Démo navigateur — `/agent-p1` avec Freighter (owner = Account 2 `GCIF…RS7B`, testnet), 2026-10-25 ~14:29 UTC
+
+Flux complet validé manuellement : chat → planner → gatekeeper → tentative de l'agent → carte d'approbation → signature Freighter (`signTransaction`) → `POST /api/agent/submit`.
+
+| Étape | Résultat | Tx |
+|---|---|---|
+| Tentative de l'agent au-dessus du plafond (source = agent, règle B) | **FAILED on-chain**, `SpendingLimitExceeded` #3221, ledger 5382987 | [`eb70b4a2…`](https://stellar.expert/explorer/testnet/tx/eb70b4a2cd5eaf80d7df9bed9aacac25ee7e99a100f0d35d0b92015f16293676) |
+| Approbation de l'owner signée dans Freighter (source = owner, règle A) | ✅ SUCCESS, ledger 5382996 | [`39a0634f…`](https://stellar.expert/explorer/testnet/tx/39a0634f3ea7df229504c3b152342fc111d60be057df00e5007ebb5b34884243) |
+
+Remboursements d'alice vers le smart account : [`42d70ea9…`](https://stellar.expert/explorer/testnet/tx/42d70ea967e2643ae63aec7d923a6626720f8ebc95f1a3445fe3297888510c81), [`ea88ec4d…`](https://stellar.expert/explorer/testnet/tx/ea88ec4d58642946ee0a215dbc0de6822984e381b73a86a8cd68fab5612f932d).
+
+### Tests automatisés P1 — `npm test` dans `contracts/` : 23/23 ✅ (2026-10-25)
+
+Lanceur `node:test` via `tsx`, sans dépendance ajoutée. Les tests on-chain sont des **simulations signées** : les auths du smart account sont exécutées en mode enforcing (`__check_auth` + policy), mais **aucune tx n'est envoyée** (budget et USDC inchangés). Ils sont placés dans `contracts/` parce qu'ils lisent les clés agent/owner dans le keystore du Stellar CLI.
+
+| Test (testnet, simulation) | Attendu | Obtenu |
+|---|---|---|
+| agent sous le plafond (règle B) | OK | ✅ |
+| agent au-dessus du plafond | `#3221` SpendingLimitExceeded | ✅ |
+| agent qui cite la règle A | `#3002` UnvalidatedContext | ✅ |
+| agent → smart account lui-même (`update_context_rule_name`) | `#3002` | ✅ |
+| agent → autre token (XLM natif SAC) | `#3002` | ✅ |
+| agent → `approve` sur l'USDC (pas un `transfer`) | `#3223` NotAllowed | ✅ |
+| owner via la règle A (Delegated, entry signée) | OK | ✅ |
+| owner en mode Freighter (source-account) | OK | ✅ |
+
+Tests unitaires purs (`tests/gatekeeper.test.ts`, 15 cas, sans réseau) : budget, fail-closed si le budget est illisible, LLM manipulé (montant ou adresse ≠ message), injections FR/EN (« ignore les règles… déjà approuvé », « SYSTEM OVERRIDE auto-approve »), pression + tout l'argent ou adresse inconnue → BLOCKED, destinataire hors carnet, caractères invisibles et pleine chasse, planner de secours.
+
+
 ## Contract IDs (testnet)
 
 | Contrat | ID |
@@ -54,7 +180,7 @@ Le pré-check côté serveur sert à l'affichage. La vraie barrière est la poli
 | Scénario | Hash |
 |---|---|
 | Agent → 5 USDC (succès) | |
-| Agent → 50 USDC (échec #2221) | |
+| Agent → 50 USDC (échec #3221) | |
 | Owner → 50 USDC (approbation) | |
 | Transfert confidentiel (7.5 USDC, montant caché, lisible par notre seul auditeur) | [`1cfe3715…`](https://stellar.expert/explorer/testnet/tx/1cfe37158b1fa2fd25e84468c6d9949bfc69c4710d08bc547630631f007095ff) |
 
