@@ -97,4 +97,20 @@ alice = `GD74JAC6YD6OFRVCNFSUVLX6UJKWSTWWO3WSZ7IROZQWLZ25F2XRZIA5`, bob = `GC6C2
 | bob `withdraw` 7.5 USDC | **amount public** | [`93e38994…`](https://stellar.expert/explorer/testnet/tx/93e3899473aed840a289bee2dfb790039c79a4d4d2f77009b4d0ab7f1495f0a8) |
 
 Proof generation (Node, this machine): register 1.4–1.8 s · transfer 3.4 s ·
-withdraw 2.7 s. Browser timing still to measure.
+withdraw 2.7 s.
+
+### Browser run — live app + Freighter, 2026-10-25 ~12:55 UTC
+
+Manual test on https://monolith-nine-rosy.vercel.app/vault, proofs generated in the browser (bb.js).
+Account `GD46SGQRPKDSWAS665C7OWIPY6TBWRMSSNZLAHZJDFBDAMPBRCYLRLAB`, recipient `GCXA…FI3H`.
+
+| Step | Public? | Tx |
+|---|---|---|
+| `register` (< 10 s incl. Freighter signature) | — | `795f7013…82fc06f4` |
+| `deposit` 10 USDC | **amount public** | [`dd322e73…`](https://stellar.expert/explorer/testnet/tx/dd322e737ab01344e90bd9c8234efa8c66da9b57f9af9c149ee7b4fdc0f62c5a) |
+| `merge` | — | `0f77b2fd…d86dca2c` |
+| **`confidential_transfer` 2.5 USDC** (< 20 s incl. signature) | **amount hidden** | [`cd205da4…`](https://stellar.expert/explorer/testnet/tx/cd205da465d9e9c6aee973224be66d8afbc994c10c3a3b50a363ab05ce2e698e) |
+| `withdraw` 1 USDC | **amount public** | [`eae56979…`](https://stellar.expert/explorer/testnet/tx/eae5697925acb6a0232bba223d795721dff41f5d073a133f90d7aaaed059c53d) |
+| `/auditor` decrypts the transfer → 2.50, sender balance after → 7.50 | off-chain | — |
+
+Final vault balance 6.50 USDC (10 − 2.5 − 1), public balance 41 USDC.

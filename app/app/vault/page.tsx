@@ -21,6 +21,8 @@ import {
 import { Terminal, useLog } from "../terminal";
 
 type Busy = null | { op: string; phase?: TxPhase };
+// Whether the last tx shows its amount on-chain; undefined = no amount (register, merge).
+type Visibility = "public" | "hidden";
 
 interface HistoryRow {
   ev: ConfidentialEvent;
@@ -34,7 +36,7 @@ export default function VaultPage() {
   const [view, setView] = useState<VaultView | null>(null);
   const [pub, setPub] = useState<{ funded: boolean; xlm: string; usdc: string | null } | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
-  const [lastTx, setLastTx] = useState<{ label: string; hash: string; hidden: boolean } | null>(null);
+  const [lastTx, setLastTx] = useState<{ label: string; hash: string; amount?: Visibility } | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [recipients, setRecipients] = useState<string[]>([]);
   const [isolated, setIsolated] = useState(true);
@@ -75,11 +77,11 @@ export default function VaultPage() {
   }, []);
 
   const run = useCallback(
-    async (op: string, f: (onPhase: (p: TxPhase) => void) => Promise<{ hash: string } | void>, hidden = false) => {
+    async (op: string, f: (onPhase: (p: TxPhase) => void) => Promise<{ hash: string } | void>, amount?: Visibility) => {
       setBusy({ op });
       try {
         const r = await f((phase) => setBusy({ op, phase }));
-        if (r) setLastTx({ label: op, hash: r.hash, hidden });
+        if (r) setLastTx({ label: op, hash: r.hash, amount });
         await reload();
       } catch (e) {
         log(`${op} : ${e instanceof Error ? e.message : String(e)}`, true);
@@ -169,10 +171,14 @@ export default function VaultPage() {
           {lastTx && (
             <div className="panel row" style={{ marginTop: 16, justifyContent: "space-between" }}>
               <span>
-                <span className={`tag ${lastTx.hidden ? "hidden" : "public"}`}>
-                  {lastTx.hidden ? "montant caché" : "montant public"}
-                </span>{" "}
-                {lastTx.label} confirmé
+                {lastTx.amount && (
+                  <>
+                    <span className={`tag ${lastTx.amount}`}>
+                      {lastTx.amount === "hidden" ? "montant caché" : "montant public"}
+                    </span>{" "}
+                  </>
+                )}
+                {lastTx.label} · transaction confirmée
               </span>
               <a className="link mono" href={explorerTx(lastTx.hash)} target="_blank" rel="noreferrer">
                 {short(lastTx.hash, 8)} ↗ stellar.expert
@@ -198,7 +204,7 @@ export default function VaultPage() {
                   const hash = await buyTestUsdc(v.signer, "50");
                   log("50 USDC testnet achetés au DEX");
                   return { hash };
-                })}>Obtenir 50 USDC testnet</button>
+                }, "public")}>Obtenir 50 USDC testnet</button>
               </div>
             </section>
           ) : null}
@@ -224,7 +230,7 @@ export default function VaultPage() {
                     <label htmlFor="dep">Montant (USDC)</label>
                     <input id="dep" className="input" inputMode="decimal" value={depositAmt} onChange={(e) => setDepositAmt(e.target.value)} />
                   </div>
-                  <button className="btn" disabled={!!busy} onClick={() => run("Dépôt", () => v.deposit(parseUsdc(depositAmt)))}>
+                  <button className="btn" disabled={!!busy} onClick={() => run("Dépôt", () => v.deposit(parseUsdc(depositAmt)), "public")}>
                     {label("Dépôt") ? <span className="progress-dots">Envoi</span> : "Déposer"}
                   </button>
                 </div>
@@ -248,7 +254,7 @@ export default function VaultPage() {
                     <label htmlFor="amt">Montant (USDC)</label>
                     <input id="amt" className="input" inputMode="decimal" value={sendAmt} onChange={(e) => setSendAmt(e.target.value)} />
                   </div>
-                  <button className="btn primary" disabled={!!busy || !sendTo} onClick={() => run("Transfert confidentiel", (p) => v.transfer(sendTo, parseUsdc(sendAmt), p), true)}>
+                  <button className="btn primary" disabled={!!busy || !sendTo} onClick={() => run("Transfert confidentiel", (p) => v.transfer(sendTo, parseUsdc(sendAmt), p), "hidden")}>
                     {label("Transfert confidentiel") ? <span className="progress-dots">{label("Transfert confidentiel")}</span> : "Envoyer"}
                   </button>
                 </div>
@@ -261,7 +267,7 @@ export default function VaultPage() {
                     <label htmlFor="wd">Montant (USDC)</label>
                     <input id="wd" className="input" inputMode="decimal" value={withdrawAmt} onChange={(e) => setWithdrawAmt(e.target.value)} />
                   </div>
-                  <button className="btn" disabled={!!busy} onClick={() => run("Retrait", (p) => v.withdraw(parseUsdc(withdrawAmt), p))}>
+                  <button className="btn" disabled={!!busy} onClick={() => run("Retrait", (p) => v.withdraw(parseUsdc(withdrawAmt), p), "public")}>
                     {label("Retrait") ? <span className="progress-dots">{label("Retrait")}</span> : "Retirer"}
                   </button>
                 </div>
