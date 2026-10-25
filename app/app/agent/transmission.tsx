@@ -80,6 +80,11 @@ function Approve({ approval, receivedAt, amount, label, onApproved }: {
           {phase.kind === "working" ? <span className="progress-dots">{phase.step.replace("…", "")}</span> : phase.kind === "error" && phase.retry ? t("approve.retry") : t("approve.btn")}
         </button>
       </div>
+      <ul className="approve-facts">
+        <li><b>{t("approve.whyLabel")}</b> {approval.agentAttempt?.simulationCode === 3221 ? t("approve.why3221") : t("approve.whyGate")}</li>
+        <li><b>{t("approve.whatLabel")}</b> {t("approve.what")}</li>
+        <li><b>{t("approve.untilLabel")}</b> {t("approve.until", { ledger: approval.validUntilLedger })}</li>
+      </ul>
       {phase.kind === "error" && <p className="approve-error">{phase.message}</p>}
       <p className="fine">{t("approve.fine")}</p>
     </div>

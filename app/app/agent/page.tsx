@@ -15,7 +15,12 @@ import { PauseBanner } from "@/components/agent/PauseBanner";
 type Turn = { id: number; message: string; response?: IntentResponse; error?: string; receivedAt: number };
 
 // One click for the judges: a payment in budget, one over it, a question, an abusive request.
-const SUGGESTIONS = ["agent.s1", "agent.s2", "agent.s3", "agent.s4"] as const;
+const SUGGESTIONS = ["agent.s1", "agent.s2", "agent.s5", "agent.s3", "agent.s4"] as const;
+
+// « Try to scam me »: messages an attacker could send. Each one is caught before any money moves
+// (gatekeeper BLOCKED, or the owner is asked first). The address is a random testnet key, in no one's book.
+const SCAMS = ["scam.1", "scam.2", "scam.3"] as const;
+const SCAMMER = "GAOSEAEBU7JF73ITGCQHBHDT2IT2QIGYJV2TQEB2DDUJ7ACPXAHMQFID";
 
 // Dev only (never in a production build): a simulated payroll answer, same shape and recipients as
 // lib/agent/payroll.ts, to work on the vault card without the agent server. NEXT_PUBLIC_VAULT_PAY_MOCK=1.
@@ -42,6 +47,7 @@ export default function AgentPage() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [approved, setApproved] = useState<Record<number, string>>({});
   const [refreshKey, setRefreshKey] = useState(0);
+  const [scam, setScam] = useState(0);
   const [owner, setOwner] = useState(false); // session Sarah (Freighter) : sinon l'agent ne fait que simuler
   const last = turns[turns.length - 1];
   const mood = moodOf({ typing: !!message.trim(), loading: !!pending, last, approved: !!(last && approved[last.id]) });
@@ -111,6 +117,10 @@ export default function AgentPage() {
           {SUGGESTIONS.map((s) => (
             <button key={s} type="button" className="chip" disabled={!!pending} onClick={() => send(t(s))}>{t(s)}</button>
           ))}
+          <button type="button" className="chip scam" disabled={!!pending}
+            onClick={() => { send(t(SCAMS[scam % SCAMS.length], { addr: SCAMMER })); setScam((n) => n + 1); }}>
+            {t("agent.scamBtn")}
+          </button>
           {VAULT_MOCK && (
             <button type="button" className="chip" onClick={() => setTurns((ts) => [...ts, { id: Date.now(), message: "payroll (dev mock)", response: mockPayroll(), receivedAt: Date.now() }])}>
               payroll (dev mock)
