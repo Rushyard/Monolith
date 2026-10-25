@@ -9,6 +9,7 @@ import { HalEye, type HalMood } from "../fx/hal";
 import { Cipher, Decrypt, TypeLine } from "../fx/scramble";
 import { AmbientFilm } from "../fx/ambient-film";
 import { useI18n } from "@/lib/i18n/react";
+import { nameOf } from "@/lib/names";
 
 type Attempt = "ours" | "shared";
 
@@ -138,7 +139,9 @@ export default function AuditorPage() {
                     <td>
                       {t(`kind.${r.kind}`)}
                       <div className="mono" style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-                        {short(r.from)} → {short(r.to)} ·{" "}
+                        {short(r.from)}{nameOf(r.from) ? ` (${nameOf(r.from)})` : null}
+                        {" → "}
+                        {short(r.to)}{nameOf(r.to) ? ` (${nameOf(r.to)})` : null} ·{" "}
                         <a className="link" href={explorerTx(r.txHash)} target="_blank" rel="noreferrer">{short(r.txHash, 4)}</a>
                       </div>
                     </td>

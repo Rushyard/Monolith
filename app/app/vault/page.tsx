@@ -26,6 +26,7 @@ import { AmbientFilm } from "../fx/ambient-film";
 import { AGENT_SMART_ACCOUNT, FundAgentPanel } from "@/components/agent/FundAgentPanel";
 import { useI18n } from "@/lib/i18n/react";
 import type { Key } from "@/lib/i18n";
+import { nameOf } from "@/lib/names";
 
 type Op = "connect" | "friendbot" | "buy" | "register" | "deposit" | "merge" | "transfer" | "withdraw" | "refresh" | "fund";
 type Busy = null | { op: Op; phase?: TxPhase };
@@ -159,6 +160,7 @@ export default function VaultPage() {
               <div className="note num">
                 {pub?.funded ? `${Number(pub.xlm).toFixed(2)} XLM` : t("vault.unfunded")} ·{" "}
                 <a className="link" href={explorerAccount(v.address)} target="_blank" rel="noreferrer">{short(v.address)}</a>
+                {nameOf(v.address) ? ` (${nameOf(v.address)})` : null}
               </div>
             </div>
             <div className="panel stat curve-card">
@@ -255,9 +257,9 @@ export default function VaultPage() {
               <div className="panel stack">
                 <h2 className="section">{t("op.transfer")} <span className="tag hidden">{t("tag.hidden")}</span></h2>
                 <div className="field">
-                  <label htmlFor="to">{t("vault.recipient")}</label>
+                  <label htmlFor="to">{t("vault.recipient")}{nameOf(sendTo) ? ` · ${nameOf(sendTo)}` : null}</label>
                   <input id="to" className="input" list="recips" placeholder="G…" value={sendTo} onChange={(e) => setSendTo(e.target.value.trim())} />
-                  <datalist id="recips">{recipients.map((r) => <option key={r} value={r} />)}</datalist>
+                  <datalist id="recips">{recipients.map((r) => <option key={r} value={r} label={nameOf(r)} />)}</datalist>
                 </div>
                 <div className="op">
                   <div className="field">
@@ -346,7 +348,12 @@ function describe(ev: ConfidentialEvent, me: string, t: ReturnType<typeof useI18
     case "merge": return t("ev.merge");
     case "deposit": return t("ev.deposit");
     case "withdraw": return t(ev.to === AGENT_SMART_ACCOUNT ? "ev.fund" : "ev.withdraw");
-    case "transfer": return ev.from === me ? t("ev.sent", { who: short(ev.to) }) : t("ev.received", { who: short(ev.from) });
+    case "transfer": {
+      const addr = ev.from === me ? ev.to : ev.from;
+      const name = nameOf(addr);
+      const who = `${short(addr)}${name ? ` (${name})` : ""}`;
+      return t(ev.from === me ? "ev.sent" : "ev.received", { who });
+    }
     default: return ev.type;
   }
 }
