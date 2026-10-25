@@ -288,5 +288,19 @@ html, body { overflow-x: clip; }
   height: min(72vh, 720px); min-height: 400px; background: #000;
 }
 .hero-dawn.is-3d { padding-top: 0; }
+
+/* ---------- fx: dawn film hero (full-bleed video, title over its lower third) ---------- */
+.hero-film {
+  position: relative; left: 50%; width: 100vw; margin-left: -50vw;
+  height: min(78vh, 820px); min-height: 380px; background: #000; overflow: hidden;
+}
+.hero-film video {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  -webkit-mask-image: linear-gradient(#000 70%, transparent);
+  mask-image: linear-gradient(#000 70%, transparent);
+}
+.hero-dawn.is-film { padding-top: 0; }
+.hero-dawn.is-film .hero-copy { margin-top: -96px; position: relative; z-index: 1; }
+.hero-dawn.is-film .intertitle { text-shadow: 0 2px 24px rgba(0,0,0,.8); }
 .hero-dawn.is-3d .hero-copy { margin-top: 28px; position: relative; z-index: 1; }
 .hero-hint { font-family: var(--mono); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--faint); margin: -16px 0 32px; }
