@@ -221,6 +221,8 @@ Presque tout est du **loyer** (`rent_fee_charged`) : chaque paiement ajoute un `
 
 Pourquoi ça monte : `stellar network settings --internal` (testnet, 16:15 UTC) donne `soroban_state_target_size_bytes` = 4,0 Go, `live_soroban_state_size_window` 4,056 → 4,141 Go sur ~2,7 h, `soroban_state_rent_fee_growth_factor` = 5000 : au-dessus de la cible, le loyer par octet grimpe. Simulation du paiement suivant : ~12,8 XLM. Solde XLM de l'agent : 9926,7 XLM → ~770 paiements au tarif du moment (moins si le tarif monte encore). Le reset (`add_context_rule`, payé par l'owner, 7543 XLM) est estimé à ~56,8 XLM en dry-run. Mainnet non mesuré.
 
+Le soir même (règle 2, après reset) : premier paiement de l'agent [`635685b9…`](https://stellar.expert/explorer/testnet/tx/635685b9ed8f9fc2c9340a2eab762b003fefef78deccaeb29be5cfd5e682d55b) 0,0406 XLM (création de l'entrée), puis [`6d344bf8…`](https://stellar.expert/explorer/testnet/tx/6d344bf8030bf3e23ed9c2077e09889293e270001c5b3e7c4cb5204574d0dd33) 0,0048 XLM. `stellar network settings --internal` (~21:45 UTC) : `soroban_state_target_size_bytes` = **7,0 Go** (4,0 Go à 16:15 UTC), état ~4,28 Go → sous la cible, loyer bas. Le coût suit donc surtout le tarif du loyer du réseau.
+
 ## Contract IDs (testnet)
 
 | Contrat | ID |

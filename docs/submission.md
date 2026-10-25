@@ -48,7 +48,7 @@ Prior work by the same team: the Planner → deterministic Gatekeeper → Execut
 **Next steps**
 - Let the agent pay x402 APIs. Paying straight from the smart account is blocked by [x402-foundation/x402#3764](https://github.com/x402-foundation/x402/issues/3764): the facilitator rejects the policy's event. A workaround (fund the agent's own account through the capped rule, then pay x402 from it) is written on the `x402` branch, but not yet run on testnet.
 - Fund the agent without revealing the amount. Today, the vault → agent withdrawal is public.
-- Measure fees on mainnet. On testnet today, an agent payment costs several XLM, almost all of it storage rent for the policy's spending history (see README, Limitations).
+- Measure fees on mainnet. On testnet, an agent payment's fee is almost all storage rent for the policy's spending history, so it follows the network's rent rate: 3.2 to 11.1 XLM on the afternoon of 2026-10-25, 0.0048 XLM that evening (see README, Limitations).
 - More policies per rule (per-recipient limits, expiry), and more than one auditor per team.
 
 ## (c) Video script — 2 min 30, 5 scenes
