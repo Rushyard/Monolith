@@ -42,6 +42,23 @@ Comptes classiques créés avec `stellar keys generate <nom> --network testnet -
 
 Le smart account est un contrat (`C…`) : il n'a pas besoin de trustline, son solde USDC vit directement dans le SAC.
 
+## Contrats OpenZeppelin (P1)
+
+Source : [`OpenZeppelin/stellar-contracts`](https://github.com/OpenZeppelin/stellar-contracts) tag **`v0.8.0`**, commit **`ddc327eb92d63709436da3a8455f641c2d5476c5`** (`soroban-sdk` 28, testnet en protocole 29). Code non modifié, compilé avec `stellar contract build --package <nom>` (stellar-cli 27.0.0, rustc 1.96.1). WASM versionnés dans `contracts/wasm/`.
+
+| Exemple OZ | WASM | sha256 |
+|---|---|---|
+| `examples/multisig-smart-account/account` | `multisig_account_example.wasm` | `a22a4bf78858e965ae4c2676c974157e340f8acf99d2552bc9d3390b29e25201` |
+| `examples/multisig-smart-account/ed25519-verifier` | `multisig_ed25519_verifier_example.wasm` | `1647f1db6a5fb0a5b1c992f351193dd82633619490ca6a8df094326a6561b898` |
+| `examples/multisig-smart-account/spending-limit-policy` | `multisig_spending_limit_policy_example.wasm` | `997649dfe07b8bf76a6f90123a56a3cb1a5f145ed29b3b3415e3603089f0fbfb` |
+
+Points vérifiés dans le code source v0.8.0 :
+- `SpendingLimitExceeded` = **#3221** (`NotAllowed` = #3223), dans `packages/accounts/src/policies/spending_limit.rs`. MONOLITH.md indiquait #2221, une valeur d'une version antérieure.
+- La fenêtre est exprimée en **ledgers** (`period_ledgers: u32`) et elle est glissante : les dépenses dont `ledger_sequence <= ledger_actuel - period_ledgers` sortent du cumul. 17 280 ledgers × ~5 s ≈ 24 h (clôture moyenne mesurée sur testnet : 5 s).
+- Le **client choisit la règle** : `AuthPayload { signers, context_rule_ids }`. Il n'y a pas de bascule automatique vers une autre règle. Si l'agent cite la règle A, il est rejeté (`UnauthorizedSigner` #3016), car il n'en est pas signer.
+- Signer External (agent) : il signe `sha256(XDR(AuthDigestPreimage { account, signature_payload, context_rule_ids }))`.
+- Signer Delegated (owner) : il faut une auth entry supplémentaire pour l'owner, `__check_auth(preimage)` sur le smart account, que la simulation ne renvoie pas. Elle est construite dans `contracts/scripts/lib.ts`.
+
 ## Contract IDs (testnet)
 
 | Contrat | ID |
@@ -57,6 +74,6 @@ Le smart account est un contrat (`C…`) : il n'a pas besoin de trustline, son s
 | Scénario | Hash |
 |---|---|
 | Agent → 5 USDC (succès) | |
-| Agent → 50 USDC (échec #2221) | |
+| Agent → 50 USDC (échec #3221 SpendingLimitExceeded) | |
 | Owner → 50 USDC (approbation) | |
 | Transfert confidentiel | |
