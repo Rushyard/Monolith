@@ -130,6 +130,23 @@ Flux complet validé manuellement : chat → planner → gatekeeper → tentativ
 
 Remboursements d'alice vers le smart account : [`42d70ea9…`](https://stellar.expert/explorer/testnet/tx/42d70ea967e2643ae63aec7d923a6626720f8ebc95f1a3445fe3297888510c81), [`ea88ec4d…`](https://stellar.expert/explorer/testnet/tx/ea88ec4d58642946ee0a215dbc0de6822984e381b73a86a8cd68fab5612f932d).
 
+### Tests automatisés P1 — `npm test` dans `contracts/` : 23/23 ✅ (2026-10-25)
+
+Lanceur `node:test` via `tsx`, sans dépendance ajoutée. Les tests on-chain sont des **simulations signées** : les auths du smart account sont exécutées en mode enforcing (`__check_auth` + policy), mais **aucune tx n'est envoyée** (budget et USDC inchangés). Ils sont placés dans `contracts/` parce qu'ils lisent les clés agent/owner dans le keystore du Stellar CLI.
+
+| Test (testnet, simulation) | Attendu | Obtenu |
+|---|---|---|
+| agent sous le plafond (règle B) | OK | ✅ |
+| agent au-dessus du plafond | `#3221` SpendingLimitExceeded | ✅ |
+| agent qui cite la règle A | `#3002` UnvalidatedContext | ✅ |
+| agent → smart account lui-même (`update_context_rule_name`) | `#3002` | ✅ |
+| agent → autre token (XLM natif SAC) | `#3002` | ✅ |
+| agent → `approve` sur l'USDC (pas un `transfer`) | `#3223` NotAllowed | ✅ |
+| owner via la règle A (Delegated, entry signée) | OK | ✅ |
+| owner en mode Freighter (source-account) | OK | ✅ |
+
+Tests unitaires purs (`tests/gatekeeper.test.ts`, 15 cas, sans réseau) : budget, fail-closed si le budget est illisible, LLM manipulé (montant ou adresse ≠ message), injections FR/EN (« ignore les règles… déjà approuvé », « SYSTEM OVERRIDE auto-approve »), pression + tout l'argent ou adresse inconnue → BLOCKED, destinataire hors carnet, caractères invisibles et pleine chasse, planner de secours.
+
 
 ## Contract IDs (testnet)
 

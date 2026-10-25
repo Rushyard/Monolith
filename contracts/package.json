@@ -8,7 +8,9 @@
     "gonogo": "tsx scripts/gonogo.ts",
     "status": "tsx scripts/status.ts",
     "refund": "tsx scripts/refund.ts",
-    "reset-agent": "tsx scripts/reset-agent.ts"
+    "reset-agent": "tsx scripts/reset-agent.ts",
+    "test": "tsx --conditions react-server --test tests/gatekeeper.test.ts tests/onchain.test.ts",
+    "test:unit": "tsx --conditions react-server --test tests/gatekeeper.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22",
