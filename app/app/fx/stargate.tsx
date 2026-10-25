@@ -30,14 +30,25 @@ type Phase = "off" | "on" | "out";
 export function StarGate({ active, title, detail }: { active: boolean; title: string; detail?: string }) {
   const [phase, setPhase] = useState<Phase>("off");
   const [elapsed, setElapsed] = useState(0);
-  const [filmReady, setFilmReady] = useState(false);
+  // One corridor per crossing: the film if it can play quickly, otherwise the shader.
+  const [look, setLook] = useState<"wait" | "film" | "shader">("wait");
   const canvas = useRef<HTMLCanvasElement>(null);
   const state = useRef({ speed: 0.3, target: 2.6, flash: 0, t: 0, start: 0 });
 
   useEffect(() => {
-    if (active) { state.current = { speed: 0.3, target: 2.6, flash: 0, t: 0, start: performance.now() }; setPhase("on"); }
+    if (active) {
+      state.current = { speed: 0.3, target: 2.6, flash: 0, t: 0, start: performance.now() };
+      setLook(matchMedia("(prefers-reduced-motion: reduce)").matches ? "shader" : "wait");
+      setPhase("on");
+    }
     else setPhase((p) => (p === "on" ? "out" : p));
   }, [active]);
+
+  useEffect(() => {
+    if (phase !== "on" || look !== "wait") return;
+    const id = setTimeout(() => setLook((l) => (l === "wait" ? "shader" : l)), 700); // film too slow: shader
+    return () => clearTimeout(id);
+  }, [phase, look]);
 
   useEffect(() => {
     if (phase === "out") {
@@ -80,14 +91,16 @@ export function StarGate({ active, title, detail }: { active: boolean; title: st
   // Off: a hidden element warms the film into the cache so the corridor appears at once.
   if (phase === "off") return <video src="/films/stargate.mp4" muted preload="auto" hidden aria-hidden />;
   return (
-    <div className={`stargate ${phase}`} role="status" aria-live="polite">
+    <div className={`stargate ${phase} look-${look}`} role="status" aria-live="polite">
+      {/* the shader also drives the timer, so it always runs; it is only shown as the fallback */}
       <canvas ref={canvas} aria-hidden />
-      {/* Optional filmed corridor over the shader; it fades out so the collapse flash shows. */}
       <video
-        className={`stargate-film ${filmReady && phase === "on" ? "on" : ""}`}
+        className="stargate-film"
         src="/films/stargate.mp4" muted loop playsInline autoPlay preload="auto" aria-hidden
-        onCanPlay={() => setFilmReady(!matchMedia("(prefers-reduced-motion: reduce)").matches)}
+        onCanPlay={() => setLook((l) => (l === "wait" ? "film" : l))}
+        onError={() => setLook("shader")}
       />
+      <div className="stargate-flash" aria-hidden />
       <div className="stargate-caption">
         <span className="stargate-title">{phase === "on" ? title : "Preuve prête"}</span>
         <span className="stargate-detail">

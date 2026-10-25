@@ -242,8 +242,14 @@ table.data td.num { white-space: nowrap; }
 .stargate { position: fixed; inset: 0; z-index: 50; background: #000; animation: gate-in .35s ease-out both; }
 .stargate.out { animation: gate-out .9s ease-in both; }
 .stargate canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.stargate-film { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .6s ease; }
-.stargate-film.on { opacity: 1; }
+.stargate-film { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+.stargate canvas { opacity: 0; }
+.stargate.look-shader canvas { opacity: 1; }
+.stargate.look-film .stargate-film { opacity: 1; animation: gate-in .35s ease-out both; }
+/* film: the collapse is a white flash over the corridor (the shader draws its own) */
+.stargate-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.stargate.out.look-film .stargate-flash { animation: gate-flash .9s ease-out both; }
+@keyframes gate-flash { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
 
 /* ---------- fx: ambient film behind a page title ---------- */
 .page-head.has-film { position: relative; isolation: isolate; }
