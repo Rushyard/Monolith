@@ -19,7 +19,8 @@
     "ct:withdraw-to-contract": "tsx scripts/withdraw-to-contract.ts",
     "dev": "npm run dev -w @monolith/app",
     "build": "npm run build -w @monolith/app",
-    "hero:video": "bash scripts/hero-video.sh"
+    "hero:video": "bash scripts/hero-video.sh",
+    "film": "bash scripts/film.sh"
   },
   "devDependencies": {
     "@stellar/stellar-sdk": "^14.2.0",

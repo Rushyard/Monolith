@@ -22,6 +22,7 @@ import { Terminal, useLog } from "../terminal";
 import { StarGate } from "../fx/stargate";
 import { CurvePoint } from "../fx/curve-point";
 import { Decrypt } from "../fx/scramble";
+import { AmbientFilm } from "../fx/ambient-film";
 import { AGENT_SMART_ACCOUNT, FundAgentPanel } from "@/components/agent/FundAgentPanel";
 
 type Busy = null | { op: string; phase?: TxPhase };
@@ -115,7 +116,8 @@ export default function VaultPage() {
         title={busy ? `${busy.op} · traversée` : ""}
         detail={busy?.op === "Transfert confidentiel" ? "le montant se chiffre dans ton navigateur" : undefined}
       />
-      <header className="page-head">
+      <header className="page-head has-film">
+        <AmbientFilm name="vault" />
         <div>
           <span className="chapter">Chapitre I</span>
           <h1 className="intertitle" style={{ marginTop: 10 }}>Le coffre</h1>

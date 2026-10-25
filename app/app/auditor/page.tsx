@@ -7,6 +7,7 @@ import { useState } from "react";
 import { CT, auditToken, explorerTx, formatUsdc, short, type AuditRow, type KeyStatus } from "@/lib/confidential";
 import { HalEye, type HalMood } from "../fx/hal";
 import { Cipher, Decrypt, TypeLine } from "../fx/scramble";
+import { AmbientFilm } from "../fx/ambient-film";
 
 type Attempt = "ours" | "shared";
 
@@ -46,7 +47,8 @@ export default function AuditorPage() {
 
   return (
     <>
-      <header className="page-head">
+      <header className="page-head has-film">
+        <AmbientFilm name="auditor" />
         <div>
           <span className="chapter">Chapitre III</span>
           <h1 className="intertitle" style={{ marginTop: 10 }}>L'auditeur</h1>

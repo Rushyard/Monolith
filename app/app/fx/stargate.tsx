@@ -30,6 +30,7 @@ type Phase = "off" | "on" | "out";
 export function StarGate({ active, title, detail }: { active: boolean; title: string; detail?: string }) {
   const [phase, setPhase] = useState<Phase>("off");
   const [elapsed, setElapsed] = useState(0);
+  const [filmReady, setFilmReady] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null);
   const state = useRef({ speed: 0.3, target: 2.6, flash: 0, t: 0, start: 0 });
 
@@ -76,10 +77,17 @@ export function StarGate({ active, title, detail }: { active: boolean; title: st
     return () => { alive = false; cancelAnimationFrame(raf); gl.getExtension("WEBGL_lose_context")?.loseContext(); };
   }, [phase === "off"]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (phase === "off") return null;
+  // Off: a hidden element warms the film into the cache so the corridor appears at once.
+  if (phase === "off") return <video src="/films/stargate.mp4" muted preload="auto" hidden aria-hidden />;
   return (
     <div className={`stargate ${phase}`} role="status" aria-live="polite">
       <canvas ref={canvas} aria-hidden />
+      {/* Optional filmed corridor over the shader; it fades out so the collapse flash shows. */}
+      <video
+        className={`stargate-film ${filmReady && phase === "on" ? "on" : ""}`}
+        src="/films/stargate.mp4" muted loop playsInline autoPlay preload="auto" aria-hidden
+        onCanPlay={() => setFilmReady(!matchMedia("(prefers-reduced-motion: reduce)").matches)}
+      />
       <div className="stargate-caption">
         <span className="stargate-title">{phase === "on" ? title : "Preuve prête"}</span>
         <span className="stargate-detail">
