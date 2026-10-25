@@ -22,6 +22,7 @@ import { Terminal, useLog } from "../terminal";
 import { StarGate } from "../fx/stargate";
 import { CurvePoint } from "../fx/curve-point";
 import { Decrypt } from "../fx/scramble";
+import { AGENT_SMART_ACCOUNT, FundAgentPanel } from "@/components/agent/FundAgentPanel";
 
 type Busy = null | { op: string; phase?: TxPhase };
 // Whether the last tx shows its amount on-chain; undefined = no amount (register, merge).
@@ -48,6 +49,7 @@ export default function VaultPage() {
   const [sendTo, setSendTo] = useState("");
   const [sendAmt, setSendAmt] = useState("2.5");
   const [withdrawAmt, setWithdrawAmt] = useState("1");
+  const [agentRefresh, setAgentRefresh] = useState(0);
 
   useEffect(() => setIsolated(window.crossOriginIsolated), []);
 
@@ -232,6 +234,7 @@ export default function VaultPage() {
               </div>
             </section>
           ) : (
+            <>
             <section className="grid cols-2">
               <div className="panel stack">
                 <h2 className="section">Déposer <span className="tag public">public</span></h2>
@@ -294,6 +297,20 @@ export default function VaultPage() {
                 <button className="btn" disabled={!!busy} onClick={() => run("Rafraîchir", async () => { await reload(); })}>Rafraîchir</button>
               </div>
             </section>
+
+            <FundAgentPanel
+              disabled={!!busy}
+              busyLabel={label("Approvisionnement de l'agent")}
+              refreshKey={agentRefresh}
+              onFund={(amt) =>
+                run("Approvisionnement de l'agent", async (p) => {
+                  const r = await v.withdraw(parseUsdc(amt), p, AGENT_SMART_ACCOUNT);
+                  setAgentRefresh((k) => k + 1);
+                  return r;
+                }, "public")
+              }
+            />
+            </>
           )}
 
           {history.length > 0 && (
@@ -333,7 +350,7 @@ function describe(ev: ConfidentialEvent, me: string): string {
     case "register": return "Ouverture du coffre";
     case "merge": return "Fusion";
     case "deposit": return "Dépôt public → coffre";
-    case "withdraw": return "Retrait coffre → public";
+    case "withdraw": return ev.to === AGENT_SMART_ACCOUNT ? "Approvisionnement de l'agent (public)" : "Retrait coffre → public";
     case "transfer": return ev.from === me ? `Envoyé à ${short(ev.to)}` : `Reçu de ${short(ev.from)}`;
     default: return ev.type;
   }

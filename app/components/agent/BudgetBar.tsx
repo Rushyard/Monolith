@@ -38,7 +38,7 @@ export function BudgetBar({ refreshKey = 0 }: { refreshKey?: number }) {
           Budget de l&apos;agent : <b>{remainingUsdc} USDC</b> restants
         </span>
         <span style={{ opacity: 0.75 }}>
-          {spentUsdc} / {limitUsdc} USDC sur ~{hours} h glissantes · coffre {data.smartAccountUsdc} USDC
+          {spentUsdc} / {limitUsdc} USDC sur ~{hours} h glissantes · compte de l&apos;agent {data.smartAccountUsdc} USDC
         </span>
       </div>
       <div style={track} role="progressbar" aria-valuemin={0} aria-valuemax={limitUsdc} aria-valuenow={spentUsdc}>

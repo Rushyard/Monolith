@@ -196,8 +196,12 @@ export class ConfidentialVault {
     return { hash: r.hash, proofMs };
   }
 
-  /** spendable → public USDC. The amount is visible on-chain. */
-  async withdraw(amount: bigint, onPhase?: (p: TxPhase) => void): Promise<TxResult> {
+  /**
+   * spendable → public USDC. The amount is visible on-chain.
+   * `to` defaults to the owner's own account; it can be a contract (C…), e.g. the agent's
+   * smart account (withdraw proofs don't bind the destination; see scripts/withdraw-to-contract.ts).
+   */
+  async withdraw(amount: bigint, onPhase?: (p: TxPhase) => void, to: string = this.address): Promise<TxResult> {
     const kAudS = await this.client.auditorKey(CT.auditorId);
     const { v, r: blinding } = await this.spendableForProof();
     if (v < amount) throw new Error(`solde disponible insuffisant (${formatUsdc(v)} USDC)`);
@@ -205,9 +209,9 @@ export class ConfidentialVault {
     onPhase?.("proving");
     const { proof, proofMs } = await this.prove("withdraw", w.inputs);
     onPhase?.("submitting");
-    const r = await submitWithdraw(this.client, this.signer, this.address, this.address, amount, w, proof);
+    const r = await submitWithdraw(this.client, this.signer, this.address, to, amount, w, proof);
     await this.engine.setSpendable(w.next);
-    this.log(`retiré ${formatUsdc(amount)} USDC vers le compte public (tx ${short(r.hash, 6)})`);
+    this.log(`retiré ${formatUsdc(amount)} USDC vers ${to === this.address ? "le compte public" : short(to)} (tx ${short(r.hash, 6)})`);
     return { hash: r.hash, proofMs };
   }
 

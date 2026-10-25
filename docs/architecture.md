@@ -146,6 +146,10 @@ Flux complet validé manuellement : chat → planner → gatekeeper → tentativ
 
 Remboursements d'alice vers le smart account : [`42d70ea9…`](https://stellar.expert/explorer/testnet/tx/42d70ea967e2643ae63aec7d923a6626720f8ebc95f1a3445fe3297888510c81), [`ea88ec4d…`](https://stellar.expert/explorer/testnet/tx/ea88ec4d58642946ee0a215dbc0de6822984e381b73a86a8cd68fab5612f932d).
 
+### Coffre → agent : « Approvisionner l'agent » (onglet Coffre)
+
+`withdraw(from, to = smart account de l'agent, amount)` du coffre confidentiel : la sortie est **publique** (montant visible), le solde du coffre reste caché. Même appel `submitWithdraw` que le bouton (`ConfidentialVault.withdraw(amount, onPhase, to)`), testé avec `npm run ct:withdraw-to-contract -- CC5D…43KA` : smart account 60 → **61 USDC**, [`8a0cd48d…`](https://stellar.expert/explorer/testnet/tx/8a0cd48dce90c11d384136524cfdfe27121e662ad9ff0753c9e0867a455b3ea8).
+
 ### Tests automatisés P1 — `npm test` dans `contracts/` : 23/23 ✅ (2026-10-25)
 
 Lanceur `node:test` via `tsx`, sans dépendance ajoutée. Les tests on-chain sont des **simulations signées** : les auths du smart account sont exécutées en mode enforcing (`__check_auth` + policy), mais **aucune tx n'est envoyée** (budget et USDC inchangés). Ils sont placés dans `contracts/` parce qu'ils lisent les clés agent/owner dans le keystore du Stellar CLI.
