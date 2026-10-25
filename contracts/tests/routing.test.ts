@@ -57,3 +57,29 @@ test("executor : needs_vault_signature = liste des paiements, aucune tx", async 
   const r = await execute(p, decide(p, "paie 2 USDC à Bob", spending, true), spending);
   assert.deepEqual(r, { status: "needs_vault_signature", payments: [{ to: BOB, label: "Bob", amountUsdc: "2" }], totalUsdc: "2", reasons: [vaultPreparedText(1)] });
 });
+
+// ---------- B1 : premier paiement vers une adresse ----------
+import { FIRST_PAYMENT_REASON } from "../../app/lib/agent/gatekeeper.ts";
+const STRANGER = "GCIFXLBRK2CHODLILPTZIPEAK36TOS3MG4QRZGCTJ7PA52PAOP75RS7B"; // hors carnet (compte owner, public)
+
+test("B1 : adresse hors carnet jamais payée → NEEDS_APPROVAL « Premier paiement vers cette adresse », même sous le plafond", () => {
+  const v = decide(plan(pay("0.1", STRANGER)), `paie 0.1 USDC à ${STRANGER}`, spending, false, { paidBefore: false });
+  assert.equal(v.verdict, "NEEDS_APPROVAL");
+  assert.ok(v.triggered.includes("first-payment"));
+  assert.ok(v.reasons.includes(FIRST_PAYMENT_REASON));
+});
+
+test("B1 : historique illisible → traité comme un premier paiement (fail-closed)", () => {
+  const v = decide(plan(pay("0.1", STRANGER)), `paie 0.1 USDC à ${STRANGER}`, spending, false, { paidBefore: null });
+  assert.ok(v.triggered.includes("first-payment"));
+});
+
+test("B1 : adresse déjà payée → pas de « premier paiement » (mais toujours hors carnet → accord)", () => {
+  const v = decide(plan(pay("0.1", STRANGER)), `paie 0.1 USDC à ${STRANGER}`, spending, false, { paidBefore: true });
+  assert.ok(!v.triggered.includes("first-payment"));
+  assert.equal(v.verdict, "NEEDS_APPROVAL");
+});
+
+test("B1 : un contact du carnet n'est jamais concerné (Alice 1 USDC → AUTO_EXECUTE)", () => {
+  assert.ok(!decide(plan(pay("1", "Alice")), "paie 1 USDC à Alice", spending, false, { paidBefore: false }).triggered.includes("first-payment"));
+});

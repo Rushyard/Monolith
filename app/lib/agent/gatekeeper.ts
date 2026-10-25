@@ -106,7 +106,15 @@ export function screenMessage(message: string): GateDecision | null {
  * Coffre : l'agent ne paie jamais ; les signaux suspects (pression, montant ou adresse qui ne
  * collent pas au message) → BLOCKED, sinon NEEDS_VAULT_SIGNATURE (Sarah signe dans son navigateur).
  */
-export function decide(plan: Plan, message: string, spending: SpendingState | null, inVault = false): GateDecision {
+/** Texte affiché quand le smart account n'a jamais payé cette adresse (B1). */
+export const FIRST_PAYMENT_REASON = "Premier paiement vers cette adresse : je demande ton accord, même sous le plafond.";
+
+export type DecideOptions = {
+  /** Le smart account a déjà payé ce destinataire (historique on-chain). null = historique illisible. */
+  paidBefore?: boolean | null;
+};
+
+export function decide(plan: Plan, message: string, spending: SpendingState | null, inVault = false, opts: DecideOptions = {}): GateDecision {
   const steps = plan.steps;
   if (steps.some((s) => s.action === "payroll")) return decidePayroll(plan, message, inVault);
   const pays = steps.filter((s) => s.action === "pay");
@@ -151,6 +159,11 @@ export function decide(plan: Plan, message: string, spending: SpendingState | nu
   if (!recipient.known) {
     triggered.push("unknown-recipient");
     reasons.push("Ce destinataire n'est pas dans ton carnet, donc je demande ton accord.");
+    // B1 : adresse jamais payée par le smart account (ou historique illisible → fail-closed).
+    if (opts.paidBefore !== true) {
+      triggered.push("first-payment");
+      reasons.push(opts.paidBefore === null ? `${FIRST_PAYMENT_REASON} (Historique on-chain illisible.)` : FIRST_PAYMENT_REASON);
+    }
   }
 
   const net = safetyNet(message, amount, recipient.address);

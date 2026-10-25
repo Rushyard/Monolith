@@ -10,7 +10,7 @@ import { execute, readAgentSpending } from "@/lib/agent/executor";
 import { resolveRecipient } from "@/lib/agent/contacts";
 import { payrollLines } from "@/lib/agent/payroll";
 import { vaultChannel } from "@/lib/agent/vault";
-import { recordActivity } from "@/lib/agent/activity";
+import { paidAddresses, recordActivity } from "@/lib/agent/activity";
 import { AGENT_CONFIG } from "@/lib/agent/config";
 import { clientIp, isOwnerRequest, rateLimit } from "@/lib/agent/session";
 
@@ -70,8 +70,16 @@ export async function POST(req: Request) {
     inVault = checks.every((c) => c.ok && c.inVault);
   }
 
+  // B1 : une adresse hors carnet jamais payée par le smart account → accord de l'owner.
+  let paidBefore: boolean | null | undefined;
+  if (single && !single.known && !inVault) {
+    paidBefore = await paidAddresses()
+      .then((s) => s.has(single.address))
+      .catch((err) => (console.error("[intent] historique illisible", err instanceof Error ? err.message : err), null));
+  }
+
   const spending = await spendingP;
-  const decision = decide(plan, message, spending, inVault);
+  const decision = decide(plan, message, spending, inVault, { paidBefore });
   logVerdict(decision);
   try {
     const result = await execute(plan, decision, spending, owner ? "live" : "simulation");
