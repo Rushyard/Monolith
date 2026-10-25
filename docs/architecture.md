@@ -55,7 +55,7 @@ Source : [`OpenZeppelin/stellar-contracts`](https://github.com/OpenZeppelin/stel
 Points vérifiés dans le code source v0.8.0 :
 - `SpendingLimitExceeded` = **#3221** (`NotAllowed` = #3223), dans `packages/accounts/src/policies/spending_limit.rs`. MONOLITH.md indiquait #2221, une valeur d'une version antérieure.
 - La fenêtre est exprimée en **ledgers** (`period_ledgers: u32`) et elle est glissante : les dépenses dont `ledger_sequence <= ledger_actuel - period_ledgers` sortent du cumul. 17 280 ledgers × ~5 s ≈ 24 h (clôture moyenne mesurée sur testnet : 5 s).
-- Le **client choisit la règle** : `AuthPayload { signers, context_rule_ids }`. Il n'y a pas de bascule automatique vers une autre règle. Si l'agent cite la règle A, il est rejeté (`UnauthorizedSigner` #3016), car il n'en est pas signer.
+- Le **client choisit la règle** : `AuthPayload { signers, context_rule_ids }`. Il n'y a pas de bascule automatique vers une autre règle. Si l'agent cite la règle A, il est rejeté : `get_validated_context_by_id` exige que tous les signers d'une règle sans policy soient présents, donc l'erreur est `UnvalidatedContext` #3002, faute de signature owner.
 - Signer External (agent) : il signe `sha256(XDR(AuthDigestPreimage { account, signature_payload, context_rule_ids }))`.
 - Signer Delegated (owner) : il faut une auth entry supplémentaire pour l'owner, `__check_auth(preimage)` sur le smart account, que la simulation ne renvoie pas. Elle est construite dans `contracts/scripts/lib.ts`.
 
@@ -64,10 +64,31 @@ Points vérifiés dans le code source v0.8.0 :
 | Contrat | ID |
 |---|---|
 | USDC SAC (Circle testnet, `USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`, home_domain `centre.io`) | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` |
-| Smart account | |
-| Vérificateur Ed25519 | |
-| Spending-limit policy | |
+| Smart account (`multisig_account_example`) | [`CC5D2NUS2GXAWMTK2DMSNJHVRGRH5GBEZNUMEPIOPBPQQJN6GDLO43KA`](https://stellar.expert/explorer/testnet/contract/CC5D2NUS2GXAWMTK2DMSNJHVRGRH5GBEZNUMEPIOPBPQQJN6GDLO43KA) |
+| Vérificateur Ed25519 | [`CBBDHCHRKXP2EROB5JN3EMCMZ4VOOIXSOKDNVPJKY4KIJXZ53ZDC3ZVB`](https://stellar.expert/explorer/testnet/contract/CBBDHCHRKXP2EROB5JN3EMCMZ4VOOIXSOKDNVPJKY4KIJXZ53ZDC3ZVB) |
+| Spending-limit policy | [`CAOT4RM7SYJPLT5XQVPYDEX6HKQOZFODZE6KQVUQJZUSVJY6HBWUVGHQ`](https://stellar.expert/explorer/testnet/contract/CAOT4RM7SYJPLT5XQVPYDEX6HKQOZFODZE6KQVUQJZUSVJY6HBWUVGHQ) |
 | Confidential Token | |
+
+Valeurs aussi dans `contracts/deployments.testnet.json`, produit par `npm run deploy` dans `contracts/`.
+
+### Règles de contexte du smart account (relues on-chain via `get_context_rule`)
+
+| id | Nom | Type | Signer | Policy |
+|---|---|---|---|---|
+| 0 (A) | `multisig` (nom codé en dur dans le constructeur de l'exemple OZ) | `Default` | `Delegated(owner GCIFXLBR…RS7B)` | aucune : plein pouvoir |
+| 1 (B) | `agent-usdc-10-24h` | `CallContract(USDC SAC)` | `External(vérificateur Ed25519, 123a7d56…2a3a)` = clé publique de l'agent | spending_limit : `spending_limit = 100000000` (10 USDC), `period_ledgers = 17280` (~24 h) |
+
+### Tx de déploiement / configuration
+
+| Étape | Tx |
+|---|---|
+| Upload WASM vérificateur | [`da1fb1a4…`](https://stellar.expert/explorer/testnet/tx/da1fb1a43b2705a19553510ff996a3c1202ee844f027b32cd48ace1051e27702) |
+| Création vérificateur | [`a7b7526c…`](https://stellar.expert/explorer/testnet/tx/a7b7526cb31660f78d70de37e71559c3d0de4c8b3cadb8bb9d6bd22f6a5631a6) |
+| Upload WASM policy | [`042e846b…`](https://stellar.expert/explorer/testnet/tx/042e846b95e2b1ee53867c072899ffd8bf5f60fb3bbc58b8c1ac4492f663578a) |
+| Création policy | [`2b0dfc9b…`](https://stellar.expert/explorer/testnet/tx/2b0dfc9b255cd04e5a234dbc13e1cd52434ad1484a1ed672627806dcce5b1c0e) |
+| Upload WASM smart account | [`aa7b707b…`](https://stellar.expert/explorer/testnet/tx/aa7b707b3aab032a739d38f7d1c6835868c2a2b8e7d089ecfa8504d610243792) |
+| Création smart account + règle A (constructeur) | [`a9781d7c…`](https://stellar.expert/explorer/testnet/tx/a9781d7c5bba0cecae0eee844ea0fc9b8bcb2b70b90d425ca74bef2601690768) |
+| `add_context_rule` règle B, autorisée par l'owner via la règle A (auth Delegated) | [`3f92c989…`](https://stellar.expert/explorer/testnet/tx/3f92c989446c0f8957be7c74a91e26e99cdfd40fef7232615034c58f6f1202b2) |
 
 ## Tx hashes de démo (testnet)
 
