@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --conditions react-server --test tests/*.test.ts"
+    "test": "tsx --conditions react-server --test tests/*.test.ts",
+    "x402:buy": "tsx --conditions react-server scripts/x402-buy.ts"
   },
   "dependencies": {
     "@stellar/stellar-sdk": "^17.3.0",

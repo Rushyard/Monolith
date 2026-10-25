@@ -165,6 +165,13 @@ test("route premium sans paiement → 402 avec les exigences x402 (frais sponsor
   assert.equal(accepted.extra.areFeesSponsored, true);
 });
 
+test("facilitator injoignable → erreur serveur, aucune donnée servie gratuitement", async () => {
+  const down = { ...fakeFacilitator([]), getSupported: async () => { throw new Error("fetch failed"); } } as FacilitatorClient;
+  const res = await createMarketDataHandler(createResourceServer(down))(new NextRequest(URL_));
+  assert.equal(res.status, 500);
+  assert.equal((await res.json()).pairs, undefined);
+});
+
 test("x402 de bout en bout : 402 → paiement signé → verify → données → settle → PAYMENT-RESPONSE", async () => {
   const log: string[] = [];
   const seen: PaymentRequirements[] = [];
