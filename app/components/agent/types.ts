@@ -4,9 +4,35 @@ import type { ExecutionResult } from "@/lib/agent/executor";
 import type { GateDecision } from "@/lib/agent/gatekeeper";
 import type { Plan } from "@/lib/agent/planner";
 
+// ---------- contrat P1 ↔ P2 : paie confidentielle (ne pas modifier sans se synchroniser) ----------
+
+/** Un paiement que Sarah (owner) signe elle-même dans le coffre : preuve dans son navigateur. */
+export type VaultPayment = { to: string; label: string; amountUsdc: string };
+
+/** Destinataire inscrit dans le coffre : l'agent ne paie pas, il prépare et Sarah signe. */
+export type VaultSignatureRequest = { status: "needs_vault_signature"; payments: VaultPayment[]; totalUsdc: string; reasons: string[] };
+
 export type IntentResult =
   | ExecutionResult
+  | VaultSignatureRequest
   | { status: "needs_clarification" | "reply" | "unsupported"; text: string };
+
+/** Ligne du journal d'activité (GET /api/agent/activity), reconstruit depuis la blockchain. */
+export type ActivityItem = {
+  at: string;
+  kind: "paid" | "refused" | "waiting" | "blocked";
+  channel: "private" | "public";
+  to: string;
+  label: string;
+  amountUsdc?: string; // JAMAIS rempli pour les paiements privés
+  hash?: string;
+  reason?: string;
+};
+
+export type ActivityResponse = { items: ActivityItem[] };
+
+/** POST /api/agent/vault-receipt : reçu d'un transfert confidentiel signé par Sarah (sans montant). */
+export type VaultReceiptRequest = { to: string; hash: string };
 
 export type IntentResponse = {
   plan: Plan | null;

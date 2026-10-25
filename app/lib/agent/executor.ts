@@ -23,7 +23,9 @@ import {
   type SmartAccountCall,
   type SpendingState,
 } from "./core";
+import type { VaultSignatureRequest } from "../../components/agent/types";
 import type { GateDecision } from "./gatekeeper";
+import { sumUsdc } from "./payroll";
 import type { Plan } from "./planner";
 
 const C = AGENT_CONFIG;
@@ -45,6 +47,7 @@ export type ExecutionResult =
       validUntilLedger: number;
       agentAttempt?: AgentAttempt;
     }
+  | VaultSignatureRequest
   | { status: "blocked" }
   | { status: "info"; balance?: BalanceInfo; history?: HistoryInfo }
   | { status: "error"; error: string; agentAttempt?: AgentAttempt };
@@ -107,6 +110,17 @@ async function ownerApproval(amount: bigint, to: string, agentAttempt?: AgentAtt
 
 export async function execute(plan: Plan, decision: GateDecision, spending: SpendingState | null): Promise<ExecutionResult> {
   if (decision.verdict === "BLOCKED") return { status: "blocked" };
+
+  // Coffre : l'agent n'a pas les clés de Sarah, il ne signe et ne prouve rien. Il prépare la liste.
+  if (decision.verdict === "NEEDS_VAULT_SIGNATURE") {
+    const lines = decision.payments ?? [decision.payment!];
+    return {
+      status: "needs_vault_signature",
+      payments: lines.map(({ amountUsdc, recipient }) => ({ to: recipient.address, label: recipient.label, amountUsdc })),
+      totalUsdc: sumUsdc(lines.map((l) => l.amountUsdc)),
+      reasons: decision.reasons,
+    };
+  }
 
   if (decision.verdict === "INFO") {
     const out: Extract<ExecutionResult, { status: "info" }> = { status: "info" };

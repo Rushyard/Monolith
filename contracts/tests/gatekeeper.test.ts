@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { decide, messageSignals, screenMessage } from "../../app/lib/agent/gatekeeper.ts";
 import { fallbackPlan, toPlan, type StepT } from "../../app/lib/agent/planner.ts";
+import { resolveRecipient } from "../../app/lib/agent/contacts.ts";
 import type { SpendingState } from "../../app/lib/agent/core.ts";
 
 const ALICE = "GDY5SERGYNGQF2R4SRZ4AHQPJ7HQOLEPLAFISMD37CM2XCTGW4KUBXH6";
@@ -83,8 +84,8 @@ test("LLM manipulé : paie Alice mais le message cite une autre adresse → NEED
   assert.ok(v.triggered.includes("unplanned-address"));
 });
 
-test("destinataire inconnu non résolvable (« Bob ») → BLOCKED", () => {
-  assert.equal(verdict("paie 1 USDC à Bob", plan(pay("1", "Bob"))).verdict, "BLOCKED");
+test("destinataire inconnu non résolvable (« Charlie ») → BLOCKED", () => {
+  assert.equal(verdict("paie 1 USDC à Charlie", plan(pay("1", "Charlie"))).verdict, "BLOCKED");
 });
 
 test("deux paiements dans un message → BLOCKED", () => {
@@ -100,5 +101,15 @@ test("planner de secours (sans LLM) : phrases de la démo", () => {
   const p = fallbackPlan("paie 2 USDC à Alice");
   assert.equal(p.type, "actions");
   assert.deepEqual(p.type === "actions" && p.steps[0], pay("2", "Alice"));
-  assert.equal(fallbackPlan("paie Bob").type, "clarify");
+  assert.equal(fallbackPlan("paie Charlie").type, "clarify");
+});
+
+const BOB = "GBCQZMHQWCIQJRCQJHAI7L2GS56A3EVY5E2E26DU2RX5SRSU4Y5B32GV";
+
+test("carnet : Bob et ses alias (casse, accents, espaces) → même adresse", () => {
+  for (const n of ["Bob", "bob", "BOB", " bob ", "Bobby", "Robert", "Rôbert"]) assert.equal(resolveRecipient(n)?.address, BOB, n);
+  assert.equal(resolveRecipient("robert")?.label, "Bob");
+  assert.equal(resolveRecipient(BOB)?.known, true);
+  assert.equal(resolveRecipient("Àlice")?.address, ALICE);
+  assert.equal(resolveRecipient("Charlie"), null);
 });

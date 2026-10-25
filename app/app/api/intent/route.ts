@@ -7,6 +7,10 @@ import { z } from "zod";
 import { planIntent, toPlan } from "@/lib/agent/planner";
 import { decide, screenMessage } from "@/lib/agent/gatekeeper";
 import { execute, readAgentSpending } from "@/lib/agent/executor";
+import { resolveRecipient } from "@/lib/agent/contacts";
+import { payrollLines } from "@/lib/agent/payroll";
+import { vaultChannel } from "@/lib/agent/vault";
+import { recordActivity } from "@/lib/agent/activity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,8 +40,25 @@ export async function POST(req: Request) {
   }
 
   const plan = toPlan(out, planned.source);
+
+  // Routage : destinataire inscrit dans le coffre → Sarah signe (montant caché). Fail-closed : si
+  // l'appartenance est illisible, on ne paie pas en public (ça révélerait le montant).
+  // Paie : tous les salariés doivent être dans le coffre.
+  const pays = plan.steps.filter((s) => s.action === "pay");
+  const isPayroll = plan.steps.some((s) => s.action === "payroll");
+  const single = pays.length === 1 ? resolveRecipient(pays[0].to) : null;
+  const toCheck = isPayroll ? payrollLines().map((l) => l.recipient.address) : single ? [single.address] : [];
+  let inVault = false;
+  if (toCheck.length) {
+    const checks = await Promise.all(toCheck.map((a) => vaultChannel(a)));
+    const failed = checks.find((c) => !c.ok);
+    if (failed && !failed.ok) return NextResponse.json({ plan, verdict: null, result: { status: "error", error: failed.error }, reasoning: failed.error }, { status: 503 });
+    inVault = checks.every((c) => c.ok && c.inVault);
+  }
+
   const spending = await spendingP;
-  const decision = decide(plan, message, spending);
+  const decision = decide(plan, message, spending, inVault);
+  logVerdict(decision);
   try {
     const result = await execute(plan, decision, spending);
     return NextResponse.json({
@@ -52,5 +73,22 @@ export async function POST(req: Request) {
       { plan, verdict: decision, result: { status: "error", error: err instanceof Error ? err.message : String(err) }, reasoning: decision.reasons.join(" ") },
       { status: 500 },
     );
+  }
+}
+
+/** Garde en mémoire (best effort) les verdicts qui ne laissent pas de trace on-chain. Jamais de montant privé. */
+function logVerdict(d: ReturnType<typeof decide>) {
+  if (d.verdict !== "BLOCKED" && d.verdict !== "NEEDS_VAULT_SIGNATURE") return;
+  const channel = d.channel ?? "public";
+  for (const p of d.payments ?? (d.payment ? [d.payment] : [])) {
+    recordActivity({
+      at: new Date().toISOString(),
+      kind: d.verdict === "BLOCKED" ? "blocked" : "waiting",
+      channel,
+      to: p.recipient.address,
+      label: p.recipient.label,
+      amountUsdc: channel === "public" ? p.amountUsdc : undefined,
+      reason: d.verdict === "BLOCKED" ? "Bloqué par le gatekeeper." : "En attente de la signature de l'owner dans le coffre.",
+    });
   }
 }
