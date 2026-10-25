@@ -89,6 +89,9 @@ if (has("--prepare-attempt")) {
 
 if (has("--submit-attempt")) {
   if (!existsSync(ATTEMPT_FILE)) throw new Error("aucune tentative préparée (--prepare-attempt)");
+  // Sécurité : n'envoie que si le réseau refuse déjà la signature de l'agent (sinon 0,01 USDC partirait vraiment).
+  const { enforced: now } = await prepareSmartAccountCall(agentPay());
+  if (!rpc.Api.isSimulationError(now)) throw new Error("la règle de l'agent est encore valable : attendre l'expiration avant --submit-attempt");
   const tx = TransactionBuilder.fromXDR(readFileSync(ATTEMPT_FILE, "utf8"), NETWORK_PASSPHRASE);
   const res = await sendAndWait(tx as Parameters<typeof sendAndWait>[0]);
   console.log(res.ok ? `⚠ acceptée (la règle n'avait pas expiré) ${txLink(res.hash)}` : `✓ refusée par le réseau : ${res.error} ${res.hash ? txLink(res.hash) : ""}`);

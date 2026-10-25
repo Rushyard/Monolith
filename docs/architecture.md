@@ -204,6 +204,20 @@ Remise à zéro après les tests du soir : `npm run reset-agent` (règle de l'ag
 
 Rétention `getEvents` sur le RPC testnet : `ledgerRetentionWindow = 120960` ledgers (~7 jours), mesuré via `getHealth` le 2026-10-25.
 
+### Mandat de l'agent — droits qui expirent on-chain (`valid_until`, OZ), 2026-10-25 ~23:00 UTC (branche `p1-mandate`)
+
+OZ `ddc327eb` : `valid_until` = numéro de ledger, inclus (`storage.rs` l.321-324 : rejet si `valid_until < ledger`), modifiable par `update_context_rule_valid_until` (même id, historique de dépenses conservé, `mod.rs` l.351-357, signature du compte = règle A). Règle expirée → `__check_auth` → `#3002 UnvalidatedContext`. Garde-fou : jamais de `valid_until` hors de la règle de l'agent (`mod.rs` l.344-349 : une expiration sur la dernière règle d'administration verrouille le compte). Script : `npm run mandate -- --ledgers N | --days N | --none` (`contracts/scripts/mandate.ts`).
+
+| Étape | Tx | Ledger | Résultat |
+|---|---|---|---|
+| Mandat de 30 ledgers : `update_context_rule_valid_until(2, 5389146)`, signé par l'owner | [`464b7534…`](https://stellar.expert/explorer/testnet/tx/464b75343cb10ff98a5ffe676f68afe7cc553df8279317d9bbc601ba47c757c8) | 5389118 | SUCCESS (0,0016 XLM) |
+| Simulation d'un paiement agent de 0,01 USDC avant l'expiration | — | 5389119 | OK |
+| Même simulation après le ledger 5389146 | — | 5389149 | refusée `#3002` |
+| Tentative réelle de l'agent, 0,01 USDC → Alice (signée avant l'expiration, envoyée après) | [`29fff98a…`](https://stellar.expert/explorer/testnet/tx/29fff98a454362b97b85bd9810b74a67eeaac5e638040a05c25c1526a169cc10) | 5389151 | **FAILED `#3002`**, aucun USDC déplacé (0,0012 XLM) |
+| Mandat de 7 jours : `update_context_rule_valid_until(2, 5510116)` (≈ 168 h à 5,00 s/ledger mesurés) | [`499b10c6…`](https://stellar.expert/explorer/testnet/tx/499b10c67b15d3dc459339f610b205adb4c69cd8cc79506a6240de4f62ea06a1) | 5389157 | SUCCESS (0,0014 XLM) ; simulation agent OK |
+
+Budget de l'agent inchangé (règle 2 : 2 / 10 USDC dépensés avant et après). Smart account : 74 USDC.
+
 ### Frais d'un paiement de l'agent (vérifié le 2026-10-25, méta des tx via `getTransaction`)
 
 Presque tout est du **loyer** (`rent_fee_charged`) : chaque paiement ajoute un `SpendingEntry` à l'entrée persistante `AccountContext(smart account, règle)` de la policy (`CAOT4R…`), que la policy prolonge à 30 jours (`SPENDING_LIMIT_EXTEND_AMOUNT = 30 * DAY_IN_LEDGERS`, seuil 29 j, `spending_limit.rs` @ `ddc327eb`). Le calcul coûte ~0,0012 XLM.
