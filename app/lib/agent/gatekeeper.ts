@@ -3,6 +3,7 @@
 // la vraie barrière est la spending-limit on-chain (règle B), qui rejette la tx quoi qu'il arrive.
 import "server-only";
 import { resolveRecipient, type Recipient } from "./contacts";
+import { payrollLines, sumUsdc, type PayrollLine } from "./payroll";
 import type { Plan } from "./planner";
 import { fromUsdc, type SpendingState } from "./core";
 
@@ -19,6 +20,8 @@ export type GateDecision = {
   reasons: string[];
   /** Paiement retenu (un seul par message), destinataire résolu. */
   payment?: { amountUsdc: string; recipient: Recipient };
+  /** Paiements préparés pour le coffre (paie : plusieurs lignes). */
+  payments?: PayrollLine[];
   /** Canal : « private » = destinataire inscrit dans le coffre (Sarah signe), « public » = petite caisse. */
   channel?: "private" | "public";
   budget?: { limitUsdc: number; spentUsdc: number; remainingUsdc: number };
@@ -105,6 +108,7 @@ export function screenMessage(message: string): GateDecision | null {
  */
 export function decide(plan: Plan, message: string, spending: SpendingState | null, inVault = false): GateDecision {
   const steps = plan.steps;
+  if (steps.some((s) => s.action === "payroll")) return decidePayroll(plan, message, inVault);
   const pays = steps.filter((s) => s.action === "pay");
 
   if (pays.length === 0) {
@@ -182,6 +186,43 @@ function safetyNet(message: string, amount: number, address: string) {
     reasons.push("Ton message mentionne une adresse qui ne fait pas partie du paiement prévu.");
   }
   return { triggered, reasons };
+}
+
+/** Paie : montants fixés par payroll.ts. `allInVault` : tous les salariés vérifiés inscrits au coffre. */
+function decidePayroll(plan: Plan, message: string, allInVault: boolean): GateDecision {
+  if (plan.steps.length > 1) {
+    return { verdict: "BLOCKED", channel: "private", triggered: ["multiple-payments"], reasons: ["La paie se lance seule, sans autre action dans le même message."] };
+  }
+  const lines = payrollLines();
+  if (!allInVault) {
+    return { verdict: "BLOCKED", channel: "private", triggered: ["payroll-not-in-vault"], reasons: ["Un salarié n'est pas inscrit dans le coffre : je ne verse pas un salaire en public."] };
+  }
+  const s = messageSignals(message);
+  const triggered: string[] = [];
+  const reasons: string[] = [];
+  if (s.pressure.length) {
+    triggered.push("pressure-wording");
+    reasons.push("Ton message me pousse à sauter mes vérifications ou à me presser, donc je vérifie avec toi.");
+  }
+  const fixed = new Set(lines.map((l) => String(Number(l.amountUsdc))));
+  if (s.amounts.some((a) => !fixed.has(a))) {
+    triggered.push("amount-mismatch");
+    reasons.push(`Les salaires sont fixés dans la paie (${lines.map((l) => `${l.recipient.label} ${l.amountUsdc}`).join(", ")} USDC) : ton message cite un autre montant.`);
+  }
+  if (s.addresses.length) {
+    triggered.push("unplanned-address");
+    reasons.push("Ton message mentionne une adresse : la paie ne va qu'aux salariés du carnet.");
+  }
+  if (triggered.length) {
+    return { verdict: "BLOCKED", channel: "private", triggered, reasons: [...reasons, "Je ne prépare pas la paie sur un message suspect."] };
+  }
+  return {
+    verdict: "NEEDS_VAULT_SIGNATURE",
+    channel: "private",
+    triggered: ["payroll"],
+    reasons: [vaultPreparedText(lines.length), `Paie : ${sumUsdc(lines.map((l) => l.amountUsdc))} USDC au total.`],
+    payments: lines,
+  };
 }
 
 function decideVault(payment: NonNullable<GateDecision["payment"]>, message: string): GateDecision {

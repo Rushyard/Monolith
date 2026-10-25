@@ -1,6 +1,7 @@
 // Carnet de contacts de la démo : nom (+ alias) → compte G testnet (adresses publiques).
 // Alice : identité CLI « alice », hors coffre (petite caisse publique de la démo).
 // Bob : compte « bob » du run e2e du coffre (deployments/testnet-e2e.json), inscrit, auditeur 1.
+// Carol : compte de P2, destinataire du transfert confidentiel 75db195e (run validé), inscrit, auditeur 1.
 import { StrKey } from "@stellar/stellar-sdk";
 
 export type Contact = { name: string; address: string; aliases: string[] };
@@ -8,6 +9,7 @@ export type Contact = { name: string; address: string; aliases: string[] };
 export const BOOK: Contact[] = [
   { name: "Alice", address: "GDY5SERGYNGQF2R4SRZ4AHQPJ7HQOLEPLAFISMD37CM2XCTGW4KUBXH6", aliases: ["alice"] },
   { name: "Bob", address: "GBCQZMHQWCIQJRCQJHAI7L2GS56A3EVY5E2E26DU2RX5SRSU4Y5B32GV", aliases: ["bob", "bobby", "robert"] },
+  { name: "Carol", address: "GDTMYTVUVK24YS33DC7LH2LXF6C4TKOYLPBWZNKKJIIRSAKRJZLSXPH3", aliases: ["carol", "caroline"] },
 ];
 
 /** Minuscules, sans accents ni espaces superflus : « Àlice » → « alice ». */

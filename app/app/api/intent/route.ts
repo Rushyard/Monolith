@@ -8,6 +8,7 @@ import { planIntent, toPlan } from "@/lib/agent/planner";
 import { decide, screenMessage } from "@/lib/agent/gatekeeper";
 import { execute, readAgentSpending } from "@/lib/agent/executor";
 import { resolveRecipient } from "@/lib/agent/contacts";
+import { payrollLines } from "@/lib/agent/payroll";
 import { vaultChannel } from "@/lib/agent/vault";
 import { recordActivity } from "@/lib/agent/activity";
 
@@ -42,13 +43,17 @@ export async function POST(req: Request) {
 
   // Routage : destinataire inscrit dans le coffre → Sarah signe (montant caché). Fail-closed : si
   // l'appartenance est illisible, on ne paie pas en public (ça révélerait le montant).
+  // Paie : tous les salariés doivent être dans le coffre.
   const pays = plan.steps.filter((s) => s.action === "pay");
-  const recipient = pays.length === 1 ? resolveRecipient(pays[0].to) : null;
+  const isPayroll = plan.steps.some((s) => s.action === "payroll");
+  const single = pays.length === 1 ? resolveRecipient(pays[0].to) : null;
+  const toCheck = isPayroll ? payrollLines().map((l) => l.recipient.address) : single ? [single.address] : [];
   let inVault = false;
-  if (recipient) {
-    const ch = await vaultChannel(recipient.address);
-    if (!ch.ok) return NextResponse.json({ plan, verdict: null, result: { status: "error", error: ch.error }, reasoning: ch.error }, { status: 503 });
-    inVault = ch.inVault;
+  if (toCheck.length) {
+    const checks = await Promise.all(toCheck.map((a) => vaultChannel(a)));
+    const failed = checks.find((c) => !c.ok);
+    if (failed && !failed.ok) return NextResponse.json({ plan, verdict: null, result: { status: "error", error: failed.error }, reasoning: failed.error }, { status: 503 });
+    inVault = checks.every((c) => c.ok && c.inVault);
   }
 
   const spending = await spendingP;
@@ -73,15 +78,17 @@ export async function POST(req: Request) {
 
 /** Garde en mémoire (best effort) les verdicts qui ne laissent pas de trace on-chain. Jamais de montant privé. */
 function logVerdict(d: ReturnType<typeof decide>) {
-  if (!d.payment || (d.verdict !== "BLOCKED" && d.verdict !== "NEEDS_VAULT_SIGNATURE")) return;
+  if (d.verdict !== "BLOCKED" && d.verdict !== "NEEDS_VAULT_SIGNATURE") return;
   const channel = d.channel ?? "public";
-  recordActivity({
-    at: new Date().toISOString(),
-    kind: d.verdict === "BLOCKED" ? "blocked" : "waiting",
-    channel,
-    to: d.payment.recipient.address,
-    label: d.payment.recipient.label,
-    amountUsdc: channel === "public" ? d.payment.amountUsdc : undefined,
-    reason: d.verdict === "BLOCKED" ? "Bloqué par le gatekeeper." : "En attente de la signature de l'owner dans le coffre.",
-  });
+  for (const p of d.payments ?? (d.payment ? [d.payment] : [])) {
+    recordActivity({
+      at: new Date().toISOString(),
+      kind: d.verdict === "BLOCKED" ? "blocked" : "waiting",
+      channel,
+      to: p.recipient.address,
+      label: p.recipient.label,
+      amountUsdc: channel === "public" ? p.amountUsdc : undefined,
+      reason: d.verdict === "BLOCKED" ? "Bloqué par le gatekeeper." : "En attente de la signature de l'owner dans le coffre.",
+    });
+  }
 }
