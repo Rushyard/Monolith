@@ -493,6 +493,23 @@ html, body { overflow-x: clip; }
 .vault-pay-line.done .vp-step { color: var(--sun); }
 .vault-pay-line.error .vp-step { color: var(--hal); }
 .vault-pay-line .approve-error, .vault-pay-line .fine { grid-column: 1 / -1; margin-top: 2px; }
+.vault-pay-line.done { cursor: pointer; }
+.vault-pay-line.focus { background: rgba(255,255,255,.03); }
+.lenses { margin-top: 18px; }
+.lenses-title { font: 400 11px/1 var(--mono); letter-spacing: .24em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.lenses-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line-strong); }
+.lens { padding: 14px 16px; border-left: 1px solid var(--line); font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+.lens:first-child { border-left: 0; }
+.lens-head { font: 400 10px/1.3 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+.lens.auditor .lens-head { color: var(--sun); }
+.lens dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; }
+.lens dt { color: var(--faint); }
+.lens dd { margin: 0; overflow-wrap: anywhere; }
+.lens .lens-hidden { color: var(--hal); font-family: var(--mono); }
+.lens .lens-amount { font-family: var(--mono); font-size: 16px; color: var(--sun); }
+.lens ul { margin: 0; padding-left: 16px; display: grid; gap: 6px; color: var(--muted); }
+.lens .fine { margin: 0; }
+@media (max-width: 720px) { .lenses-grid { grid-template-columns: 1fr; } .lens { border-left: 0; border-top: 1px solid var(--line); } .lens:first-child { border-top: 0; } }
 .activity { margin-top: 40px; }
 .activity-title { font: 400 11px/1 var(--mono); letter-spacing: .28em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
 .activity-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }

@@ -7,6 +7,7 @@
 // A failed payment can be resumed; a payment already on-chain is never sent twice.
 import { useRef, useState } from "react";
 import { short, type VaultPayment, type VaultSignatureRequest } from "./types";
+import { PaymentLenses } from "./PaymentLenses";
 import { ConfidentialVault, makeClient, type TxPhase } from "@/lib/ct/wallet";
 import { explorerTx, parseUsdc } from "@/lib/ct/format";
 import { useI18n } from "@/lib/i18n/react";
@@ -48,6 +49,7 @@ export function VaultPayCard({ request, onDone }: { request: VaultSignatureReque
   const [lines, setLines] = useState<Line[]>(() => payments.map(() => ({ step: "waiting" })));
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [focus, setFocus] = useState<number | null>(null); // payment shown in the three lenses
   const lock = useRef(false);
   const startLedger = useRef<number | null>(null);
   const hashes = useRef<(string | undefined)[]>(payments.map(() => undefined));
@@ -104,6 +106,8 @@ export function VaultPayCard({ request, onDone }: { request: VaultSignatureReque
   const started = lines.some((l) => l.step !== "waiting");
   const failed = lines.some((l) => l.step === "error") || !!error;
   const allDone = lines.every((l) => l.step === "done");
+  const doneIdx = lines.map((l, i) => (l.step === "done" && l.hash ? i : -1)).filter((i) => i >= 0);
+  const shown = focus !== null && doneIdx.includes(focus) ? focus : doneIdx[doneIdx.length - 1];
 
   return (
     <div className="approve vault-pay">
@@ -122,7 +126,8 @@ export function VaultPayCard({ request, onDone }: { request: VaultSignatureReque
         {payments.map((p, i) => {
           const l = lines[i];
           return (
-            <li key={`${p.to}-${i}`} className={`vault-pay-line ${l.step}`}>
+            <li key={`${p.to}-${i}`} className={`vault-pay-line ${l.step}${i === shown ? " focus" : ""}`}
+              onClick={l.step === "done" ? () => setFocus(i) : undefined}>
               <span className="vp-who">{p.label} <em>{short(p.to)}</em></span>
               <span className="vp-amt">{p.amountUsdc} USDC</span>
               <span className="vp-step">
@@ -138,6 +143,7 @@ export function VaultPayCard({ request, onDone }: { request: VaultSignatureReque
       </ol>
       {error && <p className="approve-error">{error}</p>}
       <p className="fine">{t("vpay.fine")}</p>
+      {shown !== undefined && <PaymentLenses payment={payments[shown]} from={OWNER} hash={lines[shown].hash!} />}
     </div>
   );
 }
