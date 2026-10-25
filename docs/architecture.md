@@ -420,3 +420,16 @@ https://monolith-nine-rosy.vercel.app/agent (déploiement `f2b6462`), Sarah conn
 
 Clé d'audit vérifiée contre le registre (`k·H == get_key(1)`), les deux canaux d'audit concordent. `GET /api/agent/activity` (prod) : deux reçus privés `paid`, sans montant.
 Après ce run, le coffre de Sarah contient 4.00 USDC : recharger (≥ 5) avant la prochaine paie.
+
+### Connexion Freighter de Sarah (session owner) — preview `b1d8575`, 2026-10-25 21:58–22:00 UTC
+
+Première connexion owner cliquée dans le navigateur (défi SEP-53 signé dans Freighter) : les paiements partent pour de vrai (pas de mode démo).
+
+| Étape | Tx | Ledger | Résultat |
+|---|---|---|---|
+| Agent, 9 USDC → Alice (budget restant 8) | [`23e4d045…`](https://stellar.expert/explorer/testnet/tx/23e4d04521c677b4d2dc1660effa3d1d0bbca71597af2098d2cfcf8eda9c04f2) | 5388381 | **FAILED `#3221`** |
+| Même paiement approuvé par Sarah (carte d'approbation, Freighter) | [`839e7be1…`](https://stellar.expert/explorer/testnet/tx/839e7be15a70f932338fcf969251a836a61f8176a678a0a326c4c9da760530e7) | 5388385 | SUCCESS |
+| Paie : Sarah → Carol, `confidential_transfer` | [`34bb0302…`](https://stellar.expert/explorer/testnet/tx/34bb0302f6b4211c6f904abbc7cab26ba16c3f414c584fde976b45657e71384a) | 5388407 | SUCCESS |
+| Paie : Sarah → Bob | — | — | non envoyé : il restait 1 USDC dans le coffre (4 − 3), la carte s'arrête sur Bob avec « Reprendre » |
+
+Coffre de Sarah après ce run : ~1 USDC, USDC public : 0. Recharger avant la vidéo (faucet → `deposit` → `merge`).
