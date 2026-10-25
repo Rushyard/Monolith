@@ -343,6 +343,30 @@ export async function invokeAsSmartAccountUnsigned(call: SmartAccountCall): Prom
   return { ok: true, unsignedXdr: rpc.assembleTransaction(tx, enforced).build().toXDR(), validUntilLedger: latest + validForLedgers };
 }
 
+/**
+ * Soumet quand même un appel dont la simulation échoue, pour obtenir un rejet *on-chain*
+ * (tx incluse dans un ledger, statut FAILED, lien explorer). Une simulation qui échoue ne
+ * fournit pas de footprint : on le prend d'une simulation identique avec le même nonce et
+ * un montant minimal (`probeArgs`), seul le montant signé diffère.
+ */
+export async function submitForOnchainRejection(
+  call: SmartAccountCall,
+  probeArgs: xdr.ScVal[],
+  sourceKp: Keypair,
+): Promise<InvokeResult & { simulationCode: number | null }> {
+  const real = await prepareSmartAccountCall(call);
+  const simulationCode = rpc.Api.isSimulationError(real.enforced) ? simulationErrorCode(real.enforced.error) : null;
+  if (!rpc.Api.isSimulationError(real.enforced)) {
+    return { ok: false, stage: "simulation", error: "la simulation a réussi : rien à prouver", simulationCode };
+  }
+  const probe = await prepareSmartAccountCall({ ...call, args: probeArgs, forceNonce: real.nonce });
+  if (rpc.Api.isSimulationError(probe.enforced)) {
+    return { ok: false, stage: "simulation", error: `probe : ${probe.enforced.error}`, simulationCode };
+  }
+  probe.enforced.minResourceFee = (BigInt(probe.enforced.minResourceFee) * 2n).toString();
+  return { ...(await sendAndWait(rpc.assembleTransaction(real.tx, probe.enforced).build(), sourceKp)), simulationCode };
+}
+
 /** Appel signé par un compte classique (auth « source account », pas de smart account). */
 export async function invokeAsClassic(kp: Keypair, contract: string, fn: string, args: xdr.ScVal[]): Promise<InvokeResult> {
   const tx = await buildTx(kp.publicKey(), Operation.invokeContractFunction({ contract, function: fn, args }));
