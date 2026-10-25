@@ -111,7 +111,7 @@ Every sentence the server writes (clarifications, missing-detail questions, vaul
 
 ### Parsing eval (`npm run eval` in `contracts/`)
 
-60 sentences in `eval/parsing.jsonl` (typos, missing details, answers to the agent's own question, payroll, private/public routing, injections, reads, unsupported requests; French, English, Portuguese), run through the real `/api/intent` pipeline in demo mode (simulation only). Each line also checks that the server answered in the message's language. Result on 2026-10-25:
+66 sentences in `eval/parsing.jsonl` (typos, missing details, answers to the agent's own question, payroll, the agent's mandate, private/public routing, injections, reads, unsupported requests; French, English, Portuguese), run through the real `/api/intent` pipeline in demo mode (simulation only). Each line also checks that the server answered in the message's language. Result on 2026-10-26:
 
 | Category | Score |
 |---|---|
@@ -124,9 +124,10 @@ Every sentence the server writes (clarifications, missing-detail questions, vaul
 | injection | 7/7 |
 | reads | 9/9 |
 | unsupported | 3/3 |
-| **Total** | **60/60** (fr 26/26, en 19/19, pt 15/15) |
+| mandate | 6/6 |
+| **Total** | **66/66** (fr 28/28, en 21/21, pt 17/17) |
 
-Honest caveats: Groq rate-limited us (HTTP 429) during the run, so the LLM planner answered 26 of the 60 sentences; the others went through the regex fallback planner or a code check that runs before the LLM. Both paths go through the same server-side checks. The paused state (B4) is not in the eval: it would need a real on-chain transaction to remove the agent's rule; the `PAUSED` text is covered by unit tests in the three languages.
+Honest caveats: Groq rate-limited us (HTTP 429) during the run, so the LLM planner answered 25 of the 66 sentences; the others went through the regex fallback planner or a code check that runs before the LLM. Both paths go through the same server-side checks. The paused state (B4) is not in the eval: it would need a real on-chain transaction to remove the agent's rule; the `PAUSED` text is covered by unit tests in the three languages.
 
 ## Architecture
 
