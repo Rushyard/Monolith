@@ -147,7 +147,7 @@ npm run dev                       # http://localhost:3000
 | `AGENT_SECRET_KEY` | agent API | **server-only**, never `NEXT_PUBLIC_`. `stellar keys show agent` |
 | `LLM_API_KEY` | agent API | **server-only**, Groq key. Without it, a deterministic fallback planner (regex) answers |
 | `GROQ_MODEL` | agent API | `qwen/qwen3.8-27b` (checked against Groq's `/models`) |
-| `RULE_AGENT_ID` | agent API | optional, overrides the agent's rule id after `npm run reset-agent` |
+| `RULE_AGENT_ID` | agent API | optional override. By default the API finds the agent rule on-chain (signer = agent key + spending-limit policy, cached 60 s), so a reset needs no redeploy |
 
 Scripts (Node, testnet):
 
@@ -164,7 +164,7 @@ cd contracts && npm install
 npm run deploy        # Ed25519 verifier + spending-limit policy + smart account (rule A = owner), then adds rule B (agent, 10 USDC / ~24 h)
 npm run gonogo        # agent 5 USDC ✅ · agent 50 USDC ❌ #3221 (on-chain) · owner 50 USDC ✅ · alice refunds
 npm run status        # balances, cap, spent in the rolling window, remaining budget
-npm test              # 23 tests: 8 signed simulations on testnet (no tx sent) + 15 gatekeeper unit tests
+npm test              # 24 tests: 9 on testnet (8 signed simulations + on-chain rule discovery) on testnet (no tx sent) + 15 gatekeeper unit tests
 npm run reset-agent   # fresh agent rule (remove old rule B, add a new one): restores the budget; --dry-run to preview
 npm run refund        # alice sends her USDC back to the smart account
 ```
@@ -185,7 +185,8 @@ The WASMs are OpenZeppelin's `examples/multisig-smart-account` (account, ed25519
 - **Key cached in the browser.** After deriving the confidential key from the Freighter signature, the app caches it in `localStorage` so you don't re-sign on every visit. Anyone with access to that browser profile can read your confidential balances (not move funds: that still needs Freighter).
 - **Agent pre-check** on the server is for display; the on-chain policy is the real limit.
 - **Agent payments are public.** The smart account's balance and the agent's payments are ordinary USDC transfers: amounts and recipients are visible. Only the vault is confidential.
-- **The budget is consumed.** The cap is cumulative over ~24 h. Once spent, every agent payment is rejected until older payments leave the window; `npm run reset-agent` installs a fresh rule (two owner transactions).
+- **The budget is consumed.** The cap is cumulative over ~24 h. Once spent, every agent payment is rejected until older payments leave the window; `npm run reset-agent` installs a fresh rule (two owner transactions); the app picks up the new rule id from the chain within 60 s, no redeploy.
+- **Agent payments are expensive on testnet today.** Almost the whole fee is storage rent (tx [`1dfb0e87…`](https://stellar.expert/explorer/testnet/tx/1dfb0e874f56980a54c4c8fcbd550230105bc216619a63543062e62e8534d4d3): 9.864 XLM charged, 9.863 XLM of it `rent_fee_charged`, 0.0012 XLM for compute). Each payment appends an entry to the spending-limit policy's persistent history, which the policy keeps alive for 30 days (OZ `SPENDING_LIMIT_EXTEND_AMOUNT = 30 * DAY_IN_LEDGERS`), so the extra bytes pay ~30 days of rent. On 2026-10-25 testnet's live Soroban state (~4.14 GB) was above the protocol's 4.0 GB target, which makes rent per byte climb steeply: our payments went from 3.2 XLM to 11.1 XLM in three hours. We have not measured mainnet.
 - **Owner approval on the public demo.** Only the owner's Freighter account can sign the approval; visitors see the agent's rejected transaction, and the video shows the approval.
 - **The agent key is a server secret.** It can only spend within the cap and only USDC `transfer` (`#3223` for anything else, `#3002` on any other contract or rule, both tested), but it lives in Vercel's environment.
 - **Small contact book.** The demo resolves "Alice" to a testnet account; any other address requires the owner's approval.

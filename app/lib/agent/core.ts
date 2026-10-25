@@ -412,3 +412,44 @@ export async function readSpendingState(source: string, policy: string, smartAcc
 export async function readTokenBalance(source: string, token: string, holder: string): Promise<bigint> {
   return BigInt(scValToNative((await readContract(source, token, "balance", [new Address(holder).toScVal()]))!));
 }
+
+/**
+ * Retrouve on-chain la règle de l'agent : signer External(verifier, clé agent) + la spending-limit
+ * policy. Les ids ne sont jamais réutilisés (une règle supprimée → ContextRuleNotFound #3000), donc
+ * on parcourt les ids jusqu'à avoir vu get_context_rules_count() règles. Si plusieurs règles
+ * correspondent, la plus récente (id le plus haut) gagne. null si aucune.
+ */
+export async function findAgentRule(
+  source: string,
+  smartAccount: string,
+  verifier: string,
+  agentRawPublicKey: Uint8Array,
+  policy: string,
+  maxScan = 64,
+): Promise<number | null> {
+  const count = Number(scValToNative((await readContract(source, smartAccount, "get_context_rules_count", []))!));
+  const agentHex = Buffer.from(agentRawPublicKey).toString("hex");
+  let seen = 0;
+  let found: number | null = null;
+  for (let next = 0; seen < count && next < count + maxScan; ) {
+    // On lit d'un coup autant d'ids qu'il reste de règles à voir (cas courant : un seul aller-retour).
+    const ids = Array.from({ length: Math.min(8, count - seen) }, (_, i) => next + i);
+    next += ids.length;
+    const rules = await Promise.all(
+      ids.map((id) =>
+        readContract(source, smartAccount, "get_context_rule", [nativeToScVal(id, { type: "u32" })])
+          .then((v) => scValToNative(v!) as { id: number; signers: unknown[][]; policies: string[] })
+          .catch(() => null), // #3000 : id supprimé ou pas encore attribué
+      ),
+    );
+    for (const r of rules) {
+      if (!r) continue;
+      seen++;
+      const hasAgent = r.signers.some(
+        (s) => s[0] === "External" && s[1] === verifier && Buffer.from(s[2] as Uint8Array).toString("hex") === agentHex,
+      );
+      if (hasAgent && r.policies.includes(policy)) found = Math.max(found ?? -1, Number(r.id));
+    }
+  }
+  return found;
+}

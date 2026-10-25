@@ -82,7 +82,7 @@ L'XDR a pour source le compte de l'owner. L'auth du smart account (règle A, sig
 | `AGENT_SECRET_KEY` | `S…` de l'agent (`stellar keys show agent`) | **server-only**, jamais `NEXT_PUBLIC_` |
 | `LLM_API_KEY` | clé Groq | server-only. Sans elle, le planner de secours (regex) répond |
 | `GROQ_MODEL` | `qwen/qwen3.8-27b` | vérifié dans `/openai/v1/models` le 2026-10-25 |
-| `RULE_AGENT_ID` | *(facultatif)* | à fixer après `npm run reset-agent` si l'on ne redéploie pas `app/lib/agent/deployment.json` |
+| `RULE_AGENT_ID` | *(facultatif)* | surcharge. Par défaut l'API retrouve la règle on-chain (signer agent + spending-limit, cache 60 s) : pas de redéploiement après `npm run reset-agent` |
 | `AGENT_PROVE_REJECTION` | *(facultatif)* `false` | désactive la soumission on-chain de la tentative rejetée (simulation seule) |
 
 Les IDs publics (smart account, SAC, policy, vérificateur, owner) ont des valeurs par défaut dans `app/lib/agent/deployment.json` et `config.ts`.

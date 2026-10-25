@@ -1,4 +1,5 @@
 // Rend son budget à l'agent : remplace la règle B par une règle B neuve (historique vierge).
+// La règle remplacée est retrouvée on-chain (findAgentRule) ; l'app suit la nouvelle sans redéploiement.
 //   npm run reset-agent              → envoie les 2 tx (signées par l'owner via la règle A)
 //   npm run reset-agent -- --dry-run → simule seulement, n'envoie rien
 // Ordre choisi pour que l'agent n'ait jamais de pouvoir sans plafond :
@@ -11,6 +12,7 @@ import {
   Address,
   callContractRule,
   externalSigner,
+  findAgentRule,
   invokeAsSmartAccount,
   keypairFromCli,
   loadDeployments,
@@ -36,7 +38,11 @@ const d = loadDeployments();
 const owner = keypairFromCli("owner");
 const agent = keypairFromCli("agent");
 const SA = d.smartAccount!;
-const oldRule = d.ruleAgent!;
+// La règle à remplacer est celle qu'on trouve on-chain (signer agent + spending-limit), pas celle du fichier.
+const found = await findAgentRule(owner.publicKey(), SA, d.ed25519Verifier!, agent.rawPublicKey(), d.spendingLimitPolicy!);
+if (found === null) throw new Error("aucune règle agent trouvée on-chain : rien à remplacer");
+if (found !== d.ruleAgent) console.warn(`⚠ deployments.testnet.json dit règle ${d.ruleAgent}, la chaîne dit ${found} : on suit la chaîne`);
+const oldRule = found;
 
 const asOwner = (fn: string, args: xdr.ScVal[]): SmartAccountCall => ({
   contract: SA,
@@ -94,4 +100,5 @@ writeFileSync(
   join(import.meta.dirname, "..", "..", "app", "lib", "agent", "deployment.json"),
   JSON.stringify({ smartAccount: SA, usdcSac: d.usdcSac, ed25519Verifier: d.ed25519Verifier, spendingLimitPolicy: d.spendingLimitPolicy, ruleOwner: d.ruleOwner ?? 0, ruleAgent: newRule }, null, 2) + "\n",
 );
-console.log(`\n→ commiter contracts/deployments.testnet.json et app/lib/agent/deployment.json, puis redéployer (ou RULE_AGENT_ID=${newRule} sur Vercel).`);
+console.log(`\n→ l'app retrouve la règle ${newRule} on-chain d'elle-même (cache 60 s) : pas de redéploiement.`);
+console.log("  Commiter contracts/deployments.testnet.json et app/lib/agent/deployment.json (valeur de repli). Si RULE_AGENT_ID est défini sur Vercel, le supprimer.");
