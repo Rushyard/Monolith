@@ -7,7 +7,8 @@
     "deploy": "tsx scripts/deploy.ts",
     "gonogo": "tsx scripts/gonogo.ts",
     "status": "tsx scripts/status.ts",
-    "refund": "tsx scripts/refund.ts"
+    "refund": "tsx scripts/refund.ts",
+    "reset-agent": "tsx scripts/reset-agent.ts"
   },
   "devDependencies": {
     "@types/node": "^22",

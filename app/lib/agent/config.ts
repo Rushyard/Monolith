@@ -1,17 +1,18 @@
-// Configuration de l'agent (server-only). Valeurs publiques testnet par défaut, issues de
-// contracts/deployments.testnet.json ; chaque valeur peut être surchargée par l'env.
+// Configuration de l'agent (server-only). Valeurs publiques testnet par défaut, lues dans
+// ./deployment.json (copie écrite par contracts/scripts/reset-agent.ts) ; l'env a priorité.
 import "server-only";
 import { Keypair } from "./core";
+import D from "./deployment.json";
 
 export const AGENT_CONFIG = {
-  smartAccount: process.env.NEXT_PUBLIC_SMART_ACCOUNT_ID || "CC5D2NUS2GXAWMTK2DMSNJHVRGRH5GBEZNUMEPIOPBPQQJN6GDLO43KA",
-  usdcSac: process.env.NEXT_PUBLIC_USDC_SAC || "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
-  ed25519Verifier: process.env.ED25519_VERIFIER_ID || "CBBDHCHRKXP2EROB5JN3EMCMZ4VOOIXSOKDNVPJKY4KIJXZ53ZDC3ZVB",
-  spendingLimitPolicy: process.env.SPENDING_LIMIT_POLICY_ID || "CAOT4RM7SYJPLT5XQVPYDEX6HKQOZFODZE6KQVUQJZUSVJY6HBWUVGHQ",
+  smartAccount: process.env.NEXT_PUBLIC_SMART_ACCOUNT_ID || D.smartAccount,
+  usdcSac: process.env.NEXT_PUBLIC_USDC_SAC || D.usdcSac,
+  ed25519Verifier: process.env.ED25519_VERIFIER_ID || D.ed25519Verifier,
+  spendingLimitPolicy: process.env.SPENDING_LIMIT_POLICY_ID || D.spendingLimitPolicy,
   /** Règle A : owner (Delegated), plein pouvoir. */
-  ruleOwner: Number(process.env.RULE_OWNER_ID ?? 0),
+  ruleOwner: Number(process.env.RULE_OWNER_ID ?? D.ruleOwner),
   /** Règle B : agent (External Ed25519), spending_limit. */
-  ruleAgent: Number(process.env.RULE_AGENT_ID ?? 1),
+  ruleAgent: Number(process.env.RULE_AGENT_ID ?? D.ruleAgent),
   /** Compte G de l'owner (Freighter) : source des tx d'approbation. Adresse publique. */
   ownerAddress: process.env.NEXT_PUBLIC_OWNER_ADDRESS || "GCIFXLBRK2CHODLILPTZIPEAK36TOS3MG4QRZGCTJ7PA52PAOP75RS7B",
 };
