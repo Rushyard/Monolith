@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "deploy": "tsx scripts/deploy.ts",
-    "gonogo": "tsx scripts/gonogo.ts"
+    "gonogo": "tsx scripts/gonogo.ts",
+    "status": "tsx scripts/status.ts"
   },
   "dependencies": {
     "@stellar/stellar-sdk": "^17.4.0"
