@@ -7,7 +7,7 @@ import { z } from "zod";
 import { planIntent, toPlan } from "@/lib/agent/planner";
 import { decide, screenMessage } from "@/lib/agent/gatekeeper";
 import { execute, readAgentSpending } from "@/lib/agent/executor";
-import { resolveRecipient } from "@/lib/agent/contacts";
+import { recipientClarification, resolveRecipient } from "@/lib/agent/contacts";
 import { payrollLines } from "@/lib/agent/payroll";
 import { vaultChannel } from "@/lib/agent/vault";
 import { paidAddresses, recordActivity } from "@/lib/agent/activity";
@@ -57,8 +57,14 @@ export async function POST(req: Request) {
 
   // Routage : destinataire inscrit dans le coffre → Sarah signe (montant caché). Fail-closed : si
   // l'appartenance est illisible, on ne paie pas en public (ça révélerait le montant).
-  // Paie : tous les salariés doivent être dans le coffre.
+  // A1 : destinataire écrit par le planner résolu côté serveur. Faute de frappe → clarification, jamais de paiement.
   const pays = plan.steps.filter((s) => s.action === "pay");
+  for (const p of pays) {
+    const text = recipientClarification(p.to, message);
+    if (text) return NextResponse.json({ plan, verdict: null, result: { status: "needs_clarification", text }, reasoning: text, mode });
+  }
+
+  // Paie : tous les salariés doivent être dans le coffre.
   const isPayroll = plan.steps.some((s) => s.action === "payroll");
   const single = pays.length === 1 ? resolveRecipient(pays[0].to) : null;
   const toCheck = isPayroll ? payrollLines().map((l) => l.recipient.address) : single ? [single.address] : [];
