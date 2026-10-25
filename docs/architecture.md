@@ -40,7 +40,7 @@ Le pré-check côté serveur sert à l'affichage. La vraie barrière est la poli
 
 ## P1 — Smart account + agent plafonné
 
-> Section maintenue par P1. Les tableaux partagés « Contract IDs » et « Tx hashes de démo » plus bas sont laissés intacts pour éviter les conflits de merge avec P2 : les valeurs P1 sont ici.
+> Section maintenue par P1. Résumé dans les tableaux partagés « Contract IDs » et « Tx hashes de démo » plus bas.
 
 ### Comptes testnet (P1)
 
@@ -169,9 +169,9 @@ Tests unitaires purs (`tests/gatekeeper.test.ts`, 15 cas, sans réseau) : budget
 | Contrat | ID |
 |---|---|
 | USDC SAC | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` |
-| Smart account | |
-| Vérificateur Ed25519 | |
-| Spending-limit policy | |
+| Smart account | `CC5D2NUS2GXAWMTK2DMSNJHVRGRH5GBEZNUMEPIOPBPQQJN6GDLO43KA` — détails P1 ci-dessus |
+| Vérificateur Ed25519 | `CBBDHCHRKXP2EROB5JN3EMCMZ4VOOIXSOKDNVPJKY4KIJXZ53ZDC3ZVB` |
+| Spending-limit policy | `CAOT4RM7SYJPLT5XQVPYDEX6HKQOZFODZE6KQVUQJZUSVJY6HBWUVGHQ` |
 | Confidential Token (USDC) | `CAYYT5UWB22VLV4Z7DU7DN7V6XFPGIDP5ZD3HV4S6HVQMCGLI5CFLERJ` — détails P2 ci-dessous |
 | Registre d'auditeurs Monolith | `CB5YIDSUCNESNOJK2UFFJA6E3O5BGAPYEQ6F353WGNM4UBGGX3H45IGQ` (auditeur #1) |
 
@@ -179,9 +179,9 @@ Tests unitaires purs (`tests/gatekeeper.test.ts`, 15 cas, sans réseau) : budget
 
 | Scénario | Hash |
 |---|---|
-| Agent → 5 USDC (succès) | |
-| Agent → 50 USDC (échec #3221) | |
-| Owner → 50 USDC (approbation) | |
+| Agent → 5 USDC (succès) | [`4ba72789…`](https://stellar.expert/explorer/testnet/tx/4ba72789cf7825eb285c743da14d92ad2de4971b9e793045b7889576e5449679) |
+| Agent → 50 USDC (échec #3221) | [`cfda69da…`](https://stellar.expert/explorer/testnet/tx/cfda69da1eeeb89228f4e86b7673f214eb4c524843089632d8e7e51cdf01620c) · depuis l'app : [`eb70b4a2…`](https://stellar.expert/explorer/testnet/tx/eb70b4a2cd5eaf80d7df9bed9aacac25ee7e99a100f0d35d0b92015f16293676) |
+| Owner → 50 USDC (approbation) | [`a394bd32…`](https://stellar.expert/explorer/testnet/tx/a394bd32034d6b7fdf4b4cb62837193f0b8db9b67c149c805345eec028660eb7) · avec Freighter depuis l'app : [`39a0634f…`](https://stellar.expert/explorer/testnet/tx/39a0634f3ea7df229504c3b152342fc111d60be057df00e5007ebb5b34884243) |
 | Transfert confidentiel (7.5 USDC, montant caché, lisible par notre seul auditeur) | [`1cfe3715…`](https://stellar.expert/explorer/testnet/tx/1cfe37158b1fa2fd25e84468c6d9949bfc69c4710d08bc547630631f007095ff) |
 
 ## P2 — Confidential vault (Confidential Tokens, `stellar-confidential` 0.8.0)
