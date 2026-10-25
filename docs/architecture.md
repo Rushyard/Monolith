@@ -279,6 +279,22 @@ Réapprovisionnement pour la paie (Sarah, `/vault` + Freighter, 2026-10-25 20:14
 Solde en réception relu vide après le merge ; solde disponible = 19 − (montant caché de `75db195e…`), lisible seulement par Sarah (`/vault`) ou Marc (`/auditor`).
 (Un premier essai est parti du mauvais compte Freighter, `GCXA…FI3H` : `4c518bc5…` / `7ac0b7a9…`, sans effet sur le coffre de Sarah.)
 
+### Paie confidentielle préparée par l'agent, signée par Sarah — preview `p2-vault-agent`, 2026-10-25 20:28 UTC
+
+Flux : `/agent` → « verse les salaires » → `/api/intent` renvoie `needs_vault_signature` (Carol 3 + Bob 2, montants fixés dans
+`lib/agent/payroll.ts`, pas par le LLM) → **VaultPayCard** : pour chaque paiement, lecture de l'état du coffre → preuve `transfer`
+dans le navigateur → signature Freighter de Sarah (`GCIF…RS7B`) → réseau → `POST /api/agent/vault-receipt { to, hash }` (sans montant).
+L'agent n'a ni la clé du coffre ni son solde. URL : https://monolith-git-p2-vault-agent-oskarcouliou-4325s-projects.vercel.app/agent (preview, pas la prod).
+
+| Paiement | Tx | Ledger | Résultat |
+|---|---|---|---|
+| Sarah → Carol `GDTM…XPH3`, `confidential_transfer` | [`5b1f9b15…`](https://stellar.expert/explorer/testnet/tx/5b1f9b15572ebce6c15098802a62858be165332b72bd92d962823d3517b0e2d6) | 5387304 | SUCCESS, source `GCIF…RS7B` |
+| Sarah → Bob `GBCQ…32GV`, `confidential_transfer` | [`038ecfcf…`](https://stellar.expert/explorer/testnet/tx/038ecfcfa42b43da9dbc9576cac6f21f7b41fbded9f4ab5417e2c0c55631710f) | 5387308 | SUCCESS, source `GCIF…RS7B` |
+
+Vérifié : les deux événements `transfer` du token n'ont pas de champ montant (seulement les chiffrés `vTilde`, `vAudR`, `vAudS`…) ;
+`GET /api/agent/activity` liste les deux reçus en `channel: private`, `kind: paid`, sans `amountUsdc`.
+Lecture par Marc dans `/auditor` : à vérifier avec la clé d'audit (non présente sur cette machine).
+
 ### v2 run — our auditor, 2026-10-25 13:34 UTC (`npm run ct:e2e`)
 
 Token `CAYYT5UW…LERJ`. alice = `GB7OT6KYOLWATWCNEPDTZZIP6CHI3L4X3YXH6BX7IVCPY2ENMPKIIKXP`, bob = `GBCQZMHQWCIQJRCQJHAI7L2GS56A3EVY5E2E26DU2RX5SRSU4Y5B32GV`
