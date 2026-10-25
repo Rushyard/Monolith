@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { Hero } from "./fx/hero";
+
 const CHAPTERS = [
   {
     n: "I",
@@ -17,7 +19,7 @@ const CHAPTERS = [
     n: "III",
     href: "/auditor",
     title: "L'auditeur",
-    body: "Une clé d'audit autorisée révèle les montants. Confidentiel, pas anonyme.",
+    body: "Seule la clé de l'auditeur désigné révèle les montants. La clé publique de la démo de référence est refusée.",
   },
 ];
 
@@ -32,19 +34,7 @@ const HIDDEN = ["Soldes du coffre confidentiel", "Montants des transferts confid
 export default function Home() {
   return (
     <>
-      <section className="hero">
-        <div className="stage" aria-hidden>
-          <div className="hero-sun" />
-          <div className="monolith" />
-        </div>
-        <div className="ground" aria-hidden />
-        <div className="hero-copy">
-          <h1 className="intertitle">Monolith</h1>
-          <p className="lede">
-            Ta trésorerie reste confidentielle. Ton agent ne peut dépenser que ce que le contrat lui autorise.
-          </p>
-        </div>
-      </section>
+      <Hero tagline="Ta trésorerie reste confidentielle. Ton agent ne peut dépenser que ce que le contrat lui autorise." />
 
       <section className="grid cols-3">
         {CHAPTERS.map((c) => (

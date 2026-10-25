@@ -16,6 +16,7 @@
   --hidden: #b7a6ff;
   --font: "Jost", "Futura", "Century Gothic", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --console: "Michroma", "Eurostile", "Microgramma", var(--font);
   --gutter: 16px;
 }
 
@@ -216,3 +217,66 @@ table.data td.num { white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- fx: HAL console ---------- */
+.hal-console { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 28px; align-items: center; padding: 28px; }
+@media (max-width: 560px) { .hal-console { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; } }
+.hal-says { font-family: var(--console); font-size: 13px; letter-spacing: 0.14em; line-height: 1.8; margin: 0; min-height: 3.6em; color: var(--fg); }
+.caret { display: inline-block; width: 0.6em; height: 1em; margin-left: 4px; vertical-align: -0.12em; background: var(--hal); animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.hal-lens {
+  border-radius: 50%; position: relative; flex: none;
+  background: radial-gradient(circle at 50% 50%, #fff7a8 0 3%, #ffb21a 5%, var(--hal) 14%, #8a0a02 30%, #2a0402 46%, #0b0b0d 58%, #1d1e22 62%, #050506 66%);
+  box-shadow: 0 0 0 6px #1a1b1f, 0 0 0 8px #3b3d44, 0 0 40px var(--hal-glow);
+  animation: hal-breathe 4s ease-in-out infinite; transition: filter .8s, box-shadow .8s;
+}
+.hal-lens::after { content: ""; position: absolute; inset: 18% 30% 55% 22%; border-radius: 50%; background: radial-gradient(rgba(255,255,255,.35), transparent 70%); filter: blur(2px); }
+.hal-lens.refuse { animation: hal-flare 1.1s ease-in-out 2; }
+.hal-lens.accept { filter: hue-rotate(115deg) saturate(.6); box-shadow: 0 0 0 6px #1a1b1f, 0 0 0 8px #3b3d44, 0 0 46px rgba(159,216,181,.35); animation: none; }
+@keyframes hal-flare { 50% { box-shadow: 0 0 0 6px #1a1b1f, 0 0 0 8px #3b3d44, 0 0 100px rgba(255,42,23,.9); filter: brightness(1.4); } }
+.cipher { font-family: var(--mono); color: var(--hidden); letter-spacing: 0.04em; }
+.illegible { color: var(--muted); display: inline-flex; gap: 8px; align-items: baseline; }
+.illegible .cipher { opacity: 0.6; }
+
+/* ---------- fx: Star Gate overlay ---------- */
+.stargate { position: fixed; inset: 0; z-index: 50; background: #000; animation: gate-in .35s ease-out both; }
+.stargate.out { animation: gate-out .9s ease-in both; }
+.stargate canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.stargate-caption {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap;
+  padding: 28px max(20px, env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
+  background: linear-gradient(transparent, rgba(0,0,0,.8)); pointer-events: none;
+}
+.stargate-title { font-size: 13px; letter-spacing: .45em; text-transform: uppercase; color: var(--fg); }
+.stargate-detail { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+@keyframes gate-in { from { opacity: 0; } }
+@keyframes gate-out { 60% { opacity: 1; } to { opacity: 0; } }
+
+/* ---------- fx: dawn hero ---------- */
+.hero-dawn { position: relative; display: grid; padding: 24px 0 8px; }
+.dawn {
+  width: 100%; aspect-ratio: 16 / 8; max-height: 62vh; display: block;
+  -webkit-mask-image: radial-gradient(ellipse 62% 78% at 50% 46%, #000 55%, transparent 100%);
+  mask-image: radial-gradient(ellipse 62% 78% at 50% 46%, #000 55%, transparent 100%);
+}
+.hero-dawn .hero-copy { margin-top: -6px; text-align: center; opacity: 0; transform: translateY(8px); transition: opacity 1.6s ease, transform 1.6s ease; }
+.hero-dawn .hero-copy.on { opacity: 1; transform: none; }
+.hero-dawn .hero-copy .lede { margin: 16px auto 32px; text-align: center; }
+@media (prefers-reduced-motion: reduce) { .hero-dawn .hero-copy { opacity: 1; transform: none; } }
+
+/* ---------- fx: chapter intertitle ---------- */
+.intertitle-card {
+  position: fixed; inset: 0; z-index: 40; display: grid; place-content: center; justify-items: center; gap: 18px;
+  background: #000; pointer-events: none; animation: card-life 1.7s ease both;
+}
+.intertitle-card-title {
+  font-size: clamp(18px, 3.4vw, 32px); letter-spacing: .6em; margin-right: -.6em; text-transform: uppercase;
+  animation: card-track 1.7s cubic-bezier(.2,.7,.1,1) both;
+}
+@keyframes card-life { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes card-track { 0% { letter-spacing: 1.4em; opacity: 0; filter: blur(6px); } 40% { opacity: 1; filter: blur(0); } 100% { letter-spacing: .6em; } }
+
+/* ---------- fx: curve point behind hidden balances ---------- */
+.curve-card { position: relative; overflow: hidden; }
+.curve-card > :not(.curve-point) { position: relative; }
+.curve-point { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .55; pointer-events: none; }

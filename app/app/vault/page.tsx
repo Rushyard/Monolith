@@ -19,6 +19,9 @@ import {
   type VaultView,
 } from "@/lib/confidential";
 import { Terminal, useLog } from "../terminal";
+import { StarGate } from "../fx/stargate";
+import { CurvePoint } from "../fx/curve-point";
+import { Decrypt } from "../fx/scramble";
 
 type Busy = null | { op: string; phase?: TxPhase };
 // Whether the last tx shows its amount on-chain; undefined = no amount (register, merge).
@@ -105,6 +108,11 @@ export default function VaultPage() {
 
   return (
     <>
+      <StarGate
+        active={busy?.phase === "proving"}
+        title={busy ? `${busy.op} · traversée` : ""}
+        detail={busy?.op === "Transfert confidentiel" ? "le montant se chiffre dans ton navigateur" : undefined}
+      />
       <header className="page-head">
         <div>
           <span className="chapter">Chapitre I</span>
@@ -150,14 +158,16 @@ export default function VaultPage() {
                 <a className="link" href={explorerAccount(v.address)} target="_blank" rel="noreferrer">{short(v.address)}</a>
               </div>
             </div>
-            <div className="panel stat">
+            <div className="panel stat curve-card">
+              <CurvePoint seed={1} />
               <div className="label">Coffre · disponible <span className="tag hidden">caché</span></div>
-              <div className="value">{formatUsdc(view.spendable)}<small>USDC</small></div>
-              <div className="note">Déchiffré localement. On-chain : un point sur une courbe.</div>
+              <div className="value"><Decrypt text={formatUsdc(view.spendable)} /><small>USDC</small></div>
+              <div className="note">Déchiffré dans ton navigateur. On-chain : ce point sur Grumpkin, y² = x³ − 17.</div>
             </div>
-            <div className="panel stat">
+            <div className="panel stat curve-card">
+              <CurvePoint seed={2} />
               <div className="label">Coffre · en réception <span className="tag hidden">caché</span></div>
-              <div className="value">{formatUsdc(view.receiving)}<small>USDC</small></div>
+              <div className="value"><Decrypt text={formatUsdc(view.receiving)} /><small>USDC</small></div>
               <div className="note">À fusionner pour le rendre dépensable.</div>
             </div>
           </section>

@@ -5,6 +5,8 @@
 import { useState } from "react";
 
 import { CT, auditToken, explorerTx, formatUsdc, short, type AuditRow, type KeyStatus } from "@/lib/confidential";
+import { HalEye, type HalMood } from "../fx/hal";
+import { Cipher, Decrypt, TypeLine } from "../fx/scramble";
 
 type Attempt = "ours" | "shared";
 
@@ -30,6 +32,17 @@ export default function AuditorPage() {
   }
 
   const revealed = status.key === "valid";
+  const mood: HalMood = status.key === "valid" ? "accept" : status.key === "invalid" ? "refuse" : "idle";
+  const halSays =
+    status.key === "valid"
+      ? `CLÉ #${CT.auditorId} VALIDE. k·H = GET_KEY(${CT.auditorId}). DÉCHIFFREMENT DES MONTANTS.`
+      : status.key === "invalid"
+        ? status.attempt === "shared"
+          ? "CLÉ #0 REFUSÉE. JE SUIS DÉSOLÉ, JE NE PEUX PAS FAIRE ÇA."
+          : "CLÉ INCONNUE DU REGISTRE. LES MONTANTS RESTENT CHIFFRÉS."
+        : rows
+          ? `${rows.filter((r) => r.kind === "transfer").length} TRANSFERTS CHIFFRÉS. J'ATTENDS LA CLÉ DE L'AUDITEUR #${CT.auditorId}.`
+          : "BONJOUR. JE SUIS L'AUDITEUR. LISEZ LA CHAÎNE, PUIS DONNEZ-MOI UNE CLÉ.";
 
   return (
     <>
@@ -44,7 +57,12 @@ export default function AuditorPage() {
         </div>
       </header>
 
-      <section className="panel stack">
+      <section className="panel hal-console">
+        <HalEye mood={mood} />
+        <TypeLine text={halSays} className="hal-says" />
+      </section>
+
+      <section className="panel stack" style={{ marginTop: 16 }}>
         <div className="row" style={{ justifyContent: "space-between" }}>
           <button className="btn" onClick={() => load()} disabled={loading}>
             {loading ? <span className="progress-dots">Lecture</span> : rows ? "Relire la chaîne" : "Lire la chaîne"}
@@ -133,10 +151,14 @@ export default function AuditorPage() {
                       {r.kind !== "transfer"
                         ? formatUsdc(r.auditedAmount ?? 0n)
                         : r.auditedAmount === null
-                          ? status.key === "invalid" ? "illisible" : "•••"
-                          : formatUsdc(r.auditedAmount)}
+                          ? status.key === "invalid"
+                            ? <span className="illegible">illisible <Cipher width={6} live={false} /></span>
+                            : <Cipher width={6} />
+                          : <Decrypt text={formatUsdc(r.auditedAmount)} />}
                       {r.senderBalance !== null && (
-                        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, whiteSpace: "normal" }}>solde après {formatUsdc(r.senderBalance)}</div>
+                        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, whiteSpace: "normal" }}>
+                          solde après <Decrypt text={formatUsdc(r.senderBalance)} delay={350} />
+                        </div>
                       )}
                     </td>
                   </tr>
