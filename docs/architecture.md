@@ -200,6 +200,8 @@ Règle produit : dans le coffre, l'IA propose et Sarah (owner) signe ; dehors, l
 | Éval parsing | `eval/parsing.jsonl`, `npm run eval` | 60/60, langue de réponse vérifiée (LLM sur 26/60, 429 Groq sur le reste → planner de secours) |
 | i18n en / fr / pt de toutes les phrases du serveur | `app/lib/agent/i18n.ts` | `i18n.test.ts` : chaque phrase produite par le vrai code dans les 3 langues |
 
+Remise à zéro après les tests du soir : `npm run reset-agent` (règle de l'agent 1 → 2, retrouvée on-chain par l'app sans redéploiement) puis refund alice → smart account 52,5 USDC [`36eb4657…`](https://stellar.expert/explorer/testnet/tx/36eb465786acd4726a01f850fba997ebd216ff28eddd6624175366e81baecbfd) (2026-10-25 21:38 UTC) : smart account **83 USDC**, alice 0, budget agent 8 / 10 restants. `npm test` : 106/106.
+
 Rétention `getEvents` sur le RPC testnet : `ledgerRetentionWindow = 120960` ledgers (~7 jours), mesuré via `getHealth` le 2026-10-25.
 
 ### Frais d'un paiement de l'agent (vérifié le 2026-10-25, méta des tx via `getTransaction`)
