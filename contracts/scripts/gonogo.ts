@@ -7,6 +7,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Address, nativeToScVal, rpc, scValToNative } from "@stellar/stellar-sdk";
 import {
+  invokeAsClassic,
   invokeAsSmartAccount,
   keypairFromCli,
   loadDeployments,
@@ -21,7 +22,8 @@ import {
 const d = loadDeployments();
 const owner = keypairFromCli("owner");
 const agent = keypairFromCli("agent");
-const alice = keypairFromCli("alice").publicKey();
+const aliceKp = keypairFromCli("alice");
+const alice = aliceKp.publicKey();
 const SA = d.smartAccount!;
 
 const agentSigner = { kind: "external" as const, verifier: d.ed25519Verifier!, keypair: agent };
@@ -103,6 +105,21 @@ else console.log(`  ❌ échec inattendu (${c.stage}) : ${c.error}`);
 pass &&= c.ok;
 results.c = { ...c, returnValue: undefined };
 await state("après c");
+
+// Remise à zéro : alice renvoie au smart account tout ce qu'elle a reçu, pour rejouer la démo.
+const aliceBal = await balance(alice);
+if (aliceBal > 0n) {
+  const back = await invokeAsClassic(aliceKp, d.usdcSac, "transfer", [
+    new Address(alice).toScVal(),
+    new Address(SA).toScVal(),
+    nativeToScVal(aliceBal, { type: "i128" }),
+  ]);
+  console.log(back.ok ? `
+↩ alice renvoie ${fmt(aliceBal)} au smart account  ${txLink(back.hash)}` : `
+⚠️ renvoi alice échoué : ${back.error}`);
+  results.refund = { ...back, returnValue: undefined };
+  await state("après remise à zéro");
+}
 
 results.pass = pass;
 writeFileSync(join(import.meta.dirname, "..", "gonogo.testnet.json"), JSON.stringify(results, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2) + "\n");

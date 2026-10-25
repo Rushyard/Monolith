@@ -316,3 +316,11 @@ export async function invokeAsSmartAccount(call: SmartAccountCall): Promise<Invo
   if (rpc.Api.isSimulationError(enforced)) return { ok: false, stage: "simulation", error: enforced.error };
   return sendAndWait(rpc.assembleTransaction(tx, enforced).build(), call.feePayer);
 }
+
+/** Appel signé par un compte classique (auth « source account », pas de smart account). */
+export async function invokeAsClassic(kp: Keypair, contract: string, fn: string, args: xdr.ScVal[]): Promise<InvokeResult> {
+  const tx = await buildTx(kp, Operation.invokeContractFunction({ contract, function: fn, args }));
+  const sim = await server.simulateTransaction(tx);
+  if (rpc.Api.isSimulationError(sim)) return { ok: false, stage: "simulation", error: sim.error };
+  return sendAndWait(rpc.assembleTransaction(tx, sim).build(), kp);
+}

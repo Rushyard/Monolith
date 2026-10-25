@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-25T13:04:45.294Z",
+  "smartAccount": "CC5D2NUS2GXAWMTK2DMSNJHVRGRH5GBEZNUMEPIOPBPQQJN6GDLO43KA",
+  "a": {
+    "ok": true,
+    "hash": "4ba72789cf7825eb285c743da14d92ad2de4971b9e793045b7889576e5449679"
+  },
+  "b": {
+    "simulationError": "HostError: Error(Auth, InvalidAction) |  | Event log (newest first):",
+    "onchain": {
+      "ok": false,
+      "stage": "onchain",
+      "hash": "cfda69da1eeeb89228f4e86b7673f214eb4c524843089632d8e7e51cdf01620c",
+      "error": "FAILED Error(Contract, #3221)"
+    }
+  },
+  "c": {
+    "ok": true,
+    "hash": "a394bd32034d6b7fdf4b4cb62837193f0b8db9b67c149c805345eec028660eb7"
+  },
+  "refund": {
+    "ok": true,
+    "hash": "530e836a4021b07c8ff9aa2a6d9f9b9e79d63685eca9acde36c665642b503648"
+  },
+  "pass": true
+}

@@ -22,7 +22,11 @@
 
 Le pré-check côté serveur sert à l'affichage. La vraie barrière est la policy on-chain.
 
-## Comptes testnet (P1)
+## P1 — Smart account + agent plafonné
+
+> Section maintenue par P1. Les tableaux partagés « Contract IDs » et « Tx hashes de démo » plus bas sont laissés intacts pour éviter les conflits de merge avec P2 : les valeurs P1 sont ici.
+
+### Comptes testnet (P1)
 
 Comptes classiques créés avec `stellar keys generate <nom> --network testnet --fund` (financés par friendbot). Les secrets restent dans le keystore local du Stellar CLI (`~/.config/stellar/identity/`), jamais dans le repo.
 
@@ -42,7 +46,7 @@ Comptes classiques créés avec `stellar keys generate <nom> --network testnet -
 
 Le smart account est un contrat (`C…`) : il n'a pas besoin de trustline, son solde USDC vit directement dans le SAC.
 
-## Contrats OpenZeppelin (P1)
+### Contrats OpenZeppelin (P1)
 
 Source : [`OpenZeppelin/stellar-contracts`](https://github.com/OpenZeppelin/stellar-contracts) tag **`v0.8.0`**, commit **`ddc327eb92d63709436da3a8455f641c2d5476c5`** (`soroban-sdk` 28, testnet en protocole 29). Code non modifié, compilé avec `stellar contract build --package <nom>` (stellar-cli 27.0.0, rustc 1.96.1). WASM versionnés dans `contracts/wasm/`.
 
@@ -59,7 +63,7 @@ Points vérifiés dans le code source v0.8.0 :
 - Signer External (agent) : il signe `sha256(XDR(AuthDigestPreimage { account, signature_payload, context_rule_ids }))`.
 - Signer Delegated (owner) : il faut une auth entry supplémentaire pour l'owner, `__check_auth(preimage)` sur le smart account, que la simulation ne renvoie pas. Elle est construite dans `contracts/scripts/lib.ts`.
 
-## Contract IDs (testnet)
+### Contract IDs P1 (testnet)
 
 | Contrat | ID |
 |---|---|
@@ -67,18 +71,17 @@ Points vérifiés dans le code source v0.8.0 :
 | Smart account (`multisig_account_example`) | [`CC5D2NUS2GXAWMTK2DMSNJHVRGRH5GBEZNUMEPIOPBPQQJN6GDLO43KA`](https://stellar.expert/explorer/testnet/contract/CC5D2NUS2GXAWMTK2DMSNJHVRGRH5GBEZNUMEPIOPBPQQJN6GDLO43KA) |
 | Vérificateur Ed25519 | [`CBBDHCHRKXP2EROB5JN3EMCMZ4VOOIXSOKDNVPJKY4KIJXZ53ZDC3ZVB`](https://stellar.expert/explorer/testnet/contract/CBBDHCHRKXP2EROB5JN3EMCMZ4VOOIXSOKDNVPJKY4KIJXZ53ZDC3ZVB) |
 | Spending-limit policy | [`CAOT4RM7SYJPLT5XQVPYDEX6HKQOZFODZE6KQVUQJZUSVJY6HBWUVGHQ`](https://stellar.expert/explorer/testnet/contract/CAOT4RM7SYJPLT5XQVPYDEX6HKQOZFODZE6KQVUQJZUSVJY6HBWUVGHQ) |
-| Confidential Token | |
 
 Valeurs aussi dans `contracts/deployments.testnet.json`, produit par `npm run deploy` dans `contracts/`.
 
-### Règles de contexte du smart account (relues on-chain via `get_context_rule`)
+#### Règles de contexte du smart account (relues on-chain via `get_context_rule`)
 
 | id | Nom | Type | Signer | Policy |
 |---|---|---|---|---|
 | 0 (A) | `multisig` (nom codé en dur dans le constructeur de l'exemple OZ) | `Default` | `Delegated(owner GCIFXLBR…RS7B)` | aucune : plein pouvoir |
 | 1 (B) | `agent-usdc-10-24h` | `CallContract(USDC SAC)` | `External(vérificateur Ed25519, 123a7d56…2a3a)` = clé publique de l'agent | spending_limit : `spending_limit = 100000000` (10 USDC), `period_ledgers = 17280` (~24 h) |
 
-### Tx de déploiement / configuration
+#### Tx de déploiement / configuration
 
 | Étape | Tx |
 |---|---|
@@ -90,11 +93,37 @@ Valeurs aussi dans `contracts/deployments.testnet.json`, produit par `npm run de
 | Création smart account + règle A (constructeur) | [`a9781d7c…`](https://stellar.expert/explorer/testnet/tx/a9781d7c5bba0cecae0eee844ea0fc9b8bcb2b70b90d425ca74bef2601690768) |
 | `add_context_rule` règle B, autorisée par l'owner via la règle A (auth Delegated) | [`3f92c989…`](https://stellar.expert/explorer/testnet/tx/3f92c989446c0f8957be7c74a91e26e99cdfd40fef7232615034c58f6f1202b2) |
 
+### Go/no-go P1 — 2026-10-25 (`npm run gonogo` dans `contracts/`) : 🟢 GO
+
+État initial : smart account 60 USDC (3 × 20 USDC du faucet Circle, regroupés), budget agent 0 / 10 USDC.
+
+| Scénario | Résultat | Tx |
+|---|---|---|
+| a) agent → 5 USDC vers alice (règle B, signature Ed25519 de l'agent) | ✅ succès, budget agent 5 / 10 | [`4ba72789…`](https://stellar.expert/explorer/testnet/tx/4ba72789cf7825eb285c743da14d92ad2de4971b9e793045b7889576e5449679) |
+| b) agent → 50 USDC vers alice (règle B) | ✅ **rejetée par le réseau** : tx incluse dans un ledger, statut FAILED, `Error(Contract, #3221)` `SpendingLimitExceeded`. La simulation renvoyait déjà #3221. Aucun USDC n'a bougé. | [`cfda69da…`](https://stellar.expert/explorer/testnet/tx/cfda69da1eeeb89228f4e86b7673f214eb4c524843089632d8e7e51cdf01620c) |
+| c) owner → 50 USDC vers alice (règle A, auth Delegated de l'owner) | ✅ succès, budget agent inchangé (5 / 10) | [`a394bd32…`](https://stellar.expert/explorer/testnet/tx/a394bd32034d6b7fdf4b4cb62837193f0b8db9b67c149c805345eec028660eb7) |
+| Remise à zéro : alice renvoie 55 USDC au smart account | ✅ | [`530e836a…`](https://stellar.expert/explorer/testnet/tx/530e836a4021b07c8ff9aa2a6d9f9b9e79d63685eca9acde36c665642b503648) |
+
+Regroupement initial des USDC vers le smart account : owner [`73c36e30…`](https://stellar.expert/explorer/testnet/tx/73c36e3098a5a57b7a48c843a1bf89854805ddfd47fdd515f7aced6c8b44af49), agent [`1df5bcf8…`](https://stellar.expert/explorer/testnet/tx/1df5bcf88ef10cf5179d96e84fb9ba4787b564ddd55d7b7584cc9667b209f8aa), alice [`d56034e3…`](https://stellar.expert/explorer/testnet/tx/d56034e33ec5c670185ab70859804c0c2c534a973c3c21f67ec3cd2603837d9a).
+
+Pour la tx b), la simulation échoue et ne fournit donc pas d'empreinte de stockage (footprint). Le script la récupère en simulant un transfert de 1 USDC avec le même nonce, puis soumet la tx de 50 USDC signée : c'est le réseau qui l'exécute et la rejette.
+
+
+## Contract IDs (testnet)
+
+| Contrat | ID |
+|---|---|
+| USDC SAC | |
+| Smart account | |
+| Vérificateur Ed25519 | |
+| Spending-limit policy | |
+| Confidential Token | |
+
 ## Tx hashes de démo (testnet)
 
 | Scénario | Hash |
 |---|---|
 | Agent → 5 USDC (succès) | |
-| Agent → 50 USDC (échec #3221 SpendingLimitExceeded) | |
+| Agent → 50 USDC (échec #3221) | |
 | Owner → 50 USDC (approbation) | |
 | Transfert confidentiel | |
