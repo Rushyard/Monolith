@@ -77,3 +77,10 @@ test("planner de secours : un nom hors carnet est recopié tel quel, puis vérif
   assert.equal(recipientClarification("Zorglub", "pay 1 USDC to Zorglub"), T.en.unknownName("Zorglub"));
   assert.equal(fallbackPlan("pay 2 USDC to me").type, "clarify");
 });
+
+test("planner de secours : « Pay qlice 2 USDC » (sans « to ») → « Did you mean Alice? », jamais de paiement", async () => {
+  const { fallbackPlan } = await import("../../app/lib/agent/planner.ts");
+  const p = fallbackPlan("Pay qlice 2 USDC");
+  assert.ok(p.type === "actions" && p.steps[0].action === "pay" && p.steps[0].to === "qlice");
+  assert.equal(recipientClarification("qlice", "Pay qlice 2 USDC"), T.en.didYouMean(["Alice"]));
+});

@@ -4,7 +4,7 @@
 // Le planner interprète seulement : il ne décide jamais si c'est autorisé (gatekeeper + policy on-chain).
 import "server-only";
 import { z } from "zod";
-import { BOOK, CONTACTS } from "./contacts";
+import { BOOK, CONTACTS, matchName } from "./contacts";
 import { KEYWORDS, T, keywordText, pickLang } from "./i18n";
 
 const Amount = z.preprocess(
@@ -142,7 +142,9 @@ export function fallbackPlan(message: string): PlannerOutputT {
     const named = KEYWORDS.recipientPrep.exec(plain)?.[1];
     // Casse d'origine conservée (« Zorglub »), accents retirés comme dans `plain`.
     const written = named && !KEYWORDS.notAName.has(named) ? new RegExp(`\\b${named}\\b`, "i").exec(message.normalize("NFD").replace(/\p{M}/gu, ""))?.[0] : undefined;
-    const to = address ?? (contact ? contact[0].toUpperCase() + contact.slice(1) : written);
+    // Sans préposition (« pay qlice 2 USDC ») : un mot proche d'un contact (distance ≤ 2), contrôlé ensuite par A1.
+    const near = message.split(/[^\p{L}'-]+/u).find((w) => w.length >= 3 && matchName(w).kind === "close");
+    const to = address ?? (contact ? contact[0].toUpperCase() + contact.slice(1) : written ?? near);
     if (amount && to) return { type: "actions", steps: [{ action: "pay", amount, asset: "USDC", to }], reasoning: t.rPay(amount, to) };
     return { type: "clarify", question: t.fbPayClarify };
   }
