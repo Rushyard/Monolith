@@ -22,6 +22,7 @@ export function outcomeOf(turn: { response?: IntentResponse; error?: string }, a
   switch (r?.status) {
     case "submitted": return "paid";
     case "needs_owner_approval": return approved ? "approved" : r.agentAttempt?.simulationCode === 3221 ? "refused" : "pending";
+    case "needs_vault_signature": return approved ? "approved" : "pending";
     case "blocked": return "blocked";
     case "error": return "error";
     default: return "reply";

@@ -4,6 +4,7 @@
 // through (planner → gatekeeper → Stellar network), the verdict, and the owner's signature if
 // the network refused the agent. Technical details (server messages) stay folded.
 import { useOwnerApproval } from "@/components/agent/ApprovalCard";
+import { VaultPayCard } from "@/components/agent/VaultPayCard";
 import { short, type IntentResponse, type OwnerApproval } from "@/components/agent/types";
 import { useI18n } from "@/lib/i18n/react";
 import { outcomeOf, type Mood } from "./stage";
@@ -27,9 +28,12 @@ function nodes(res: IntentResponse, outcome: Mood, t: T): Node[] {
     : verdict.verdict === "AUTO_EXECUTE" ? { name: gate, text: t("gate.auto"), tone: "ok" }
     : verdict.verdict === "NEEDS_APPROVAL" ? { name: gate, text: t("gate.approval"), tone: "warn" }
     : verdict.verdict === "BLOCKED" ? { name: gate, text: t("gate.blocked"), tone: "bad" }
+    : verdict.verdict === "NEEDS_VAULT_SIGNATURE" ? { name: gate, text: t("gate.vault"), tone: "warn" }
     : { name: gate, text: t("gate.info"), tone: "ok" };
+  const vault = result.status === "needs_vault_signature";
   const n: Node =
-    outcome === "paid" ? { name: net, text: t("net.paid"), tone: "ok" }
+    vault ? (outcome === "approved" ? { name: net, text: t("net.vaultDone"), tone: "ok" } : { name: net, text: t("net.vaultPending"), tone: "warn" })
+    : outcome === "paid" ? { name: net, text: t("net.paid"), tone: "ok" }
     : outcome === "approved" ? { name: net, text: t("net.approved"), tone: "ok" }
     : outcome === "refused" ? { name: net, text: t("net.refused"), tone: "bad" }
     : outcome === "pending" ? { name: net, text: t("net.pending"), tone: "warn" }
@@ -82,6 +86,11 @@ function Verdict({ res, outcome, hash }: { res: IntentResponse; outcome: Mood; h
   const pay = res.verdict?.payment;
   const what = pay ? `${pay.amountUsdc} USDC → ${pay.recipient.label}` : "";
   const link = (href: string, text: string) => <a className="link" href={href} target="_blank" rel="noreferrer">{text} ↗</a>;
+  if (r.status === "needs_vault_signature") {
+    return outcome === "approved"
+      ? <div className="verdict ok"><span className="verdict-label">{t("verdict.vaultDone")}</span><p>{t("verdict.vaultDoneText", { n: r.payments.length })}</p></div>
+      : <div className="verdict warn"><span className="verdict-label">{t("verdict.vault")}</span><p>{t("verdict.vaultText")}</p></div>;
+  }
   switch (outcome) {
     case "paid":
       return <div className="verdict ok"><span className="verdict-label">{t("verdict.paid")}</span><p>{t("verdict.paidText", { what })} {r.status === "submitted" && link(r.explorerUrl, t("verdict.tx"))}</p></div>;
@@ -130,6 +139,9 @@ export function Transmission({ message, response, error, receivedAt, fresh, appr
           {r?.status === "needs_owner_approval" && !approvedHash && (
             <Approve approval={r} receivedAt={receivedAt} amount={response.verdict?.payment?.amountUsdc}
               label={response.verdict?.payment?.recipient.label} onApproved={onApproved} />
+          )}
+          {r?.status === "needs_vault_signature" && (
+            <VaultPayCard request={r} onDone={(hashes) => onApproved(hashes[hashes.length - 1])} />
           )}
           <details className="tx-details">
             <summary>{t("det.title")}</summary>

@@ -483,6 +483,15 @@ html, body { overflow-x: clip; }
 .approve-row span { font-size: 13px; color: var(--muted); }
 .approve-error { color: #ff8a7a; font-size: 14px; margin: 8px 0 0; }
 .fine { font-size: 12px; color: var(--faint); margin: 8px 0 0; }
+.vault-pay-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line-strong); border-top: 0; }
+.vault-pay-line { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 10px 16px; border-top: 1px solid var(--line); }
+.vault-pay-line .vp-who em { font: 400 12px/1 var(--mono); font-style: normal; color: var(--faint); margin-left: 6px; }
+.vault-pay-line .vp-amt { font-family: var(--mono); font-size: 14px; text-align: right; }
+.vault-pay-line .vp-step { grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
+.vault-pay-line.sync .vp-step, .vault-pay-line.proving .vp-step, .vault-pay-line.submitting .vp-step, .vault-pay-line.receipt .vp-step { color: #f0c27a; }
+.vault-pay-line.done .vp-step { color: var(--sun); }
+.vault-pay-line.error .vp-step { color: var(--hal); }
+.vault-pay-line .approve-error, .vault-pay-line .fine { grid-column: 1 / -1; margin-top: 2px; }
 .tx-details { margin-top: 14px; font-size: 13px; color: var(--faint); }
 .tx-details summary { cursor: pointer; font: 400 10px/1 var(--mono); letter-spacing: .22em; text-transform: uppercase; }
 .tx-details summary:hover { color: var(--muted); }
