@@ -131,18 +131,22 @@ export const stripAccents = (s: string) => s.normalize("NFD").replace(/\p{M}/gu,
 /** Planner de secours, sans LLM : couvre les phrases de la démo, sinon demande de reformuler. */
 export function fallbackPlan(message: string): PlannerOutputT {
   const text = message.toLowerCase();
-  // Paie seulement sans montant ni adresse : « paie 2 USDC à Bob pour son salaire » reste un paiement.
-  if (PAYROLL_RE.test(stripAccents(text)) && !/\d/.test(text) && !/\bG[A-Z2-7]{55}\b/.test(message)) return { type: "actions", steps: [{ action: "payroll" }], reasoning: "Paie de l'équipe." };
-  const amount = /(\d+(?:[.,]\d{1,7})?)\s*(?:usdc|\$|usd|dollars?)/.exec(text)?.[1]?.replace(",", ".");
+  const plain = stripAccents(text);
+  const amount = (/(\d+(?:[.,]\d{1,7})?)\s*(?:usdc|\$|usd|dollars?)/.exec(text) ?? /\$\s*(\d+(?:[.,]\d{1,7})?)/.exec(text))?.[1]?.replace(",", ".");
   const address = /\bG[A-Z2-7]{55}\b/.exec(message)?.[0];
-  const contact = Object.keys(CONTACTS).find((n) => new RegExp(`\\b${n}\\b`).test(text));
-  if (/\b(pa(ie|ye|yer)|pay|send|envoie|envoyer|vire|virer|transf[eè]re)\b/.test(text)) {
+  const contact = Object.keys(CONTACTS).find((n) => new RegExp(`\\b${n}\\b`).test(plain));
+  // Paie, sauf si c'est un paiement complet à quelqu'un (« paie 2 USDC à Bob pour son salaire »).
+  // Un montant cité avec la paie (« 50 USDC chacun ») va au gatekeeper, qui bloque.
+  if (PAYROLL_RE.test(plain) && !(amount && (address || contact))) return { type: "actions", steps: [{ action: "payroll" }], reasoning: "Paie de l'équipe." };
+  if (/\b(swap|echange|echanger|nft|stak(e|ing)|bridge|pont|lend|pret|emprunt|borrow|troca|trocar)\b/.test(plain))
+    return { type: "unsupported", reason: "Je ne fais que des paiements en USDC : pas d'échange, de NFT, de staking ni de bridge." };
+  if (/\b(pa(ie|ye|yer)|pay|send|envoie|envoyer|vire|virer|transf[eè]re|pague|pagar|envie|enviar|transfira)\b/.test(text)) {
     const to = address ?? (contact ? contact[0].toUpperCase() + contact.slice(1) : undefined);
     if (amount && to) return { type: "actions", steps: [{ action: "pay", amount, asset: "USDC", to }], reasoning: `Paiement de ${amount} USDC à ${to}.` };
     return { type: "clarify", question: "Quel montant en USDC, et à qui (Alice ou une adresse G…) ?" };
   }
   if (/\b(adresse|address|endere[cç]o)\b/.test(text)) {
-    const of = Object.keys(CONTACTS).find((n) => new RegExp(`\\b${n}\\b`).test(text));
+    const of = Object.keys(CONTACTS).find((n) => new RegExp(`\\b${n}\\b`).test(plain));
     return { type: "actions", steps: [{ action: "address", ...(of ? { of } : {}) }], reasoning: "Adresse demandée." };
   }
   if (/\b(budget|plafond|cap|limite?|or[cç]amento)\b/.test(text))
