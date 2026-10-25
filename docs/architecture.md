@@ -108,6 +108,18 @@ Token `CAYYT5UW…LERJ`. alice = `GB7OT6KYOLWATWCNEPDTZZIP6CHI3L4X3YXH6BX7IVCPY2
 
 Proofs (Node): register 1.5–3.7 s · transfer 4.4 s · withdraw 3.3 s.
 
+### v2 browser run — live app + Freighter (Firefox), 2026-10-25 13:46 UTC
+
+Account `GD46SGQRPKDSWAS665C7OWIPY6TBWRMSSNZLAHZJDFBDAMPBRCYLRLAB` → `GCXA…FI3H` (both registered with auditor #1). Proofs generated in the browser.
+
+| Step | Public? | Tx |
+|---|---|---|
+| `register` (proof 1.3 s) | — | `e0a242…2cb1e9` |
+| `deposit` 10 USDC | **amount public** | [`aa356955…`](https://stellar.expert/explorer/testnet/tx/aa356955c552236f50fced2993de5f0f72908b07f6c7b2ad3d8f502008b51e20) |
+| `merge` | — | `f79f2f…3a7a65` |
+| **`confidential_transfer` 2.5 USDC** (proof 1.9 s) | **amount hidden** | [`2e6d3957…`](https://stellar.expert/explorer/testnet/tx/2e6d3957b08d96eba12cb7299a16504e266c2a665109e696d20bc76818b2c76b) |
+| `/auditor`: shared public key → refused · our key → 2.50, sender balance after 7.50 | off-chain | — |
+
 ### v1 go/no-go run — 2026-10-25 11:08 UTC (shared auditor, token `CB4T3M…`)
 
 alice = `GD74JAC6YD6OFRVCNFSUVLX6UJKWSTWWO3WSZ7IROZQWLZ25F2XRZIA5`, bob = `GC6C2LR643VOW2VDXNZ2UOUHQS3H5GKMIGNGNMSNHAWQQ4WXAPBW3D34`

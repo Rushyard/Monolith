@@ -56,7 +56,8 @@ TODO: video link.
 | **Confidential transfer alice → bob, 7.5 USDC — amount hidden**; our auditor reads 7.5, the shared public key can't | [`1cfe3715…`](https://stellar.expert/explorer/testnet/tx/1cfe37158b1fa2fd25e84468c6d9949bfc69c4710d08bc547630631f007095ff) |
 | Deposit 20 USDC into the vault (amount public) | [`3f2c290d…`](https://stellar.expert/explorer/testnet/tx/3f2c290d48511402c60e089c6517ee86d4c8a4797b097c276df95cf8b32ca0c7) |
 | Withdraw 7.5 USDC from the vault (amount public) | [`ec88598c…`](https://stellar.expert/explorer/testnet/tx/ec88598c0bdbca215539e3136ef035008afc1425c8494611fdaa4ac4f3211a33) |
-| Earlier v1 token (shared public auditor): same flow from the live app with Freighter, proofs in the browser — transfer 2.5 USDC hidden | [`cd205da4…`](https://stellar.expert/explorer/testnet/tx/cd205da465d9e9c6aee973224be66d8afbc994c10c3a3b50a363ab05ce2e698e) |
+| **From the live app with Freighter (Firefox), proofs in the browser:** confidential transfer 2.5 USDC — amount hidden; our auditor reads 2.50 | [`2e6d3957…`](https://stellar.expert/explorer/testnet/tx/2e6d3957b08d96eba12cb7299a16504e266c2a665109e696d20bc76818b2c76b) |
+| ↳ deposit 10 USDC (public) | [`aa356955…`](https://stellar.expert/explorer/testnet/tx/aa356955c552236f50fced2993de5f0f72908b07f6c7b2ad3d8f502008b51e20) |
 | Agent pays 5 USDC alone (under the cap) | TODO P1 |
 | Agent tries 50 USDC → rejected by the network (`#2221`) | TODO P1 |
 | Owner approves 50 USDC | TODO P1 |
@@ -152,7 +153,7 @@ npm run ct:deploy   # (v1) confidential USDC on the shared registry
 - **Entry and exit are public.** Deposits and withdrawals show their amounts; only transfers inside the vault are hidden.
 - **Addresses are visible.** Confidential, not anonymous: anyone sees who transacts with whom and that an address has a confidential account.
 - **History window.** The auditor view reads events from the Soroban RPC, which keeps about 7 days. After that the table is empty until new operations happen (`npm run ct:e2e`).
-- **Proof timing.** In Node: register 1.4–1.8 s, transfer 3.4 s, withdraw 2.7 s. In the browser (live app, measured by hand, Freighter signature included): open the vault < 10 s, confidential transfer < 20 s.
+- **Proof timing.** In Node: register 1.4–1.8 s, transfer 3.4 s, withdraw 2.7 s. In the browser (live app, Firefox): register proof 1.3 s, transfer proof 1.9 s; each step takes < 10–20 s end to end with the Freighter signature and network confirmation.
 - **Browser support.** Proving needs cross-origin isolation through `COEP: credentialless`: Chrome/Edge/Brave and Firefox ≥ 119. Safari does not support it. Tested end to end with Freighter in Firefox. On Firefox, Freighter may need "Always allow" for the site before the page can see it.
 - **Key cached in the browser.** After deriving the confidential key from the Freighter signature, the app caches it in `localStorage` so you don't re-sign on every visit. Anyone with access to that browser profile can read your confidential balances (not move funds: that still needs Freighter).
 - **Agent pre-check** on the server is for display; the on-chain policy is the real limit. TODO P1: other agent limitations.
