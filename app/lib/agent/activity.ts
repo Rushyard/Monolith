@@ -12,7 +12,7 @@ import { ChainClient, fetchEvents } from "stellar-confidential-token-sdk";
 import type { ActivityItem } from "../../components/agent/types";
 import { CT } from "../ct/deployment";
 import { AGENT_CONFIG } from "./config";
-import { CONTACTS } from "./contacts";
+import { BOOK } from "./contacts";
 import { Address, NETWORK_PASSPHRASE, TransactionBuilder, contractErrorCodes, fromUsdc, rpc, scValToNative, server } from "./core";
 
 const C = AGENT_CONFIG;
@@ -28,8 +28,7 @@ export const ctClient = () =>
   });
 
 export function labelFor(address: string): string {
-  const name = Object.entries(CONTACTS).find(([, a]) => a === address)?.[0];
-  return name ? name[0].toUpperCase() + name.slice(1) : `${address.slice(0, 4)}…${address.slice(-4)}`;
+  return BOOK.find((c) => c.address === address)?.name ?? `${address.slice(0, 4)}…${address.slice(-4)}`;
 }
 
 // ---------- mémoire (best effort) ----------

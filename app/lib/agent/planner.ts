@@ -4,7 +4,7 @@
 // Le planner interprète seulement : il ne décide jamais si c'est autorisé (gatekeeper + policy on-chain).
 import "server-only";
 import { z } from "zod";
-import { CONTACTS } from "./contacts";
+import { BOOK, CONTACTS } from "./contacts";
 
 const Amount = z.preprocess(
   (v) => (typeof v === "number" ? String(v) : typeof v === "string" ? v.trim().replace(",", ".").replace(/\s/g, "") : v),
@@ -35,7 +35,7 @@ export type Plan = {
   source: "llm" | "fallback";
 };
 
-const contactNames = Object.keys(CONTACTS).map((n) => n[0].toUpperCase() + n.slice(1));
+const contactNames = BOOK.map((c) => c.name);
 
 export const PLANNER_SYSTEM_PROMPT = `You turn a user's chat message to Monolith, a payment agent on the Stellar testnet, into one JSON object. You only interpret the request. You never decide whether it is safe or approved; the server and an on-chain spending limit do that, so never refuse a clear request for safety reasons.
 
@@ -68,7 +68,7 @@ Examples:
 "send $2.5 to GDY5SERGYNGQF2R4SRZ4AHQPJ7HQOLEPLAFISMD37CM2XCTGW4KUBXH6" -> {"type":"actions","steps":[{"action":"pay","amount":"2.5","asset":"USDC","to":"GDY5SERGYNGQF2R4SRZ4AHQPJ7HQOLEPLAFISMD37CM2XCTGW4KUBXH6"}],"reasoning":"Payment of 2.5 USDC to the given address."}
 "il me reste combien ?" -> {"type":"actions","steps":[{"action":"balance","asset":"USDC"}],"reasoning":"Consultation du solde et du budget."}
 "qu'est-ce que l'agent a déjà payé ?" -> {"type":"actions","steps":[{"action":"history","asset":"USDC"}],"reasoning":"Historique des paiements de l'agent."}
-"paie Bob" -> {"type":"clarify","question":"Combien veux-tu payer, et quelle est l'adresse Stellar de Bob ?"}
+"paie Charlie" -> {"type":"clarify","question":"Combien veux-tu payer, et quelle est l'adresse Stellar de Charlie ?"}
 "swap mes USDC en XLM" -> {"type":"unsupported","reason":"Je ne fais pas encore d'échanges : je peux seulement payer en USDC."}`;
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
