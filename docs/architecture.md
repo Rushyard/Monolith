@@ -324,6 +324,23 @@ puis déchiffrement des événements, en script (`auditTransfer`) et dans la pag
 
 Les deux canaux d'audit (destinataire, émetteur) concordent. Solde du coffre de Sarah après la paie : 4.00 USDC (lu par l'auditeur).
 
+### Run complet sur la preview `p2-vault-agent` (Sarah connectée, `SESSION_SECRET`), 2026-10-25 21:22–21:24 UTC
+
+Avant : reset du budget agent par l'owner (`npm run reset-agent`) — `remove_context_rule(1)` [`4f8eeaf7…`](https://stellar.expert/explorer/testnet/tx/4f8eeaf722708c30ce3438de0c3748b70df17d9af47b2597d2ab2c5bcd358234),
+`add_context_rule` → règle B id 2 [`3167d0ac…`](https://stellar.expert/explorer/testnet/tx/3167d0ac4006cff2e06b2fd96cecc2e21247bae91dfef3225570e72792f0a0b8) ; budget relu 0 / 10 USDC.
+Visiteur non connecté : `mode: "simulation"`, résultat `simulated`, budget inchangé (rien n'est envoyé).
+
+| Étape | Tx | Ledger | Résultat (vérifié via Horizon / RPC `getTransaction`) |
+|---|---|---|---|
+| Coffre → smart account de l'agent, 10 USDC (`withdraw`, public) | [`38d8f730…`](https://stellar.expert/explorer/testnet/tx/38d8f730f7f4b4ab6b6f69d07849eec0fb21e0cf7db21b2aa8e8a9d17ed92ef9) | 5387951 | SUCCESS, source Sarah |
+| Agent seul, 1 USDC → Alice (USDC `transfer`, règle B) | [`635685b9…`](https://stellar.expert/explorer/testnet/tx/635685b9ed8f9fc2c9340a2eab762b003fefef78deccaeb29be5cfd5e682d55b) | 5387956 | SUCCESS, source agent |
+| Agent, 50 USDC → Alice | [`fce3ce82…`](https://stellar.expert/explorer/testnet/tx/fce3ce827bcba9076faa55d36f30bcca5caf59f90c6f9af8d50e2a2e6e44785a) | 5387959 | **FAILED `#3221`** |
+| Même paiement approuvé par Sarah (Freighter, règle A) | [`750cbd98…`](https://stellar.expert/explorer/testnet/tx/750cbd9862ba0f665c7fe0049e297d8d7340a823d10503e6e3648bf7f63ec9c2) | 5387962 | SUCCESS, source Sarah |
+| Paie : Sarah → Carol, `confidential_transfer` (VaultPayCard) | [`2c027f5f…`](https://stellar.expert/explorer/testnet/tx/2c027f5f789398ec4f66d56f0c8f7561649fd06db05d6237a7b4dfffd25f9e45) | 5387969 | SUCCESS, événement sans montant |
+| Paie : Sarah → Bob, `confidential_transfer` (VaultPayCard) | [`5d8a77ec…`](https://stellar.expert/explorer/testnet/tx/5d8a77eca33f4d96ccff28fb460466240db8d4b1c03528670466c30629eb6941) | 5387972 | SUCCESS, événement sans montant |
+
+`/api/agent/activity` après le run : public Alice 1 (payé), public Alice 50 (refusé), public Alice 50 (payé), privé Carol et Bob (payé, sans montant).
+
 ### v2 run — our auditor, 2026-10-25 13:34 UTC (`npm run ct:e2e`)
 
 Token `CAYYT5UW…LERJ`. alice = `GB7OT6KYOLWATWCNEPDTZZIP6CHI3L4X3YXH6BX7IVCPY2ENMPKIIKXP`, bob = `GBCQZMHQWCIQJRCQJHAI7L2GS56A3EVY5E2E26DU2RX5SRSU4Y5B32GV`
