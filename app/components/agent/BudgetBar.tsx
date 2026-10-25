@@ -4,8 +4,10 @@
 // Changer `refreshKey` (ex. après un paiement) relance la lecture.
 import { useEffect, useState } from "react";
 import type { BalanceResponse } from "./types";
+import { useI18n } from "@/lib/i18n/react";
 
 export function BudgetBar({ refreshKey = 0 }: { refreshKey?: number }) {
+  const { t } = useI18n();
   const [data, setData] = useState<BalanceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,8 +26,8 @@ export function BudgetBar({ refreshKey = 0 }: { refreshKey?: number }) {
     };
   }, [refreshKey]);
 
-  if (error) return <div style={wrap}>Budget de l&apos;agent illisible : {error}</div>;
-  if (!data) return <div style={wrap}>Lecture du budget on-chain…</div>;
+  if (error) return <div style={wrap}>{t("budget.unreadable", { e: error })}</div>;
+  if (!data) return <div style={wrap}>{t("budget.reading")}</div>;
 
   const { limitUsdc, spentUsdc, remainingUsdc, periodLedgers } = data.budget;
   const pct = limitUsdc > 0 ? Math.min(100, (spentUsdc / limitUsdc) * 100) : 100;
@@ -35,10 +37,10 @@ export function BudgetBar({ refreshKey = 0 }: { refreshKey?: number }) {
     <div className="p1-budget" style={wrap}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <span>
-          Budget de l&apos;agent : <b>{remainingUsdc} USDC</b> restants
+          {t("budget.label")} <b>{t("budget.left", { n: remainingUsdc })}</b>
         </span>
         <span style={{ opacity: 0.75 }}>
-          {spentUsdc} / {limitUsdc} USDC sur ~{hours} h glissantes · compte de l&apos;agent {data.smartAccountUsdc} USDC
+          {t("budget.line", { spent: spentUsdc, limit: limitUsdc, h: hours, bal: data.smartAccountUsdc })}
         </span>
       </div>
       <div style={track} role="progressbar" aria-valuemin={0} aria-valuemax={limitUsdc} aria-valuenow={spentUsdc}>
@@ -46,10 +48,10 @@ export function BudgetBar({ refreshKey = 0 }: { refreshKey?: number }) {
       </div>
       {remainingUsdc <= 0 && (
         <p style={{ margin: "6px 0", color: "var(--p1-err, #d0443e)" }}>
-          Budget épuisé : c&apos;est voulu. Tout paiement de l&apos;agent sera rejeté par le réseau jusqu&apos;à la fenêtre suivante.
+          {t("budget.empty")}
         </p>
       )}
-      <div style={{ fontSize: 12, opacity: 0.6 }}>Plafond appliqué par le réseau (spending-limit policy OpenZeppelin), pas par notre serveur.</div>
+      <div style={{ fontSize: 12, opacity: 0.6 }}>{t("budget.note")}</div>
     </div>
   );
 }

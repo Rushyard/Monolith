@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { getNetworkDetails, isConnected, requestAccess, signTransaction } from "@stellar/freighter-api";
 import { TESTNET_PASSPHRASE, explorerTx, short, type OwnerApproval } from "./types";
+import { tr } from "@/lib/i18n";
 
 /** L'XDR (timeout 3600 s, auth valable ~720 ledgers) est considéré expiré un peu avant. */
 const XDR_TTL_MS = 55 * 60 * 1000;
@@ -25,34 +26,34 @@ export function useOwnerApproval(approval: OwnerApproval, receivedAt: number, on
   async function approve() {
     try {
       if (Date.now() - receivedAt > XDR_TTL_MS) {
-        return setPhase({ kind: "error", message: "Cette demande a expiré (plus d'une heure). Renvoie le message à l'agent pour en préparer une nouvelle.", retry: false });
+        return setPhase({ kind: "error", message: tr("approve.expired"), retry: false });
       }
-      setPhase({ kind: "working", step: "Connexion à Freighter…" });
+      setPhase({ kind: "working", step: tr("approve.connecting") });
       const conn = await isConnected();
       if (conn.error || !conn.isConnected) {
-        return setPhase({ kind: "error", message: "Freighter introuvable. Installe l'extension Freighter puis recharge la page.", retry: true });
+        return setPhase({ kind: "error", message: tr("approve.noFreighter"), retry: true });
       }
       const access = await requestAccess();
-      if (access.error) return setPhase({ kind: "error", message: `Accès refusé par Freighter : ${errMsg(access.error)}`, retry: true });
+      if (access.error) return setPhase({ kind: "error", message: tr("approve.denied", { e: errMsg(access.error) }), retry: true });
       if (access.address !== approval.owner) {
         return setPhase({
           kind: "error",
-          message: `Mauvais compte Freighter : ${short(access.address)} est actif, il faut l'owner ${short(approval.owner)}. Change de compte dans Freighter puis réessaie.`,
+          message: tr("approve.wrongAccount", { active: short(access.address), owner: short(approval.owner) }),
           retry: true,
         });
       }
       const net = await getNetworkDetails();
       if (net.error || net.networkPassphrase !== TESTNET_PASSPHRASE) {
-        return setPhase({ kind: "error", message: `Mauvais réseau Freighter (${net.network || "inconnu"}). Choisis « Testnet » dans Freighter puis réessaie.`, retry: true });
+        return setPhase({ kind: "error", message: tr("approve.wrongNet", { net: net.network || "?" }), retry: true });
       }
 
-      setPhase({ kind: "working", step: "Signature dans Freighter…" });
+      setPhase({ kind: "working", step: tr("approve.signing") });
       const signed = await signTransaction(approval.unsignedXdr, { networkPassphrase: TESTNET_PASSPHRASE, address: approval.owner });
       if (signed.error || !signed.signedTxXdr) {
-        return setPhase({ kind: "error", message: `Signature non effectuée (refusée ou annulée) : ${errMsg(signed.error ?? "aucune signature")}`, retry: true });
+        return setPhase({ kind: "error", message: tr("approve.notSigned", { e: errMsg(signed.error ?? "—") }), retry: true });
       }
 
-      setPhase({ kind: "working", step: "Envoi au réseau Stellar…" });
+      setPhase({ kind: "working", step: tr("approve.submitting") });
       const res = await fetch("/api/agent/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,10 +65,10 @@ export function useOwnerApproval(approval: OwnerApproval, receivedAt: number, on
         onApproved?.(body.hash);
         return;
       }
-      const e = body.error ?? "erreur inconnue";
-      if (e.includes("txTooLate")) return setPhase({ kind: "error", message: "Cette demande a expiré. Renvoie le message à l'agent.", retry: false });
-      if (e.includes("txBadSeq")) return setPhase({ kind: "error", message: "Le compte owner a envoyé une autre transaction entre-temps. Renvoie le message à l'agent.", retry: false });
-      setPhase({ kind: "error", message: `Le réseau a refusé la transaction : ${e}`, retry: false });
+      const e = body.error ?? tr("approve.unknown");
+      if (e.includes("txTooLate")) return setPhase({ kind: "error", message: tr("approve.tooLate"), retry: false });
+      if (e.includes("txBadSeq")) return setPhase({ kind: "error", message: tr("approve.badSeq"), retry: false });
+      setPhase({ kind: "error", message: tr("approve.rejected", { e }), retry: false });
     } catch (err) {
       setPhase({ kind: "error", message: errMsg(err), retry: true });
     }

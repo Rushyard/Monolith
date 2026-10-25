@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 
 import { Dawn } from "./dawn";
+import { useI18n } from "@/lib/i18n/react";
 import { HeroVideo } from "./hero-video";
 
 const Monolith3D = dynamic(() => import("./monolith3d"), { ssr: false });
@@ -21,6 +22,7 @@ function pickMode(): Mode {
 }
 
 export function Hero({ tagline }: { tagline: string }) {
+  const { t } = useI18n();
   const [aligned, setAligned] = useState(false);
   const [mode, setMode] = useState<Mode | null>(null);
   const onAligned = useCallback(() => setAligned(true), []);
@@ -34,7 +36,7 @@ export function Hero({ tagline }: { tagline: string }) {
       {mode !== "film" && <div className={`hero-copy ${aligned ? "on" : ""}`}>
         <h1 className="intertitle">Monolith</h1>
         <p className="lede">{tagline}</p>
-        {mode === "3d" && <p className="hero-hint">Survole le monolithe : le registre gravé est chiffré.</p>}
+        {mode === "3d" && <p className="hero-hint">{t("hero.hint3d")}</p>}
       </div>}
     </section>
   );

@@ -8,6 +8,7 @@ import { Environment, Lightformer, MeshReflectorMaterial, Sparkles } from "@reac
 import { Bloom, EffectComposer, Noise, Vignette } from "@react-three/postprocessing";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { useI18n } from "@/lib/i18n/react";
 
 // 1:4:9 — depth : width : height.
 const H = 2.7, W = (H * 4) / 9, D = H / 9;
@@ -143,6 +144,7 @@ function Scene({ onAligned }: { onAligned: () => void }) {
 }
 
 export default function Monolith3D({ onAligned }: { onAligned: () => void }) {
+  const { t } = useI18n();
   const box = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(true);
   useEffect(() => {
@@ -151,7 +153,7 @@ export default function Monolith3D({ onAligned }: { onAligned: () => void }) {
     return () => io.disconnect();
   }, []);
   return (
-    <div ref={box} className="monolith3d" aria-label="Le monolithe chiffré, en 3D">
+    <div ref={box} className="monolith3d" aria-label={t("aria.monolith3d")}>
       <Canvas
         frameloop={visible ? "always" : "never"}
         dpr={[1, 1.75]}

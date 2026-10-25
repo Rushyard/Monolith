@@ -9,6 +9,7 @@ import {
 import type { Signer } from "stellar-confidential-token-sdk";
 
 import { CT } from "./deployment";
+import { tr } from "../i18n";
 
 export interface MessageSigner extends Signer {
   /** Sign a message (SEP-53) and return the raw ed25519 signature. */
@@ -20,7 +21,7 @@ const msg = (e: unknown) => (typeof e === "string" ? e : (e as { message?: strin
 export async function connectFreighter(): Promise<MessageSigner> {
   const conn = await isConnected();
   if (!conn.isConnected) {
-    throw new Error("Freighter introuvable. Installe l'extension Freighter (réseau Testnet).");
+    throw new Error(tr("lib.noFreighter"));
   }
   const access = await requestAccess();
   if (access.error) throw new Error(msg(access.error));
@@ -37,7 +38,7 @@ export async function connectFreighter(): Promise<MessageSigner> {
       const res = await freighterSignMessage(message, { networkPassphrase: CT.networkPassphrase, address });
       if (res.error) throw new Error(msg(res.error));
       if (res.signerAddress !== address) {
-        throw new Error(`Freighter a signé avec ${res.signerAddress}, attendu ${address}`);
+        throw new Error(tr("lib.wrongSigner", { got: res.signerAddress, want: address }));
       }
       return normalizeSignature(res.signedMessage);
     },
@@ -51,5 +52,5 @@ function normalizeSignature(signed: unknown): Uint8Array {
   if (signed && typeof signed === "object" && Array.isArray((signed as { data?: unknown }).data)) {
     return Uint8Array.from((signed as { data: number[] }).data);
   }
-  throw new Error("Freighter n'a renvoyé aucune signature exploitable");
+  throw new Error(tr("lib.noSig"));
 }

@@ -54,6 +54,18 @@ a.link:hover { border-color: var(--fg); }
   padding: 4px 0; border-bottom: 1px solid transparent;
 }
 .site-nav a:hover, .site-nav a[aria-current="page"] { color: var(--fg); border-color: var(--fg); }
+.site-nav { align-items: center; }
+.lang-switch { display: flex; gap: 2px; padding-left: 16px; margin-left: 2px; border-left: 1px solid var(--line-strong); }
+.lang-switch button {
+  font: 400 10px/1 var(--mono); letter-spacing: .14em; color: var(--faint); background: none; border: 0;
+  padding: 5px 5px; cursor: pointer; transition: color .2s;
+}
+.lang-switch button:hover { color: var(--muted); }
+.lang-switch button[aria-pressed="true"] { color: var(--fg); }
+@media (max-width: 520px) {
+  .site-header { flex-wrap: wrap; row-gap: 10px; }
+  .lang-switch { padding-left: 10px; }
+}
 main { width: 100%; max-width: 1040px; margin: 0 auto; padding: 0 var(--gutter) 96px; }
 .site-footer {
   border-top: 1px solid var(--line); color: var(--faint);

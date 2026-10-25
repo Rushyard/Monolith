@@ -1,6 +1,6 @@
 "use client";
 
-// Onglet Coffre (P2) : register / deposit / merge / confidential transfer / withdraw.
+// Vault tab (P2): register / deposit / merge / confidential transfer / withdraw.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ConfidentialEvent } from "stellar-confidential-token-sdk";
 
@@ -24,8 +24,11 @@ import { CurvePoint } from "../fx/curve-point";
 import { Decrypt } from "../fx/scramble";
 import { AmbientFilm } from "../fx/ambient-film";
 import { AGENT_SMART_ACCOUNT, FundAgentPanel } from "@/components/agent/FundAgentPanel";
+import { useI18n } from "@/lib/i18n/react";
+import type { Key } from "@/lib/i18n";
 
-type Busy = null | { op: string; phase?: TxPhase };
+type Op = "connect" | "friendbot" | "buy" | "register" | "deposit" | "merge" | "transfer" | "withdraw" | "refresh" | "fund";
+type Busy = null | { op: Op; phase?: TxPhase };
 // Whether the last tx shows its amount on-chain; undefined = no amount (register, merge).
 type Visibility = "public" | "hidden";
 
@@ -36,12 +39,14 @@ interface HistoryRow {
 }
 
 export default function VaultPage() {
+  const { t } = useI18n();
+  const opName = (op: Op) => t(`op.${op}` as Key);
   const { lines, log } = useLog();
   const vaultRef = useRef<ConfidentialVault | null>(null);
   const [view, setView] = useState<VaultView | null>(null);
   const [pub, setPub] = useState<{ funded: boolean; xlm: string; usdc: string | null } | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
-  const [lastTx, setLastTx] = useState<{ label: string; hash: string; amount?: Visibility } | null>(null);
+  const [lastTx, setLastTx] = useState<{ op: Op; hash: string; amount?: Visibility } | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [recipients, setRecipients] = useState<string[]>([]);
   const [isolated, setIsolated] = useState(true);
@@ -83,71 +88,65 @@ export default function VaultPage() {
   }, []);
 
   const run = useCallback(
-    async (op: string, f: (onPhase: (p: TxPhase) => void) => Promise<{ hash: string } | void>, amount?: Visibility) => {
+    async (op: Op, f: (onPhase: (p: TxPhase) => void) => Promise<{ hash: string } | void>, amount?: Visibility) => {
       setBusy({ op });
       try {
         const r = await f((phase) => setBusy({ op, phase }));
-        if (r) setLastTx({ label: op, hash: r.hash, amount });
+        if (r) setLastTx({ op, hash: r.hash, amount });
         await reload();
       } catch (e) {
-        log(`${op} : ${e instanceof Error ? e.message : String(e)}`, true);
+        log(`${opName(op)}: ${e instanceof Error ? e.message : String(e)}`, true);
       } finally {
         setBusy(null);
       }
     },
-    [log, reload],
+    [log, reload, t], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const connect = () =>
-    run("Connexion", async () => {
+    run("connect", async () => {
       vaultRef.current = await ConfidentialVault.connect(log);
     });
 
   const v = vaultRef.current;
   const connected = !!v && !!view;
   const usdcPublic = pub?.usdc ?? null;
-  const label = (op: string) =>
-    busy?.op === op ? (busy.phase === "proving" ? "Preuve" : busy.phase === "submitting" ? "Envoi" : "…") : null;
+  const label = (op: Op) =>
+    busy?.op === op ? (busy.phase === "proving" ? t("busy.proof") : busy.phase === "submitting" ? t("busy.sending") : "…") : null;
 
   return (
     <>
       <StarGate
         active={busy?.phase === "proving"}
-        title={busy ? `${busy.op} · traversée` : ""}
-        detail={busy?.op === "Transfert confidentiel" ? "le montant se chiffre dans ton navigateur" : undefined}
+        title={busy ? t("sg.crossing", { op: opName(busy.op) }) : ""}
+        detail={busy?.op === "transfer" ? t("sg.encrypting") : undefined}
       />
       <header className="page-head has-film">
         <AmbientFilm name="vault" />
         <div>
-          <span className="chapter">Chapitre I</span>
-          <h1 className="intertitle" style={{ marginTop: 10 }}>Le coffre</h1>
-          <p className="lede">
-            Tes USDC passent du compte public au coffre confidentiel. Dans le coffre, les soldes et les montants
-            transférés sont des engagements cryptographiques : illisibles on-chain, prouvés dans ton navigateur.
-          </p>
+          <span className="chapter">{t("chapter.n", { n: "I" })}</span>
+          <h1 className="intertitle" style={{ marginTop: 10 }}>{t("ch.vault")}</h1>
+          <p className="lede">{t("vault.lede")}</p>
         </div>
         <div className="monolith sm" aria-hidden />
       </header>
 
       {!isolated && (
         <p className="callout" style={{ marginBottom: 16 }}>
-          Cette page n'est pas « cross-origin isolated » : la génération de preuves ne fonctionnera pas.
+          {t("vault.notIsolated")}
         </p>
       )}
 
       {!connected ? (
         <section className="panel stack">
-          <h2 className="section">Ouvrir le sas</h2>
-          <p style={{ margin: 0, color: "var(--muted)" }}>
-            Connecte Freighter (réseau <b>Testnet</b>). Ta clé confidentielle est dérivée d'une signature : tu
-            signeras deux fois le même message, rien n'est envoyé au réseau.
-          </p>
+          <h2 className="section">{t("vault.airlock")}</h2>
+          <p style={{ margin: 0, color: "var(--muted)" }}>{t("vault.connectHelp")}</p>
           <div className="row">
             <button className="btn primary" onClick={connect} disabled={!!busy}>
-              {busy ? <span className="progress-dots">Connexion</span> : "Connecter Freighter"}
+              {busy ? <span className="progress-dots">{t("vault.connecting")}</span> : t("vault.connectBtn")}
             </button>
             <a className="btn" href="https://www.freighter.app/" target="_blank" rel="noreferrer">
-              Installer Freighter
+              {t("vault.install")}
             </a>
           </div>
         </section>
@@ -155,30 +154,30 @@ export default function VaultPage() {
         <>
           <section className="grid cols-3">
             <div className="panel stat">
-              <div className="label">Compte public <span className="tag public">visible</span></div>
+              <div className="label">{t("vault.public")} <span className="tag public">{t("tag.visible")}</span></div>
               <div className="value">{usdcPublic ?? "—"}<small>USDC</small></div>
               <div className="note num">
-                {pub?.funded ? `${Number(pub.xlm).toFixed(2)} XLM` : "compte non financé"} ·{" "}
+                {pub?.funded ? `${Number(pub.xlm).toFixed(2)} XLM` : t("vault.unfunded")} ·{" "}
                 <a className="link" href={explorerAccount(v.address)} target="_blank" rel="noreferrer">{short(v.address)}</a>
               </div>
             </div>
             <div className="panel stat curve-card">
               <CurvePoint seed={1} />
-              <div className="label">Coffre · disponible <span className="tag hidden">caché</span></div>
+              <div className="label">{t("vault.spendable")} <span className="tag hidden">{t("tag.hidden")}</span></div>
               <div className="value"><Decrypt text={formatUsdc(view.spendable)} /><small>USDC</small></div>
-              <div className="note">Déchiffré dans ton navigateur. On-chain : ce point sur Grumpkin, y² = x³ − 17.</div>
+              <div className="note">{t("vault.spendableNote")}</div>
             </div>
             <div className="panel stat curve-card">
               <CurvePoint seed={2} />
-              <div className="label">Coffre · en réception <span className="tag hidden">caché</span></div>
+              <div className="label">{t("vault.receiving")} <span className="tag hidden">{t("tag.hidden")}</span></div>
               <div className="value"><Decrypt text={formatUsdc(view.receiving)} /><small>USDC</small></div>
-              <div className="note">À fusionner pour le rendre dépensable.</div>
+              <div className="note">{t("vault.receivingNote")}</div>
             </div>
           </section>
 
           {view.health !== "ok" && (
             <p className="callout" style={{ marginTop: 16 }}>
-              État local {view.health === "diverged" ? "divergent de la chaîne" : "non vérifié"} — rafraîchis.
+              {t(view.health === "diverged" ? "vault.diverged" : "vault.unverified")}
             </p>
           )}
 
@@ -188,11 +187,11 @@ export default function VaultPage() {
                 {lastTx.amount && (
                   <>
                     <span className={`tag ${lastTx.amount}`}>
-                      {lastTx.amount === "hidden" ? "montant caché" : "montant public"}
+                      {lastTx.amount === "hidden" ? t("vault.amountHidden") : t("vault.amountPublic")}
                     </span>{" "}
                   </>
                 )}
-                {lastTx.label} · transaction confirmée
+                {t("vault.confirmed", { op: opName(lastTx.op) })}
               </span>
               <a className="link mono" href={explorerTx(lastTx.hash)} target="_blank" rel="noreferrer">
                 {short(lastTx.hash, 8)} ↗ stellar.expert
@@ -204,34 +203,30 @@ export default function VaultPage() {
 
           {!pub?.funded || usdcPublic === null || Number(usdcPublic) < 1 ? (
             <section className="panel stack">
-              <h2 className="section">0 · Préparer le compte public</h2>
-              <p style={{ margin: 0, color: "var(--muted)" }}>
-                Il faut des XLM (frais) et des USDC testnet. On achète des USDC au DEX testnet avec des XLM.
-              </p>
+              <h2 className="section">{t("vault.step0")}</h2>
+              <p style={{ margin: 0, color: "var(--muted)" }}>{t("vault.step0Help")}</p>
               <div className="row">
                 {!pub?.funded && (
-                  <button className="btn" disabled={!!busy} onClick={() => run("Friendbot", async () => {
-                    await friendbot(v.address); log("10 000 XLM testnet reçus");
-                  })}>Recevoir des XLM</button>
+                  <button className="btn" disabled={!!busy} onClick={() => run("friendbot", async () => {
+                    await friendbot(v.address); log(t("log.xlm"));
+                  })}>{t("vault.getXlm")}</button>
                 )}
-                <button className="btn primary" disabled={!!busy || !pub?.funded} onClick={() => run("Achat USDC", async () => {
+                <button className="btn primary" disabled={!!busy || !pub?.funded} onClick={() => run("buy", async () => {
                   const hash = await buyTestUsdc(v.signer, "50");
-                  log("50 USDC testnet achetés au DEX");
+                  log(t("log.bought"));
                   return { hash };
-                }, "public")}>Obtenir 50 USDC testnet</button>
+                }, "public")}>{t("vault.get50")}</button>
               </div>
             </section>
           ) : null}
 
           {!view.registered ? (
             <section className="panel stack" style={{ marginTop: 16 }}>
-              <h2 className="section">1 · Ouvrir le compte confidentiel</h2>
-              <p style={{ margin: 0, color: "var(--muted)" }}>
-                Enregistre ta clé de visualisation sur le contrat, avec une preuve à divulgation nulle générée ici.
-              </p>
+              <h2 className="section">{t("vault.step1")}</h2>
+              <p style={{ margin: 0, color: "var(--muted)" }}>{t("vault.step1Help")}</p>
               <div className="row">
-                <button className="btn primary" disabled={!!busy} onClick={() => run("Ouverture", (p) => v.register(p))}>
-                  {label("Ouverture") ? <span className="progress-dots">{label("Ouverture")}</span> : "Ouvrir le coffre"}
+                <button className="btn primary" disabled={!!busy} onClick={() => run("register", (p) => v.register(p))}>
+                  {label("register") ? <span className="progress-dots">{label("register")}</span> : t("vault.openBtn")}
                 </button>
               </div>
             </section>
@@ -239,73 +234,71 @@ export default function VaultPage() {
             <>
             <section className="grid cols-2">
               <div className="panel stack">
-                <h2 className="section">Déposer <span className="tag public">public</span></h2>
+                <h2 className="section">{t("vault.deposit")} <span className="tag public">{t("tag.public")}</span></h2>
                 <div className="op">
                   <div className="field">
-                    <label htmlFor="dep">Montant (USDC)</label>
+                    <label htmlFor="dep">{t("vault.amount")}</label>
                     <input id="dep" className="input" inputMode="decimal" value={depositAmt} onChange={(e) => setDepositAmt(e.target.value)} />
                   </div>
-                  <button className="btn" disabled={!!busy} onClick={() => run("Dépôt", () => v.deposit(parseUsdc(depositAmt)), "public")}>
-                    {label("Dépôt") ? <span className="progress-dots">Envoi</span> : "Déposer"}
+                  <button className="btn" disabled={!!busy} onClick={() => run("deposit", () => v.deposit(parseUsdc(depositAmt)), "public")}>
+                    {label("deposit") ? <span className="progress-dots">{t("busy.sending")}</span> : t("vault.deposit")}
                   </button>
                 </div>
                 <div className="row" style={{ justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--muted)", fontSize: 14 }}>En réception → disponible</span>
-                  <button className="btn" disabled={!!busy || view.receiving === 0n} onClick={() => run("Fusion", () => v.merge())}>
-                    {label("Fusion") ? <span className="progress-dots">Envoi</span> : "Fusionner"}
+                  <span style={{ color: "var(--muted)", fontSize: 14 }}>{t("vault.incomingToSpendable")}</span>
+                  <button className="btn" disabled={!!busy || view.receiving === 0n} onClick={() => run("merge", () => v.merge())}>
+                    {label("merge") ? <span className="progress-dots">{t("busy.sending")}</span> : t("vault.mergeBtn")}
                   </button>
                 </div>
               </div>
 
               <div className="panel stack">
-                <h2 className="section">Transfert confidentiel <span className="tag hidden">caché</span></h2>
+                <h2 className="section">{t("op.transfer")} <span className="tag hidden">{t("tag.hidden")}</span></h2>
                 <div className="field">
-                  <label htmlFor="to">Destinataire (compte confidentiel)</label>
+                  <label htmlFor="to">{t("vault.recipient")}</label>
                   <input id="to" className="input" list="recips" placeholder="G…" value={sendTo} onChange={(e) => setSendTo(e.target.value.trim())} />
                   <datalist id="recips">{recipients.map((r) => <option key={r} value={r} />)}</datalist>
                 </div>
                 <div className="op">
                   <div className="field">
-                    <label htmlFor="amt">Montant (USDC)</label>
+                    <label htmlFor="amt">{t("vault.amount")}</label>
                     <input id="amt" className="input" inputMode="decimal" value={sendAmt} onChange={(e) => setSendAmt(e.target.value)} />
                   </div>
-                  <button className="btn primary" disabled={!!busy || !sendTo} onClick={() => run("Transfert confidentiel", (p) => v.transfer(sendTo, parseUsdc(sendAmt), p), "hidden")}>
-                    {label("Transfert confidentiel") ? <span className="progress-dots">{label("Transfert confidentiel")}</span> : "Envoyer"}
+                  <button className="btn primary" disabled={!!busy || !sendTo} onClick={() => run("transfer", (p) => v.transfer(sendTo, parseUsdc(sendAmt), p), "hidden")}>
+                    {label("transfer") ? <span className="progress-dots">{label("transfer")}</span> : t("vault.send")}
                   </button>
                 </div>
               </div>
 
               <div className="panel stack">
-                <h2 className="section">Retirer <span className="tag public">public</span></h2>
+                <h2 className="section">{t("vault.withdraw")} <span className="tag public">{t("tag.public")}</span></h2>
                 <div className="op">
                   <div className="field">
-                    <label htmlFor="wd">Montant (USDC)</label>
+                    <label htmlFor="wd">{t("vault.amount")}</label>
                     <input id="wd" className="input" inputMode="decimal" value={withdrawAmt} onChange={(e) => setWithdrawAmt(e.target.value)} />
                   </div>
-                  <button className="btn" disabled={!!busy} onClick={() => run("Retrait", (p) => v.withdraw(parseUsdc(withdrawAmt), p), "public")}>
-                    {label("Retrait") ? <span className="progress-dots">{label("Retrait")}</span> : "Retirer"}
+                  <button className="btn" disabled={!!busy} onClick={() => run("withdraw", (p) => v.withdraw(parseUsdc(withdrawAmt), p), "public")}>
+                    {label("withdraw") ? <span className="progress-dots">{label("withdraw")}</span> : t("vault.withdraw")}
                   </button>
                 </div>
               </div>
 
               <div className="panel stack">
-                <h2 className="section">Contrat</h2>
+                <h2 className="section">{t("vault.contract")}</h2>
                 <p className="mono" style={{ margin: 0, fontSize: 13, overflowWrap: "anywhere" }}>
                   <a className="link" href={explorerAccount(CT.token)} target="_blank" rel="noreferrer">{CT.token}</a>
                 </p>
-                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
-                  Confidential Token OpenZeppelin (0.8.0) sur USDC. Sans admin : personne ne peut geler ni reprendre les fonds.
-                </p>
-                <button className="btn" disabled={!!busy} onClick={() => run("Rafraîchir", async () => { await reload(); })}>Rafraîchir</button>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>{t("vault.contractNote")}</p>
+                <button className="btn" disabled={!!busy} onClick={() => run("refresh", async () => { await reload(); })}>{t("vault.refresh")}</button>
               </div>
             </section>
 
             <FundAgentPanel
               disabled={!!busy}
-              busyLabel={label("Approvisionnement de l'agent")}
+              busyLabel={label("fund")}
               refreshKey={agentRefresh}
               onFund={(amt) =>
-                run("Approvisionnement de l'agent", async (p) => {
+                run("fund", async (p) => {
                   const r = await v.withdraw(parseUsdc(amt), p, AGENT_SMART_ACCOUNT);
                   setAgentRefresh((k) => k + 1);
                   return r;
@@ -317,17 +310,17 @@ export default function VaultPage() {
 
           {history.length > 0 && (
             <section className="panel" style={{ marginTop: 16 }}>
-              <h2 className="section">Journal de bord</h2>
+              <h2 className="section">{t("vault.logbook")}</h2>
               <div className="table-wrap">
                 <table className="data">
                   <thead>
-                    <tr><th>Opération</th><th>Ce que la chaîne montre</th><th>Ce que tu vois</th><th>Tx</th></tr>
+                    <tr><th>{t("vault.th.op")}</th><th>{t("vault.th.chain")}</th><th>{t("vault.th.you")}</th><th>Tx</th></tr>
                   </thead>
                   <tbody>
                     {history.map(({ ev, amount, hidden }) => (
                       <tr key={`${ev.txHash}-${ev.type}`}>
-                        <td>{describe(ev, v.address)}</td>
-                        <td>{hidden ? <span className="tag hidden">montant chiffré</span> : amount !== null ? <span className="num">{formatUsdc(amount)} USDC</span> : "—"}</td>
+                        <td>{describe(ev, v.address, t)}</td>
+                        <td>{hidden ? <span className="tag hidden">{t("tag.encryptedAmount")}</span> : amount !== null ? <span className="num">{formatUsdc(amount)} USDC</span> : "—"}</td>
                         <td className="num">{amount !== null ? `${formatUsdc(amount)} USDC` : "—"}</td>
                         <td><a className="link mono" href={explorerTx(ev.txHash)} target="_blank" rel="noreferrer">{short(ev.txHash, 5)}</a></td>
                       </tr>
@@ -341,19 +334,19 @@ export default function VaultPage() {
       )}
 
       <div className="spacer" />
-      <h2 className="section">Console</h2>
-      <Terminal lines={lines} empty="En attente. Connecte Freighter pour commencer." />
+      <h2 className="section">{t("vault.console")}</h2>
+      <Terminal lines={lines} empty={t("vault.consoleEmpty")} />
     </>
   );
 }
 
-function describe(ev: ConfidentialEvent, me: string): string {
+function describe(ev: ConfidentialEvent, me: string, t: ReturnType<typeof useI18n>["t"]): string {
   switch (ev.type) {
-    case "register": return "Ouverture du coffre";
-    case "merge": return "Fusion";
-    case "deposit": return "Dépôt public → coffre";
-    case "withdraw": return ev.to === AGENT_SMART_ACCOUNT ? "Approvisionnement de l'agent (public)" : "Retrait coffre → public";
-    case "transfer": return ev.from === me ? `Envoyé à ${short(ev.to)}` : `Reçu de ${short(ev.from)}`;
+    case "register": return t("ev.register");
+    case "merge": return t("ev.merge");
+    case "deposit": return t("ev.deposit");
+    case "withdraw": return t(ev.to === AGENT_SMART_ACCOUNT ? "ev.fund" : "ev.withdraw");
+    case "transfer": return ev.from === me ? t("ev.sent", { who: short(ev.to) }) : t("ev.received", { who: short(ev.from) });
     default: return ev.type;
   }
 }

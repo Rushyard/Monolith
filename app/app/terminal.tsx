@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { currentLang, localeOf } from "@/lib/i18n";
 
 export interface LogLine {
   t: string;
@@ -11,7 +12,7 @@ export interface LogLine {
 export function useLog() {
   const [lines, setLines] = useState<LogLine[]>([]);
   const log = useCallback((msg: string, err = false) => {
-    const t = new Date().toLocaleTimeString("fr-FR", { hour12: false });
+    const t = new Date().toLocaleTimeString(localeOf(currentLang()), { hour12: false });
     setLines((l) => [...l, { t, msg, err }]);
   }, []);
   return { lines, log };

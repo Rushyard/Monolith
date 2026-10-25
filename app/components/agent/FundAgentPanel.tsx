@@ -6,6 +6,7 @@ import { useState } from "react";
 import deployment from "@/lib/agent/deployment.json";
 import { BudgetBar } from "./BudgetBar";
 import { short } from "./types";
+import { useI18n } from "@/lib/i18n/react";
 
 export const AGENT_SMART_ACCOUNT = process.env.NEXT_PUBLIC_SMART_ACCOUNT_ID || deployment.smartAccount;
 
@@ -23,27 +24,27 @@ export function FundAgentPanel({
   /** À incrémenter après un approvisionnement pour relire le solde du smart account. */
   refreshKey: number;
 }) {
+  const { t } = useI18n();
   const [amount, setAmount] = useState("1");
   return (
     <section className="panel stack" style={{ marginTop: 16 }}>
       <h2 className="section">
-        Approvisionner l&apos;agent <span className="tag public">public</span>
+        {t("fund.title")} <span className="tag public">{t("tag.public")}</span>
       </h2>
       <p style={{ margin: 0, color: "var(--muted)" }}>
-        Retire des USDC du coffre vers le compte de l&apos;agent (smart account{" "}
+        {t("fund.help1")}{" "}
         <a className="link mono" href={`https://stellar.expert/explorer/testnet/contract/${AGENT_SMART_ACCOUNT}`} target="_blank" rel="noreferrer">
           {short(AGENT_SMART_ACCOUNT)}
         </a>
-        ). <b>Cette sortie est publique : le montant est visible on-chain.</b> Le solde du coffre, lui, reste caché.
-        L&apos;agent ne pourra de toute façon dépenser que dans son plafond on-chain.
+        ). <b>{t("fund.help2")}</b> {t("fund.help3")}
       </p>
       <div className="op">
         <div className="field">
-          <label htmlFor="fund">Montant (USDC)</label>
+          <label htmlFor="fund">{t("vault.amount")}</label>
           <input id="fund" className="input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>
         <button className="btn" disabled={disabled || !Number(amount)} onClick={() => onFund(amount)}>
-          {busyLabel ? <span className="progress-dots">{busyLabel}</span> : "Approvisionner l'agent"}
+          {busyLabel ? <span className="progress-dots">{busyLabel}</span> : t("fund.btn")}
         </button>
       </div>
       <BudgetBar refreshKey={refreshKey} />

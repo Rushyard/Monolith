@@ -49,6 +49,7 @@ import { CT } from "./deployment";
 import { deriveSignerRootSk } from "./derive-key";
 import { connectFreighter, type MessageSigner } from "./freighter";
 import { formatUsdc, short } from "./format";
+import { tr } from "../i18n";
 
 type Log = (m: string) => void;
 type CircuitName = "register" | "transfer" | "withdraw";
@@ -99,7 +100,7 @@ export class ConfidentialVault {
   static async connect(log: Log): Promise<ConfidentialVault> {
     ensureBrowserBackend();
     const signer = await connectFreighter();
-    log(`connecté : ${signer.publicKey}`);
+    log(tr("lib.connected", { who: signer.publicKey }));
 
     const client = makeClient();
     const addrF = addressToField(CT.token);
@@ -116,10 +117,10 @@ export class ConfidentialVault {
     if (!keys) {
       keys = deriveKeys(await deriveSignerRootSk(signer, CT.token, log), addrF);
       if (!matches(keys)) {
-        throw new Error("ce compte est enregistré sous une clé que la signature Freighter ne dérive pas");
+        throw new Error(tr("lib.keyMismatch"));
       }
       localStorage.setItem(skKey, toHex32(keys.sk));
-      log("clé confidentielle dérivée de la signature (mise en cache locale)");
+      log(tr("lib.keyDerived"));
     }
 
     const engine = new StateEngine({
@@ -142,11 +143,11 @@ export class ConfidentialVault {
   }
 
   private async prove(name: CircuitName, inputs: Parameters<CircuitProver["prove"]>[0]) {
-    this.log(`génération de la preuve ${name} dans le navigateur…`);
+    this.log(tr("lib.proving", { name }));
     const t0 = performance.now();
     const { proof } = await this.prover(name).prove(inputs);
     const proofMs = Math.round(performance.now() - t0);
-    this.log(`preuve ${name} prête en ${(proofMs / 1000).toFixed(1)} s`);
+    this.log(tr("lib.proofReady", { name, s: (proofMs / 1000).toFixed(1) }));
     return { proof, proofMs };
   }
 
@@ -156,33 +157,33 @@ export class ConfidentialVault {
     const { proof, proofMs } = await this.prove("register", w.inputs);
     onPhase?.("submitting");
     const r = await submitRegister(this.client, this.signer, this.address, CT.auditorId, w, proof);
-    this.log(`compte confidentiel ouvert (tx ${short(r.hash, 6)})`);
+    this.log(tr("lib.opened", { tx: short(r.hash, 6) }));
     return { hash: r.hash, proofMs };
   }
 
   /** Public USDC → receiving balance. The amount is visible on-chain. */
   async deposit(amount: bigint): Promise<TxResult> {
-    this.log(`dépôt de ${formatUsdc(amount)} USDC (public)…`);
+    this.log(tr("lib.depositing", { amt: formatUsdc(amount) }));
     const r = await submitDeposit(this.client, this.signer, this.address, this.address, amount);
-    this.log(`déposé (tx ${short(r.hash, 6)}) → solde « en réception »`);
+    this.log(tr("lib.deposited", { tx: short(r.hash, 6) }));
     return { hash: r.hash };
   }
 
   /** receiving → spendable. */
   async merge(): Promise<TxResult> {
     const r = await submitMerge(this.client, this.signer, this.address);
-    this.log(`fusionné en solde disponible (tx ${short(r.hash, 6)})`);
+    this.log(tr("lib.merged", { tx: short(r.hash, 6) }));
     return { hash: r.hash };
   }
 
   /** Confidential transfer: the amount is hidden on-chain. */
   async transfer(to: string, amount: bigint, onPhase?: (p: TxPhase) => void): Promise<TxResult> {
     const recipient = await this.client.confidentialBalance(to);
-    if (!recipient) throw new Error("le destinataire n'a pas de compte confidentiel");
+    if (!recipient) throw new Error(tr("lib.noRecipient"));
     const kAudR = await this.client.auditorKey(recipient.auditorId);
     const kAudS = await this.client.auditorKey(CT.auditorId);
     const { v, r: blinding } = await this.spendableForProof();
-    if (v < amount) throw new Error(`solde disponible insuffisant (${formatUsdc(v)} USDC)`);
+    if (v < amount) throw new Error(tr("lib.insufficient", { amt: formatUsdc(v) }));
 
     const w = buildTransferWitness({
       keys: this.keys, v, r: blinding, amount, pvkB: recipient.viewingPublicKey, kAudR, kAudS,
@@ -192,7 +193,7 @@ export class ConfidentialVault {
     onPhase?.("submitting");
     const r = await submitTransfer(this.client, this.signer, this.address, to, w, proof);
     await this.engine.setSpendable(w.next);
-    this.log(`transfert confidentiel envoyé à ${short(to)} (tx ${short(r.hash, 6)})`);
+    this.log(tr("lib.sent", { to: short(to), tx: short(r.hash, 6) }));
     return { hash: r.hash, proofMs };
   }
 
@@ -204,14 +205,14 @@ export class ConfidentialVault {
   async withdraw(amount: bigint, onPhase?: (p: TxPhase) => void, to: string = this.address): Promise<TxResult> {
     const kAudS = await this.client.auditorKey(CT.auditorId);
     const { v, r: blinding } = await this.spendableForProof();
-    if (v < amount) throw new Error(`solde disponible insuffisant (${formatUsdc(v)} USDC)`);
+    if (v < amount) throw new Error(tr("lib.insufficient", { amt: formatUsdc(v) }));
     const w = buildWithdrawWitness({ keys: this.keys, v, r: blinding, amount, kAudS });
     onPhase?.("proving");
     const { proof, proofMs } = await this.prove("withdraw", w.inputs);
     onPhase?.("submitting");
     const r = await submitWithdraw(this.client, this.signer, this.address, to, amount, w, proof);
     await this.engine.setSpendable(w.next);
-    this.log(`retiré ${formatUsdc(amount)} USDC vers ${to === this.address ? "le compte public" : short(to)} (tx ${short(r.hash, 6)})`);
+    this.log(tr("lib.withdrawn", { amt: formatUsdc(amount), to: to === this.address ? tr("lib.publicAccount") : short(to), tx: short(r.hash, 6) }));
     return { hash: r.hash, proofMs };
   }
 

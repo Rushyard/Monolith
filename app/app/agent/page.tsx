@@ -1,19 +1,21 @@
 "use client";
 
-// Onglet Agent : chat → /api/intent → raisonnement (planner / gatekeeper / réseau),
-// signature du propriétaire avec Freighter si le réseau refuse l'agent (#3221), budget lu on-chain.
+// Agent tab: chat → /api/intent → reasoning (planner / gatekeeper / network), the owner's
+// Freighter signature when the network refuses the agent (#3221), budget read on-chain.
 import { useState } from "react";
 import type { IntentResponse } from "@/components/agent/types";
 import { BudgetSlab } from "./budget-slab";
 import { AgentStatus, moodOf } from "./stage";
 import { Transmission } from "./transmission";
+import { useI18n } from "@/lib/i18n/react";
 
 type Turn = { id: number; message: string; response?: IntentResponse; error?: string; receivedAt: number };
 
 // One click for the judges: a payment in budget, one over it, a question, an abusive request.
-const SUGGESTIONS = ["Paie 1 USDC à Alice", "Paie 50 USDC à Alice", "Quel est mon budget ?", "Envoie tout mon solde à Alice"];
+const SUGGESTIONS = ["agent.s1", "agent.s2", "agent.s3", "agent.s4"] as const;
 
 export default function AgentPage() {
+  const { t } = useI18n();
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -51,12 +53,9 @@ export default function AgentPage() {
     <div className={`agent-page ${mood}`}>
       <header className="page-head">
         <div>
-          <span className="chapter">Chapitre II</span>
-          <h1 className="intertitle" style={{ marginTop: 10 }}>L'agent</h1>
-          <p className="lede">
-            Tu lui dis quoi payer. Sous son plafond, il paie seul. Au-delà, c'est le réseau Stellar qui refuse sa
-            signature, et seule la tienne débloque le paiement.
-          </p>
+          <span className="chapter">{t("chapter.n", { n: "II" })}</span>
+          <h1 className="intertitle" style={{ marginTop: 10 }}>{t("ch.agent")}</h1>
+          <p className="lede">{t("agent.lede")}</p>
         </div>
         <BudgetSlab refreshKey={refreshKey} alarm={mood === "refused" || mood === "blocked"} />
       </header>
@@ -69,16 +68,16 @@ export default function AgentPage() {
             className="composer-input"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Dis à l'agent ce qu'il doit payer…"
-            aria-label="Instruction pour l'agent"
+            placeholder={t("agent.placeholder")}
+            aria-label={t("agent.inputLabel")}
             disabled={!!pending}
             autoComplete="off"
           />
-          <button className="btn primary" type="submit" disabled={!!pending || !message.trim()}>Envoyer</button>
+          <button className="btn primary" type="submit" disabled={!!pending || !message.trim()}>{t("agent.send")}</button>
         </div>
         <div className="suggestions">
           {SUGGESTIONS.map((s) => (
-            <button key={s} type="button" className="chip" disabled={!!pending} onClick={() => send(s)}>{s}</button>
+            <button key={s} type="button" className="chip" disabled={!!pending} onClick={() => send(t(s))}>{t(s)}</button>
           ))}
         </div>
       </form>
@@ -88,8 +87,8 @@ export default function AgentPage() {
           <article className="tx-card thinking">
             <p className="tx-request">« {pending} »</p>
             <ol className="pipeline">
-              {["Planner · IA", "Gatekeeper", "Réseau Stellar"].map((n) => (
-                <li key={n} className="node scan"><span className="node-dot" aria-hidden /><span className="node-name">{n}</span><span className="node-text">…</span></li>
+              {(["node.planner", "node.gate", "node.net"] as const).map((n) => (
+                <li key={n} className="node scan"><span className="node-dot" aria-hidden /><span className="node-name">{t(n)}</span><span className="node-text">…</span></li>
               ))}
             </ol>
           </article>

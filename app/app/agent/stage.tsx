@@ -3,6 +3,7 @@
 // The agent's state, derived from the page's turns, and the small status line that shows it.
 // Visual only: it reads the same turns the page already has.
 import type { IntentResponse } from "@/components/agent/types";
+import { useI18n } from "@/lib/i18n/react";
 
 export type Mood = "idle" | "listen" | "think" | "paid" | "refused" | "pending" | "blocked" | "approved" | "error" | "reply";
 
@@ -27,24 +28,12 @@ export function outcomeOf(turn: { response?: IntentResponse; error?: string }, a
   }
 }
 
-const STATUS: Record<Mood, string> = {
-  idle: "En veille",
-  listen: "À l'écoute",
-  think: "Analyse de la demande",
-  reply: "Réponse",
-  paid: "Paiement envoyé",
-  refused: "Refusé par le réseau · #3221",
-  pending: "En attente de ta signature",
-  blocked: "Demande bloquée",
-  approved: "Approuvé par le propriétaire",
-  error: "Erreur",
-};
-
 export function AgentStatus({ mood }: { mood: Mood }) {
+  const { t } = useI18n();
   return (
     <div className={`agent-status ${mood}`} role="status" aria-live="polite">
       <span className="lens" aria-hidden />
-      <span>{STATUS[mood]}</span>
+      <span>{t(`status.${mood}`)}</span>
     </div>
   );
 }

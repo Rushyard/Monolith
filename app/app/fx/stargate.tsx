@@ -4,6 +4,7 @@
 // zero-knowledge proof is computed in the browser. When `active` drops, the tunnel
 // collapses into a white flash and fades out.
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "@/lib/i18n/react";
 
 const VS = "attribute vec2 p; void main(){ gl_Position = vec4(p, 0., 1.); }";
 const FS = `precision highp float;
@@ -28,6 +29,7 @@ void main(){
 type Phase = "off" | "on" | "out";
 
 export function StarGate({ active, title, detail }: { active: boolean; title: string; detail?: string }) {
+  const { t } = useI18n();
   const [phase, setPhase] = useState<Phase>("off");
   const [elapsed, setElapsed] = useState(0);
   // One corridor per crossing: the film if it can play quickly, otherwise the shader.
@@ -102,9 +104,9 @@ export function StarGate({ active, title, detail }: { active: boolean; title: st
       />
       <div className="stargate-flash" aria-hidden />
       <div className="stargate-caption">
-        <span className="stargate-title">{phase === "on" ? title : "Preuve prête"}</span>
+        <span className="stargate-title">{phase === "on" ? title : t("sg.ready")}</span>
         <span className="stargate-detail">
-          {phase === "on" ? `${detail ?? "preuve à divulgation nulle · bb.js"} · ${elapsed.toFixed(1)} s` : "signature Freighter…"}
+          {phase === "on" ? `${detail ?? t("sg.detail")} · ${elapsed.toFixed(1)} s` : t("sg.signing")}
         </span>
       </div>
     </div>

@@ -5,17 +5,19 @@
 // Captions appear on the way and the title lands on the alignment; then the page moves on.
 // The file is all-intra (every frame a keyframe) so seeking is smooth; self-hosted (COEP-safe).
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "@/lib/i18n/react";
 
 export const HERO_VIDEO = { src: "/hero/monolith.mp4", poster: "/hero/monolith-poster.jpg" };
 const NIGHT_END = 1.8; // seconds played on their own before the scroll takes over
 
 // Captions over the film, as fractions of the scroll through the pinned section.
-const BEATS: { from: number; to: number; text: string }[] = [
-  { from: 0.12, to: 0.36, text: "Une trésorerie que personne ne peut lire." },
-  { from: 0.42, to: 0.66, text: "Un agent qui ne peut pas dépasser son plafond." },
-];
+const BEATS = [
+  { from: 0.12, to: 0.36, text: "hero.beat1" },
+  { from: 0.42, to: 0.66, text: "hero.beat2" },
+] as const;
 
 export function HeroVideo({ tagline, onFail }: { tagline: string; onFail: () => void }) {
+  const { t } = useI18n();
   const section = useRef<HTMLElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const [progress, setProgress] = useState(0); // 0..1 scroll through the pinned section
@@ -72,13 +74,13 @@ export function HeroVideo({ tagline, onFail }: { tagline: string; onFail: () => 
           aria-hidden="true"
         />
         {!still && BEATS.map((b) => (
-          <p key={b.text} className={`film-beat ${progress >= b.from && progress < b.to ? "on" : ""}`}>{b.text}</p>
+          <p key={b.text} className={`film-beat ${progress >= b.from && progress < b.to ? "on" : ""}`}>{t(b.text)}</p>
         ))}
         <div className={`film-title ${titleOn ? "on" : ""}`}>
           <h1 className="intertitle">Monolith</h1>
           <p className="lede">{tagline}</p>
         </div>
-        {!still && <span className={`film-hint ${progress > 0.02 ? "off" : ""}`}>Fais défiler ↓</span>}
+        {!still && <span className={`film-hint ${progress > 0.02 ? "off" : ""}`}>{t("hero.hint")}</span>}
       </div>
     </section>
   );

@@ -2,6 +2,7 @@
 
 // A value that "decrypts": hex glyphs churn, then lock in left to right.
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "@/lib/i18n/react";
 
 const GLYPHS = "0123456789abcdef";
 const reduced = () => typeof window !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -9,6 +10,7 @@ const noise = (n: number) => Array.from({ length: n }, () => GLYPHS[(Math.random
 
 /** Encrypted placeholder: a shifting hex blob, as long as `width`. */
 export function Cipher({ width = 8, live = true }: { width?: number; live?: boolean }) {
+  const { t } = useI18n();
   const [txt, setTxt] = useState(() => "0x" + "·".repeat(width));
   useEffect(() => {
     setTxt("0x" + noise(width));
@@ -16,7 +18,7 @@ export function Cipher({ width = 8, live = true }: { width?: number; live?: bool
     const id = setInterval(() => setTxt("0x" + noise(width)), 160);
     return () => clearInterval(id);
   }, [width, live]);
-  return <span className="cipher" aria-label="montant chiffré">{txt}</span>;
+  return <span className="cipher" aria-label={t("tag.encryptedAmount")}>{txt}</span>;
 }
 
 /** Plays a decrypt animation from noise to `text` each time `text` changes. */

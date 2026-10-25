@@ -3,8 +3,10 @@
 // The opening shot: the sun rises behind the 1:4:9 slab until it clears the top edge.
 // Plays once on load; scrolling replays the last part of the alignment.
 import { useEffect, useRef } from "react";
+import { useI18n } from "@/lib/i18n/react";
 
 export function Dawn({ onAligned }: { onAligned?: () => void }) {
+  const { t } = useI18n();
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -57,5 +59,5 @@ export function Dawn({ onAligned }: { onAligned?: () => void }) {
     return () => { cancelAnimationFrame(raf); removeEventListener("resize", onResize); };
   }, [onAligned]);
 
-  return <canvas ref={ref} className="dawn" aria-label="Le soleil se lève derrière le monolithe" />;
+  return <canvas ref={ref} className="dawn" aria-label={t("aria.dawn")} />;
 }

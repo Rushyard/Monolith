@@ -30,6 +30,7 @@ const ALL_FUNDS = [
   /\beverything\b/,
   /\b(entire|whole) (balance|account)\b/,
   /\b(max|maximum)\b/,
+  /\btodo o (meu |seu )?(dinheiro|saldo|usdc)\b/, // pt
 ];
 
 /** Refus net (repris d'Orchestra, policy REFUSAL) : pas de carte d'approbation, rien n'est préparé. */
@@ -49,7 +50,7 @@ const PRESSURE: [string, RegExp[]][] = [
     /\b(no need to|pas besoin de|sans) (confirm|approv|ask|demander|valider|approbation|confirmation)/,
     /\b(don'?t|do not|ne) (ask|demande pas)\b/,
   ]],
-  ["urgency", [/\b(urgent|urgence|emergency|compromis|compromised|hacked|pirat[ée]|vol[ée]|stolen)\b/]],
+  ["urgency", [/\b(urgent|urgence|emergency|compromis|compromised|hacked|pirat[ée]|vol[ée]|stolen|urgente|emerg[êe]ncia|roubad[ao])\b/]],
 ];
 
 function normalise(message: string): string {

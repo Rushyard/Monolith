@@ -1,3 +1,4 @@
+import { tr } from "../i18n";
 // USDC has 7 decimals on Stellar.
 const DECIMALS = 7;
 const UNIT = 10n ** BigInt(DECIMALS);
@@ -14,7 +15,7 @@ export function formatUsdc(units: bigint): string {
 /** "7.5" → 75_000_000n. Throws on more than 7 decimals or junk. */
 export function parseUsdc(input: string): bigint {
   const s = input.trim().replace(",", ".");
-  if (!/^\d+(\.\d{0,7})?$/.test(s)) throw new Error(`montant invalide : "${input}"`);
+  if (!/^\d+(\.\d{0,7})?$/.test(s)) throw new Error(tr("lib.badAmount", { v: input }));
   const [whole, frac = ""] = s.split(".");
   return BigInt(whole!) * UNIT + BigInt(frac.padEnd(DECIMALS, "0"));
 }

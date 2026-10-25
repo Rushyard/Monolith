@@ -7,6 +7,7 @@ import { Keypair } from "@stellar/stellar-sdk";
 import { deriveSk, sep53Payload, skSigningMessage } from "stellar-confidential-token-sdk";
 
 import type { MessageSigner } from "./freighter";
+import { tr } from "../i18n";
 
 export async function deriveSignerRootSk(
   signer: MessageSigner,
@@ -21,16 +22,16 @@ export async function deriveSignerRootSk(
 
   const roots: Uint8Array[] = [];
   for (const attempt of ["1/2", "2/2"]) {
-    log(`signe le message de dérivation dans Freighter (${attempt})…`);
+    log(tr("lib.signDerive", { n: attempt }));
     const root = await signer.signMessage(text);
     if (!key.verify(payload as Buffer, root as Buffer)) {
-      throw new Error(`la signature Freighter ne correspond pas à la clé de ${account} — aucune clé dérivée`);
+      throw new Error(tr("lib.sigMismatch", { acc: account }));
     }
     roots.push(root);
   }
   const [a, b] = roots as [Uint8Array, Uint8Array];
   if (a.length !== b.length || a.some((x, i) => x !== b[i])) {
-    throw new Error("Freighter a renvoyé deux signatures différentes : clé non récupérable, aucune clé dérivée");
+    throw new Error(tr("lib.twoSigs"));
   }
   return deriveSk(a, token, account).sk;
 }
