@@ -44,6 +44,11 @@ export function BudgetBar({ refreshKey = 0 }: { refreshKey?: number }) {
       <div style={track} role="progressbar" aria-valuemin={0} aria-valuemax={limitUsdc} aria-valuenow={spentUsdc}>
         <div style={{ ...fill, width: `${pct}%`, background: pct >= 100 ? "var(--p1-err, #d0443e)" : "var(--p1-fill, #c9a227)" }} />
       </div>
+      {remainingUsdc <= 0 && (
+        <p style={{ margin: "6px 0", color: "var(--p1-err, #d0443e)" }}>
+          Budget épuisé : c&apos;est voulu. Tout paiement de l&apos;agent sera rejeté par le réseau jusqu&apos;à la fenêtre suivante.
+        </p>
+      )}
       <div style={{ fontSize: 12, opacity: 0.6 }}>Plafond appliqué par le réseau (spending-limit policy OpenZeppelin), pas par notre serveur.</div>
     </div>
   );

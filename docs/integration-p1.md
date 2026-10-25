@@ -1,6 +1,6 @@
 # Intégration P1 → page `/agent`
 
-Les composants P1 sont autonomes et ne touchent aucun fichier P2. Ils utilisent la même librairie wallet que le coffre, `@stellar/freighter-api` (déjà dans `app/package.json` côté P2). Page de démonstration : `app/app/agent-p1/page.tsx`.
+Les composants P1 sont autonomes et ne touchent aucun fichier P2. Ils utilisent la même librairie wallet que le coffre, `@stellar/freighter-api` (déjà dans `app/package.json` côté P2). Ils sont branchés dans `app/app/agent/page.tsx` (la page de test `/agent-p1` a été supprimée).
 
 ## Brancher dans `app/app/agent/page.tsx` (≈ 10 lignes)
 

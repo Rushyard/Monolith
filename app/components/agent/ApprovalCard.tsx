@@ -88,7 +88,7 @@ export function ApprovalCard({
   }
 
   return (
-    <div className="p1-approval" style={card}>
+    <div className="panel p1-approval" style={card}>
       <div style={{ fontWeight: 600, marginBottom: 6 }}>
         {blockedByNetwork ? "⛔ L'agent a été bloqué par le réseau Stellar" : "✋ Ton accord est nécessaire"}
       </div>
@@ -112,7 +112,7 @@ export function ApprovalCard({
       </p>
 
       {phase.kind === "idle" && (
-        <button type="button" onClick={approve} style={btn}>
+        <button type="button" onClick={approve} className="btn primary" style={btn}>
           Approuver avec Freighter
         </button>
       )}
@@ -129,7 +129,7 @@ export function ApprovalCard({
         <div>
           <p style={{ ...p, color: "var(--p1-err, #d0443e)" }}>{phase.message}</p>
           {phase.retry && (
-            <button type="button" onClick={approve} style={btn}>
+            <button type="button" onClick={approve} className="btn" style={btn}>
               Réessayer
             </button>
           )}
@@ -139,8 +139,9 @@ export function ApprovalCard({
   );
 }
 
-const card: React.CSSProperties = { border: "1px solid var(--p1-border, #c9a227)", borderRadius: 10, padding: 14, margin: "8px 0", maxWidth: 520 };
+const card: React.CSSProperties = { border: "1px solid var(--p1-border, #c9a227)", padding: 14, margin: "8px 0", maxWidth: 620 };
 const p: React.CSSProperties = { margin: "4px 0", lineHeight: 1.45 };
-const btn: React.CSSProperties = { marginTop: 8, padding: "8px 14px", borderRadius: 8, border: "1px solid currentColor", background: "transparent", color: "inherit", cursor: "pointer" };
+/** Marge seulement : l'apparence vient de la classe `btn` de l'app. */
+const btn: React.CSSProperties = { marginTop: 8 };
 
 export default ApprovalCard;
