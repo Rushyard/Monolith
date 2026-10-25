@@ -126,8 +126,8 @@ Ordre de priorité du jury : **Adoption → Discovery → Continuation**. Revue 
 ### Ce qu'on sait de la spending-limit policy OZ (vérifié)
 - Plafond **cumulatif sur une fenêtre glissante** (rolling window), état stocké par `(account, context_rule_id)`.
 - S'installe sur une règle **`CallContract`** et ne mesure **que les appels `transfer`** du token ciblé. Tout autre appel sur cette règle est rejeté (`NotAllowed`).
-- Dépassement : erreur **`SpendingLimitExceeded` (#2221)**.
-- Si la règle B échoue, l'évaluation essaie les autres règles ; la règle A échoue faute de signature owner → **tx rejetée**.
+- Dépassement : erreur **`SpendingLimitExceeded` (#3221)**.
+- Pas de bascule automatique entre règles (vérifié dans OZ v0.8.0) : c'est le **client qui choisit la règle** via `context_rule_ids` dans l'`AuthPayload`. L'agent ne peut citer que la règle B (il n'est pas signer de la règle A) ; au-delà du plafond, la tx est rejetée. Seule une tx signée par l'owner via la règle A fait passer le paiement.
 - Max 15 règles de contexte par smart account.
 - Option : une policy « plafond par transaction » (cf. `tx-max-policy` d'Agent Card) si on veut « max 10 USDC par paiement » en plus du cumul.
 
@@ -148,7 +148,7 @@ Ordre de priorité du jury : **Adoption → Discovery → Continuation**. Revue 
    - LLM avec sortie structurée (zod) : `{ action: "pay" | "balance" | "history", amount?, to? }`
    - carnet de contacts (« Alice » → adresse) pour la démo
    - Executor : construit l'appel `transfer` USDC depuis le smart account, signe l'auth entry avec la clé agent, simule, envoie
-   - si la simulation renvoie #2221 → répondre `{ status: "needs_owner_approval", unsignedXdr }`
+   - si la simulation renvoie #3221 → répondre `{ status: "needs_owner_approval", unsignedXdr }`
 8. **Approbation owner** : le frontend fait signer `unsignedXdr` par Freighter (Stellar Wallets Kit), puis soumet.
 9. **Tests de contrat** (bonus exécution) : succès sous plafond, échec au-dessus, fenêtre glissante.
 
@@ -322,14 +322,14 @@ LLM_API_KEY=
 
 1. **0:00–0:20 — Problème.** « Sur une blockchain publique, tout le monde voit ta trésorerie. Et donner un wallet à un agent IA, c'est lui donner tout ton argent. »
 2. **0:20–1:00 — Coffre.** Dépôt (on montre qu'il est public), transfert confidentiel, ouverture de stellar.expert : montant illisible. Vue auditeur : montant révélé.
-3. **1:00–1:50 — Agent.** « Paie 5 USDC à Alice » → passe seul. « Paie 50 USDC à Alice » → **rejet du réseau, lien explorer, erreur #2221**. Approbation owner avec Freighter → passe.
+3. **1:00–1:50 — Agent.** « Paie 5 USDC à Alice » → passe seul. « Paie 50 USDC à Alice » → **rejet du réseau, lien explorer, erreur #3221**. Approbation owner avec Freighter → passe.
 4. **1:50–2:15 — Architecture.** Schéma : smart account OZ, spending-limit, Confidential Tokens, ce qui est public / caché.
 5. **2:15–2:30 — Suite.** Mainnet des CT, passkeys, x402, cas trésorerie/paie.
 
 ## 11. Pitch deck (6 slides)
 1. Problème (2 phrases + persona)
 2. Solution (le pitch en une ligne + le tableau public/caché)
-3. Démo (3 captures : explorer illisible, rejet #2221, approbation)
+3. Démo (3 captures : explorer illisible, rejet #3221, approbation)
 4. Architecture + pourquoi Stellar (smart accounts OZ, CT natifs du réseau, frais faibles, USDC natif)
 5. Ce qui a été fait pendant le hack vs avant (disclosure Orchestra)
 6. Suite + équipe
@@ -358,7 +358,7 @@ One line pitch.
 
 ## 13. Checklist de soumission
 - [ ] Repo public, README complet, `.env.example`
-- [ ] `docs/architecture.md` avec contract IDs + tx hashes (succès, échec #2221, approbation owner, transfert confidentiel)
+- [ ] `docs/architecture.md` avec contract IDs + tx hashes (succès, échec #3221, approbation owner, transfert confidentiel)
 - [ ] URL Vercel live testée en navigation privée
 - [ ] Vidéo 2–3 min
 - [ ] Pitch deck

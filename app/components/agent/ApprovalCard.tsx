@@ -1,0 +1,147 @@
+"use client";
+
+// Carte d'approbation owner : le réseau a refusé la signature de l'agent (#3221), l'owner
+// approuve avec Freighter. Même librairie que le coffre (P2) : @stellar/freighter-api.
+// Flux : Freighter signTransaction(unsignedXdr) → POST /api/agent/submit → lien explorer.
+import { useState } from "react";
+import { getNetworkDetails, isConnected, requestAccess, signTransaction } from "@stellar/freighter-api";
+import { TESTNET_PASSPHRASE, explorerTx, short, type OwnerApproval } from "./types";
+
+/** L'XDR (timeout 3600 s, auth valable ~720 ledgers) est considéré expiré un peu avant. */
+const XDR_TTL_MS = 55 * 60 * 1000;
+
+type Phase =
+  | { kind: "idle" }
+  | { kind: "working"; step: string }
+  | { kind: "done"; hash: string }
+  | { kind: "error"; message: string; retry: boolean };
+
+const errMsg = (e: unknown) => (typeof e === "string" ? e : (e as { message?: string })?.message ?? String(e));
+
+export function ApprovalCard({
+  approval,
+  amountUsdc,
+  recipientLabel,
+  receivedAt,
+  onApproved,
+}: {
+  approval: OwnerApproval;
+  amountUsdc?: string;
+  recipientLabel?: string;
+  /** Date.now() à la réception de la réponse /api/intent (sert à détecter l'XDR expiré). */
+  receivedAt: number;
+  onApproved?: (hash: string) => void;
+}) {
+  const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+  const attempt = approval.agentAttempt;
+  const blockedByNetwork = attempt?.simulationCode === 3221;
+
+  async function approve() {
+    try {
+      if (Date.now() - receivedAt > XDR_TTL_MS) {
+        return setPhase({ kind: "error", message: "Cette demande a expiré (plus d'une heure). Renvoie le message à l'agent pour en préparer une nouvelle.", retry: false });
+      }
+      setPhase({ kind: "working", step: "Connexion à Freighter…" });
+      const conn = await isConnected();
+      if (conn.error || !conn.isConnected) {
+        return setPhase({ kind: "error", message: "Freighter introuvable. Installe l'extension Freighter puis recharge la page.", retry: true });
+      }
+      const access = await requestAccess();
+      if (access.error) return setPhase({ kind: "error", message: `Accès refusé par Freighter : ${errMsg(access.error)}`, retry: true });
+      if (access.address !== approval.owner) {
+        return setPhase({
+          kind: "error",
+          message: `Mauvais compte Freighter : ${short(access.address)} est actif, il faut l'owner ${short(approval.owner)}. Change de compte dans Freighter puis réessaie.`,
+          retry: true,
+        });
+      }
+      const net = await getNetworkDetails();
+      if (net.error || net.networkPassphrase !== TESTNET_PASSPHRASE) {
+        return setPhase({ kind: "error", message: `Mauvais réseau Freighter (${net.network || "inconnu"}). Choisis « Testnet » dans Freighter puis réessaie.`, retry: true });
+      }
+
+      setPhase({ kind: "working", step: "Signature dans Freighter…" });
+      const signed = await signTransaction(approval.unsignedXdr, { networkPassphrase: TESTNET_PASSPHRASE, address: approval.owner });
+      if (signed.error || !signed.signedTxXdr) {
+        return setPhase({ kind: "error", message: `Signature non effectuée (refusée ou annulée) : ${errMsg(signed.error ?? "aucune signature")}`, retry: true });
+      }
+
+      setPhase({ kind: "working", step: "Envoi au réseau Stellar…" });
+      const res = await fetch("/api/agent/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signedXdr: signed.signedTxXdr }),
+      });
+      const body = (await res.json()) as { status: string; hash?: string; error?: string };
+      if (body.status === "submitted" && body.hash) {
+        setPhase({ kind: "done", hash: body.hash });
+        onApproved?.(body.hash);
+        return;
+      }
+      const e = body.error ?? "erreur inconnue";
+      if (e.includes("txTooLate")) return setPhase({ kind: "error", message: "Cette demande a expiré. Renvoie le message à l'agent.", retry: false });
+      if (e.includes("txBadSeq")) return setPhase({ kind: "error", message: "Le compte owner a envoyé une autre transaction entre-temps. Renvoie le message à l'agent.", retry: false });
+      setPhase({ kind: "error", message: `Le réseau a refusé la transaction : ${e}`, retry: false });
+    } catch (err) {
+      setPhase({ kind: "error", message: errMsg(err), retry: true });
+    }
+  }
+
+  return (
+    <div className="panel p1-approval" style={card}>
+      <div style={{ fontWeight: 600, marginBottom: 6 }}>
+        {blockedByNetwork ? "⛔ L'agent a été bloqué par le réseau Stellar" : "✋ Ton accord est nécessaire"}
+      </div>
+      {blockedByNetwork ? (
+        <p style={p}>
+          Erreur <code>#3221</code> <code>SpendingLimitExceeded</code> : le plafond on-chain de l'agent est dépassé.
+          {attempt?.rejectedTx && (
+            <>
+              {" "}
+              <a href={attempt.rejectedTx.explorerUrl} target="_blank" rel="noreferrer">
+                Voir la tentative rejetée ↗
+              </a>
+            </>
+          )}
+        </p>
+      ) : null}
+      <p style={p}>
+        {amountUsdc ? <b>{amountUsdc} USDC</b> : "Ce paiement"}
+        {recipientLabel ? <> vers <b>{recipientLabel}</b></> : null}, signé par l&apos;owner {short(approval.owner)} (règle {approval.rule}).
+        Approuver avec Freighter ?
+      </p>
+
+      {phase.kind === "idle" && (
+        <button type="button" onClick={approve} className="btn primary" style={btn}>
+          Approuver avec Freighter
+        </button>
+      )}
+      {phase.kind === "working" && <p style={p}>{phase.step}</p>}
+      {phase.kind === "done" && (
+        <p style={{ ...p, color: "var(--p1-ok, #2e9e5b)" }}>
+          ✅ Paiement envoyé.{" "}
+          <a href={explorerTx(phase.hash)} target="_blank" rel="noreferrer">
+            Voir sur stellar.expert ↗
+          </a>
+        </p>
+      )}
+      {phase.kind === "error" && (
+        <div>
+          <p style={{ ...p, color: "var(--p1-err, #d0443e)" }}>{phase.message}</p>
+          {phase.retry && (
+            <button type="button" onClick={approve} className="btn" style={btn}>
+              Réessayer
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const card: React.CSSProperties = { border: "1px solid var(--p1-border, #c9a227)", padding: 14, margin: "8px 0", maxWidth: 620 };
+const p: React.CSSProperties = { margin: "4px 0", lineHeight: 1.45 };
+/** Marge seulement : l'apparence vient de la classe `btn` de l'app. */
+const btn: React.CSSProperties = { marginTop: 8 };
+
+export default ApprovalCard;
