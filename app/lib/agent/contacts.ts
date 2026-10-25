@@ -3,6 +3,7 @@
 // Bob : compte « bob » du run e2e du coffre (deployments/testnet-e2e.json), inscrit, auditeur 1.
 // Carol : compte de P2, destinataire du transfert confidentiel 75db195e (run validé), inscrit, auditeur 1.
 import { StrKey } from "@stellar/stellar-sdk";
+import { T, pickLang, type Lang } from "./i18n";
 
 export type Contact = { name: string; address: string; aliases: string[] };
 
@@ -78,20 +79,21 @@ export function matchName(raw: string): NameMatch {
  * Clarification à renvoyer pour un destinataire écrit par le planner, ou null s'il est résolu
  * (nom exact du carnet ou adresse G valide). Un nom corrigé ne déclenche jamais de paiement.
  */
-export function recipientClarification(to: string, message?: string): string | null {
+export function recipientClarification(to: string, message?: string, lang: Lang = pickLang(message)): string | null {
+  const t = T[lang];
   const resolved = resolveRecipient(to);
   if (resolved) {
     // Le LLM a pu corriger lui-même une faute (« Alise » → « Alice ») : le nom doit figurer tel quel
     // dans le message brut (ou l'adresse G), sinon on demande confirmation.
     if (message === undefined || mentions(message, resolved.address)) return null;
     const typed = closestWordTo(message, resolved.address);
-    return `Tu veux dire ${resolved.label} ?${typed ? ` (tu as écrit « ${typed} »)` : ""} Redis-le avec le nom exact, je ne paie pas sur une correction.`;
+    return t.didYouMeanTyped(resolved.label, typed);
   }
   const raw = to.trim();
-  if (/^G[A-Z2-7]{10,}/.test(raw)) return `« ${raw.slice(0, 8)}… » n'est pas une adresse Stellar valide : vérifie-la (56 caractères, commence par G).`;
+  if (/^G[A-Z2-7]{10,}/.test(raw)) return t.invalidAddress(raw.slice(0, 8));
   const m = matchName(raw);
-  if (m.kind === "close") return `Tu veux dire ${m.names.join(" ou ")} ? Redis-le avec le nom exact, je ne paie pas sur une correction.`;
-  return `Je ne connais pas « ${raw} » : donne-moi son adresse G….`;
+  if (m.kind === "close") return t.didYouMean(m.names);
+  return t.unknownName(raw);
 }
 
 const words = (message: string) => normaliseName(message).split(/[^a-z0-9]+/).filter(Boolean);

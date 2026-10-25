@@ -6,16 +6,10 @@ import { resolveRecipient, type Recipient } from "./contacts";
 import { payrollLines, sumUsdc, type PayrollLine } from "./payroll";
 import type { Plan } from "./planner";
 import { fromUsdc, type SpendingState } from "./core";
+import { T, pickLang, type Lang, type Messages } from "./i18n";
 
 export type Verdict = "AUTO_EXECUTE" | "NEEDS_APPROVAL" | "NEEDS_VAULT_SIGNATURE" | "BLOCKED" | "INFO" | "PAUSED";
 
-/** B4 : la règle de l'agent a été retirée par l'owner. Ne concerne que la petite caisse publique. */
-export const PAUSED_TEXT =
-  "L'agent est en pause : Sarah a retiré sa règle on-chain, sa signature ne vaut plus rien. Seule la petite caisse publique est coupée ; dans le coffre, Sarah signe déjà chaque paiement.";
-
-/** Texte de réponse quand l'IA a préparé des paiements que Sarah signe dans le coffre. */
-export const vaultPreparedText = (n: number) =>
-  `J'ai préparé ${n} paiement${n > 1 ? "s" : ""} confidentiel${n > 1 ? "s" : ""} : c'est toi qui signes, les montants resteront cachés au public.`;
 
 export type GateDecision = {
   verdict: Verdict;
@@ -29,6 +23,8 @@ export type GateDecision = {
   /** Canal : « private » = destinataire inscrit dans le coffre (Sarah signe), « public » = petite caisse. */
   channel?: "private" | "public";
   budget?: { limitUsdc: number; spentUsdc: number; remainingUsdc: number };
+  /** Langue des textes (raisons, réponses de l'exécuteur) : celle du message, sinon du client, sinon anglais. */
+  lang: Lang;
 };
 
 // ---------- safety net : lecture du message brut, indépendante du LLM ----------
@@ -46,9 +42,6 @@ const ALL_FUNDS = [
   /\btodo o (meu |seu )?(dinheiro|saldo|usdc)\b/, // pt
 ];
 
-/** Refus net (repris d'Orchestra, policy REFUSAL) : pas de carte d'approbation, rien n'est préparé. */
-export const REFUSAL =
-  "Je ne fais pas celui-ci. Ton message me pousse à sauter mes vérifications, et il viderait le compte ou enverrait l'argent vers une adresse inconnue. Si tu le veux vraiment, redemande-le calmement, avec un montant précis, et je te demanderai ton accord.";
 
 const PRESSURE: [string, RegExp[]][] = [
   ["override", [
@@ -90,7 +83,7 @@ export function messageSignals(message: string): MessageSignals {
  * Filtre appliqué au message brut AVANT et indépendamment du planner : pression + (tout l'argent
  * ou adresse hors carnet / illisible) → BLOCKED. Retourne null si rien ne déclenche.
  */
-export function screenMessage(message: string): GateDecision | null {
+export function screenMessage(message: string, lang: Lang = pickLang(message)): GateDecision | null {
   const s = messageSignals(message);
   if (!s.pressure.length) return null;
   const unknownAddress =
@@ -99,7 +92,8 @@ export function screenMessage(message: string): GateDecision | null {
   return {
     verdict: "BLOCKED",
     triggered: ["pressure-wording", ...(s.allFunds ? ["all-funds"] : []), ...(unknownAddress ? ["unplanned-address"] : [])],
-    reasons: [REFUSAL],
+    reasons: [T[lang].refusal], // refus net (repris d'Orchestra) : pas de carte d'approbation
+    lang,
   };
 }
 
@@ -110,41 +104,42 @@ export function screenMessage(message: string): GateDecision | null {
  * Coffre : l'agent ne paie jamais ; les signaux suspects (pression, montant ou adresse qui ne
  * collent pas au message) → BLOCKED, sinon NEEDS_VAULT_SIGNATURE (Sarah signe dans son navigateur).
  */
-/** Texte affiché quand le smart account n'a jamais payé cette adresse (B1). */
-export const FIRST_PAYMENT_REASON = "Premier paiement vers cette adresse : je demande ton accord, même sous le plafond.";
-
 export type DecideOptions = {
   /** Le smart account a déjà payé ce destinataire (historique on-chain). null = historique illisible. */
   paidBefore?: boolean | null;
   /** B4 : aucune règle de l'agent on-chain (findAgentRule === null). */
   paused?: boolean;
+  /** Langue imposée ; sinon détectée sur le message (puis anglais). */
+  lang?: Lang;
 };
 
 export function decide(plan: Plan, message: string, spending: SpendingState | null, inVault = false, opts: DecideOptions = {}): GateDecision {
+  const lang = opts.lang ?? pickLang(message);
+  const t = T[lang];
   const steps = plan.steps;
-  if (steps.some((s) => s.action === "payroll")) return decidePayroll(plan, message, inVault);
+  if (steps.some((s) => s.action === "payroll")) return decidePayroll(plan, message, inVault, lang);
   const pays = steps.filter((s) => s.action === "pay");
 
   if (pays.length === 0) {
-    return { verdict: "INFO", triggered: [], reasons: ["Simple consultation : aucun fonds ne bouge."] };
+    return { verdict: "INFO", triggered: [], reasons: [t.infoOnly], lang };
   }
   if (pays.length > 1) {
-    return { verdict: "BLOCKED", triggered: ["multiple-payments"], reasons: ["Un seul paiement par message, pour que chaque montant soit vérifié séparément."] };
+    return { verdict: "BLOCKED", triggered: ["multiple-payments"], reasons: [t.onePaymentPerMessage], lang };
   }
 
   const pay = pays[0];
   const amount = Number(pay.amount);
   if (!Number.isFinite(amount) || amount <= 0) {
-    return { verdict: "BLOCKED", triggered: ["invalid-amount"], reasons: ["Je n'ai pas pu lire un montant valide, donc rien n'a été fait."] };
+    return { verdict: "BLOCKED", triggered: ["invalid-amount"], reasons: [t.invalidAmount], lang };
   }
   const recipient = resolveRecipient(pay.to);
   if (!recipient) {
-    return { verdict: "BLOCKED", triggered: ["unknown-recipient"], reasons: [`Je ne trouve pas « ${pay.to} » dans le carnet, et ce n'est pas une adresse Stellar valide.`] };
+    return { verdict: "BLOCKED", triggered: ["unknown-recipient"], reasons: [t.unknownRecipient(pay.to)], lang };
   }
 
   const payment = { amountUsdc: pay.amount, recipient };
-  if (inVault) return decideVault(payment, message);
-  if (opts.paused) return { verdict: "PAUSED", channel: "public", triggered: ["agent-paused"], reasons: [PAUSED_TEXT], payment };
+  if (inVault) return decideVault(payment, message, lang);
+  if (opts.paused) return { verdict: "PAUSED", channel: "public", triggered: ["agent-paused"], reasons: [t.paused], payment, lang };
   const triggered: string[] = [];
   const reasons: string[] = [];
 
@@ -152,115 +147,118 @@ export function decide(plan: Plan, message: string, spending: SpendingState | nu
   let budget: GateDecision["budget"];
   if (!spending) {
     triggered.push("budget-unreadable");
-    reasons.push("Je n'ai pas pu lire le budget on-chain de l'agent, donc je demande ton accord.");
+    reasons.push(t.budgetUnreadable);
   } else {
     budget = { limitUsdc: fromUsdc(spending.limit), spentUsdc: fromUsdc(spending.spent), remainingUsdc: fromUsdc(spending.remaining) };
     if (amount > budget.remainingUsdc) {
       triggered.push("spending-limit");
-      reasons.push(
-        `Ça dépasse le budget de l'agent : ${budget.limitUsdc} USDC par ~24 h, ${budget.spentUsdc} déjà dépensés, ${budget.remainingUsdc} restants. Le réseau refusera la signature de l'agent ; il faut la tienne.`,
-      );
+      reasons.push(t.overBudget(budget.limitUsdc, budget.spentUsdc, budget.remainingUsdc));
     }
   }
 
   if (!recipient.known) {
     triggered.push("unknown-recipient");
-    reasons.push("Ce destinataire n'est pas dans ton carnet, donc je demande ton accord.");
+    reasons.push(t.notInContacts);
     // B1 : adresse jamais payée par le smart account (ou historique illisible → fail-closed).
     if (opts.paidBefore !== true) {
       triggered.push("first-payment");
-      reasons.push(opts.paidBefore === null ? `${FIRST_PAYMENT_REASON} (Historique on-chain illisible.)` : FIRST_PAYMENT_REASON);
+      reasons.push(opts.paidBefore === null ? `${t.firstPayment} ${t.historyUnreadable}` : t.firstPayment);
     }
   }
 
-  const net = safetyNet(message, amount, recipient.address);
+  const net = safetyNet(message, amount, recipient.address, t);
   triggered.push(...net.triggered);
   reasons.push(...net.reasons);
 
-  if (triggered.length) return { verdict: "NEEDS_APPROVAL", triggered, reasons, payment, budget, channel: "public" };
+  if (triggered.length) return { verdict: "NEEDS_APPROVAL", triggered, reasons, payment, budget, channel: "public", lang };
   return {
     verdict: "AUTO_EXECUTE",
     channel: "public",
     triggered: [],
-    reasons: [`Dans le budget de l'agent (${budget!.remainingUsdc} USDC restants sur ${budget!.limitUsdc}), destinataire connu : l'agent paie seul.`],
+    reasons: [t.autoExecute(budget!.remainingUsdc, budget!.limitUsdc)],
     payment,
     budget,
+    lang,
   };
 }
 
 /** Safety net : le message brut, pas la sortie du LLM. Commun aux deux canaux. */
-function safetyNet(message: string, amount: number, address: string) {
+function safetyNet(message: string, amount: number, address: string, t: Messages) {
   const triggered: string[] = [];
   const reasons: string[] = [];
   const signals = messageSignals(message);
   if (signals.pressure.length) {
     triggered.push("pressure-wording");
-    reasons.push("Ton message me pousse à sauter mes vérifications ou à me presser, donc je vérifie avec toi.");
+    reasons.push(t.pressure);
   }
   if (signals.amounts.length && !signals.amounts.includes(String(amount))) {
     triggered.push("amount-mismatch");
-    reasons.push(`Le montant compris (${amount} USDC) ne correspond pas à celui écrit dans ton message (${signals.amounts.join(", ")}).`);
+    reasons.push(t.amountMismatch(amount, signals.amounts));
   }
   if (signals.addresses.some((a) => a !== address)) {
     triggered.push("unplanned-address");
-    reasons.push("Ton message mentionne une adresse qui ne fait pas partie du paiement prévu.");
+    reasons.push(t.unplannedAddress);
   }
   return { triggered, reasons };
 }
 
 /** Paie : montants fixés par payroll.ts. `allInVault` : tous les salariés vérifiés inscrits au coffre. */
-function decidePayroll(plan: Plan, message: string, allInVault: boolean): GateDecision {
+function decidePayroll(plan: Plan, message: string, allInVault: boolean, lang: Lang): GateDecision {
+  const t = T[lang];
   if (plan.steps.length > 1) {
-    return { verdict: "BLOCKED", channel: "private", triggered: ["multiple-payments"], reasons: ["La paie se lance seule, sans autre action dans le même message."] };
+    return { verdict: "BLOCKED", channel: "private", triggered: ["multiple-payments"], reasons: [t.payrollAlone], lang };
   }
   const lines = payrollLines();
   if (!allInVault) {
-    return { verdict: "BLOCKED", channel: "private", triggered: ["payroll-not-in-vault"], reasons: ["Un salarié n'est pas inscrit dans le coffre : je ne verse pas un salaire en public."] };
+    return { verdict: "BLOCKED", channel: "private", triggered: ["payroll-not-in-vault"], reasons: [t.payrollNotInVault], lang };
   }
   const s = messageSignals(message);
   const triggered: string[] = [];
   const reasons: string[] = [];
   if (s.pressure.length) {
     triggered.push("pressure-wording");
-    reasons.push("Ton message me pousse à sauter mes vérifications ou à me presser, donc je vérifie avec toi.");
+    reasons.push(t.pressure);
   }
   const fixed = new Set(lines.map((l) => String(Number(l.amountUsdc))));
   if (s.amounts.some((a) => !fixed.has(a))) {
     triggered.push("amount-mismatch");
-    reasons.push(`Les salaires sont fixés dans la paie (${lines.map((l) => `${l.recipient.label} ${l.amountUsdc}`).join(", ")} USDC) : ton message cite un autre montant.`);
+    reasons.push(t.payrollAmounts(lines.map((l) => `${l.recipient.label} ${l.amountUsdc}`).join(", ")));
   }
   if (s.addresses.length) {
     triggered.push("unplanned-address");
-    reasons.push("Ton message mentionne une adresse : la paie ne va qu'aux salariés du carnet.");
+    reasons.push(t.payrollAddress);
   }
   if (triggered.length) {
-    return { verdict: "BLOCKED", channel: "private", triggered, reasons: [...reasons, "Je ne prépare pas la paie sur un message suspect."] };
+    return { verdict: "BLOCKED", channel: "private", triggered, reasons: [...reasons, t.payrollSuspicious], lang };
   }
   return {
     verdict: "NEEDS_VAULT_SIGNATURE",
     channel: "private",
     triggered: ["payroll"],
-    reasons: [vaultPreparedText(lines.length), `Paie : ${sumUsdc(lines.map((l) => l.amountUsdc))} USDC au total.`],
+    reasons: [t.vaultPrepared(lines.length), t.payrollTotal(sumUsdc(lines.map((l) => l.amountUsdc)))],
     payments: lines,
+    lang,
   };
 }
 
-function decideVault(payment: NonNullable<GateDecision["payment"]>, message: string): GateDecision {
-  const net = safetyNet(message, Number(payment.amountUsdc), payment.recipient.address);
+function decideVault(payment: NonNullable<GateDecision["payment"]>, message: string, lang: Lang): GateDecision {
+  const t = T[lang];
+  const net = safetyNet(message, Number(payment.amountUsdc), payment.recipient.address, t);
   if (net.triggered.length) {
     return {
       verdict: "BLOCKED",
       channel: "private",
       triggered: net.triggered,
-      reasons: [...net.reasons, "Destinataire du coffre : je ne prépare rien sur un message suspect. Redemande calmement, avec le montant exact."],
+      reasons: [...net.reasons, t.vaultSuspicious],
       payment,
+      lang,
     };
   }
-  const reasons = [vaultPreparedText(1)];
+  const reasons = [t.vaultPrepared(1)];
   const triggered = ["vault-recipient"];
   if (!payment.recipient.known) {
     triggered.push("unknown-recipient");
-    reasons.push("Ce destinataire est dans le coffre mais pas dans ton carnet : vérifie l'adresse avant de signer.");
+    reasons.push(t.vaultUnknownRecipient);
   }
-  return { verdict: "NEEDS_VAULT_SIGNATURE", channel: "private", triggered, reasons, payment };
+  return { verdict: "NEEDS_VAULT_SIGNATURE", channel: "private", triggered, reasons, payment, lang };
 }

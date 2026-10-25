@@ -7,6 +7,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { getNetworkDetails, isConnected, requestAccess, signMessage } from "@stellar/freighter-api";
 import { TESTNET_PASSPHRASE, short, type SessionStatus } from "./types";
+import { T } from "@/lib/agent/i18n";
+import { useI18n } from "@/lib/i18n/react";
 
 const errMsg = (e: unknown) => (typeof e === "string" ? e : (e as { message?: string })?.message ?? String(e));
 
@@ -19,6 +21,9 @@ function toBase64(sig: unknown): string | null {
 }
 
 export function useOwnerSession() {
+  const { lang } = useI18n(); // langue du site (choisie par l'utilisateur, anglais par défaut)
+  const t = T[lang];
+  const headers = { "x-monolith-lang": lang };
   const [status, setStatus] = useState<SessionStatus | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,29 +44,29 @@ export function useOwnerSession() {
   async function login() {
     setError(null);
     try {
-      setBusy("Connexion à Freighter");
+      setBusy(t.uiConnecting);
       const conn = await isConnected();
-      if (conn.error || !conn.isConnected) return setError("Freighter n'est pas installé ou pas déverrouillé.");
+      if (conn.error || !conn.isConnected) return setError(t.uiNoFreighter);
       const access = await requestAccess();
-      if (access.error) return setError(`Accès refusé : ${errMsg(access.error)}`);
-      const challenge = await fetch("/api/agent/challenge", { cache: "no-store" });
+      if (access.error) return setError(t.uiAccessDenied(errMsg(access.error)));
+      const challenge = await fetch("/api/agent/challenge", { cache: "no-store", headers });
       const c = (await challenge.json()) as { message?: string; token?: string; ownerAddress?: string; error?: string };
       if (!challenge.ok || !c.message || !c.token) return setError(c.error ?? `HTTP ${challenge.status}`);
       if (access.address !== c.ownerAddress) {
-        return setError(`Compte actif ${short(access.address)} : seul l'owner ${short(c.ownerAddress!)} peut se connecter.`);
+        return setError(t.uiWrongAccount(short(access.address), short(c.ownerAddress!)));
       }
       const net = await getNetworkDetails();
-      if (net.error || net.networkPassphrase !== TESTNET_PASSPHRASE) return setError(`Passe Freighter sur Testnet (réseau actuel : ${net.network || "?"}).`);
+      if (net.error || net.networkPassphrase !== TESTNET_PASSPHRASE) return setError(t.uiWrongNet(net.network || "?"));
 
-      setBusy("Signature du défi");
+      setBusy(t.uiSigningChallenge);
       const signed = await signMessage(c.message, { networkPassphrase: TESTNET_PASSPHRASE, address: c.ownerAddress });
       const signature = toBase64(signed.signedMessage);
-      if (signed.error || !signature) return setError(`Message non signé : ${errMsg(signed.error ?? "—")}`);
+      if (signed.error || !signature) return setError(t.uiNotSigned(errMsg(signed.error ?? "—")));
 
-      setBusy("Vérification");
+      setBusy(t.uiVerifying);
       const res = await fetch("/api/agent/session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...headers },
         body: JSON.stringify({ message: c.message, token: c.token, signature }),
       });
       const body = (await res.json()) as SessionStatus & { error?: string };
@@ -84,6 +89,7 @@ export function useOwnerSession() {
 
 export function OwnerSession({ onChange }: { onChange?: (owner: boolean) => void }) {
   const { status, busy, error, login, logout } = useOwnerSession();
+  const t = T[useI18n().lang];
   const owner = !!status?.owner;
 
   useEffect(() => {
@@ -92,16 +98,16 @@ export function OwnerSession({ onChange }: { onChange?: (owner: boolean) => void
 
   return (
     <div className="owner-session" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-      <span className={`tag ${owner ? "ok" : "public"}`} title={owner ? "Les paiements de l'agent sont réels." : "L'agent simule : rien n'est envoyé sur le réseau."}>
-        {owner ? `Owner connecté (${short(status!.ownerAddress)})` : "Mode démo (simulation)"}
+      <span className={`tag ${owner ? "ok" : "public"}`} title={owner ? t.uiOwnerTitle : t.uiDemoTitle}>
+        {owner ? t.uiOwner(short(status!.ownerAddress)) : t.uiDemo}
       </span>
       {owner ? (
-        <button className="btn" type="button" onClick={logout}>Se déconnecter</button>
+        <button className="btn" type="button" onClick={logout}>{t.uiLogout}</button>
       ) : status && !status.enabled ? (
-        <span style={{ fontSize: 13, color: "var(--muted)" }}>Connexion owner désactivée sur ce déploiement.</span>
+        <span style={{ fontSize: 13, color: "var(--muted)" }}>{t.uiLoginDisabled}</span>
       ) : (
         <button className="btn" type="button" disabled={!!busy || !status} onClick={login}>
-          {busy ? <span className="progress-dots">{busy}</span> : "Se connecter en tant que Sarah avec Freighter"}
+          {busy ? <span className="progress-dots">{busy}</span> : t.uiLogin}
         </button>
       )}
       {error && <span style={{ fontSize: 13, color: "var(--hal, #d0443e)" }}>{error}</span>}

@@ -5,7 +5,8 @@ import { NETWORK_PASSPHRASE, TransactionBuilder, fromUsdc, readTokenBalance, sen
 import { readAgentSpending } from "@/lib/agent/executor";
 import { readActivity, verifyVaultReceipt } from "@/lib/agent/activity";
 import { agentRuleStatus, invalidateAgentRuleCache } from "@/lib/agent/config";
-import { PAUSE_SCOPE, preparePause, prepareResume } from "@/lib/agent/pause";
+import { preparePause, prepareResume } from "@/lib/agent/pause";
+import { T, requestLang } from "@/lib/agent/i18n";
 import {
   clearSessionCookieHeader,
   createChallenge,
@@ -22,6 +23,7 @@ export const dynamic = "force-dynamic";
 // GET /api/agent/balance · GET /api/agent/history · GET /api/agent/activity
 export async function GET(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
+  const t = T[requestLang(req)];
   const route = path.join("/");
   // GET /api/agent/session → { enabled, owner, ownerAddress } · GET /api/agent/challenge → { message, token }
   if (route === "session") {
@@ -30,26 +32,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
   // GET /api/agent/pause → { paused, ruleId?, scope }
   if (route === "pause") {
     const s = await agentRuleStatus();
-    if (s.state === "unknown") return NextResponse.json({ error: "règle de l'agent illisible on-chain" }, { status: 502 });
-    return NextResponse.json({ paused: s.state === "paused", ruleId: s.state === "active" ? s.id : undefined, scope: PAUSE_SCOPE });
+    if (s.state === "unknown") return NextResponse.json({ error: t.ruleUnreadable("RPC") }, { status: 502 });
+    return NextResponse.json({ paused: s.state === "paused", ruleId: s.state === "active" ? s.id : undefined, scope: t.pauseScope });
   }
   if (route === "challenge") {
     const secret = sessionSecret();
-    if (!secret) return NextResponse.json({ error: "connexion owner désactivée (SESSION_SECRET absent) : tout le monde est en simulation" }, { status: 503 });
-    return NextResponse.json({ ...createChallenge(secret), ownerAddress: AGENT_CONFIG.ownerAddress }, { headers: { "Cache-Control": "no-store" } });
+    if (!secret) return NextResponse.json({ error: t.loginDisabled }, { status: 503 });
+    return NextResponse.json({ ...createChallenge(secret, Date.now(), requestLang(req)), ownerAddress: AGENT_CONFIG.ownerAddress }, { headers: { "Cache-Control": "no-store" } });
   }
   if (route === "activity") {
     try {
-      return NextResponse.json({ items: await readActivity() });
+      return NextResponse.json({ items: await readActivity(requestLang(req)) });
     } catch (err) {
       console.error("[activity]", err);
-      return NextResponse.json({ error: "activité on-chain illisible" }, { status: 502 });
+      return NextResponse.json({ error: t.errActivity }, { status: 502 });
     }
   }
-  if (route !== "balance" && route !== "history") return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (route !== "balance" && route !== "history") return NextResponse.json({ error: t.errNotFound }, { status: 404 });
 
   const spending = await readAgentSpending();
-  if (!spending) return NextResponse.json({ error: "budget on-chain illisible" }, { status: 502 });
+  if (!spending) return NextResponse.json({ error: t.errBudget }, { status: 502 });
 
   if (route === "balance") {
     const balance = await readTokenBalance(AGENT_CONFIG.ownerAddress, AGENT_CONFIG.usdcSac, AGENT_CONFIG.smartAccount);
@@ -81,12 +83,14 @@ const LoginBody = z.object({ message: z.string().min(1).max(500), token: z.strin
 
 export async function POST(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
+  const lang = requestLang(req);
+  const t = T[lang];
   if (path.join("/") === "session") {
     const secret = sessionSecret();
-    if (!secret) return NextResponse.json({ error: "connexion owner désactivée (SESSION_SECRET absent)" }, { status: 503 });
+    if (!secret) return NextResponse.json({ error: t.loginDisabled }, { status: 503 });
     const body = LoginBody.safeParse(await req.json().catch(() => null));
-    if (!body.success) return NextResponse.json({ error: "{ message, token, signature } requis" }, { status: 400 });
-    const check = verifyLogin(body.data, AGENT_CONFIG.ownerAddress, secret);
+    if (!body.success) return NextResponse.json({ error: t.errLoginBody }, { status: 400 });
+    const check = verifyLogin(body.data, AGENT_CONFIG.ownerAddress, secret, Date.now(), lang);
     if (!check.ok) return NextResponse.json({ error: check.error }, { status: 401 });
     return NextResponse.json(
       { enabled: true, owner: true, ownerAddress: AGENT_CONFIG.ownerAddress },
@@ -95,31 +99,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
   }
   // POST /api/agent/pause { action: "pause" | "resume" } (owner connecté) → XDR non signé + frais simulés.
   if (path.join("/") === "pause") {
-    if (!isOwnerRequest(req, AGENT_CONFIG.ownerAddress)) return NextResponse.json({ error: "réservé à l'owner connecté" }, { status: 401 });
+    if (!isOwnerRequest(req, AGENT_CONFIG.ownerAddress)) return NextResponse.json({ error: t.ownerOnly }, { status: 401 });
     const body = z.object({ action: z.enum(["pause", "resume"]) }).safeParse(await req.json().catch(() => null));
-    if (!body.success) return NextResponse.json({ error: "{ action: \"pause\" | \"resume\" } requis" }, { status: 400 });
-    const prep = body.data.action === "pause" ? await preparePause() : await prepareResume();
-    return prep.ok ? NextResponse.json({ ...prep, scope: PAUSE_SCOPE }) : NextResponse.json({ error: prep.error }, { status: 409 });
+    if (!body.success) return NextResponse.json({ error: t.errPauseBody }, { status: 400 });
+    const prep = body.data.action === "pause" ? await preparePause(lang) : await prepareResume(lang);
+    return prep.ok ? NextResponse.json({ ...prep, scope: t.pauseScope }) : NextResponse.json({ error: prep.error }, { status: 409 });
   }
   if (path.join("/") === "vault-receipt") {
     const body = ReceiptBody.safeParse(await req.json().catch(() => null));
-    if (!body.success) return NextResponse.json({ error: "{ to: G…, hash } requis, sans montant" }, { status: 400 });
-    const res = await verifyVaultReceipt(body.data.to, body.data.hash.toLowerCase());
+    if (!body.success) return NextResponse.json({ error: t.errReceiptBody }, { status: 400 });
+    const res = await verifyVaultReceipt(body.data.to, body.data.hash.toLowerCase(), lang);
     return res.ok ? NextResponse.json({ item: res.item }) : NextResponse.json({ error: res.error }, { status: res.status });
   }
-  if (path.join("/") !== "submit") return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (path.join("/") !== "submit") return NextResponse.json({ error: t.errNotFound }, { status: 404 });
   const body = SubmitBody.safeParse(await req.json().catch(() => null));
-  if (!body.success) return NextResponse.json({ error: "signedXdr requis" }, { status: 400 });
+  if (!body.success) return NextResponse.json({ error: t.errSignedXdr }, { status: 400 });
 
   let tx;
   try {
     tx = TransactionBuilder.fromXDR(body.data.signedXdr, NETWORK_PASSPHRASE);
   } catch {
-    return NextResponse.json({ error: "XDR invalide" }, { status: 400 });
+    return NextResponse.json({ error: t.errBadXdr }, { status: 400 });
   }
   // On ne relaie que des tx d'approbation : source = owner, déjà signée.
   if (!("source" in tx) || tx.source !== AGENT_CONFIG.ownerAddress || tx.signatures.length === 0) {
-    return NextResponse.json({ error: "tx non signée par l'owner" }, { status: 400 });
+    return NextResponse.json({ error: t.errNotOwnerTx }, { status: 400 });
   }
   const res = await sendAndWait(tx as Parameters<typeof sendAndWait>[0]);
   if (res.ok) invalidateAgentRuleCache(); // une pause / reprise change la règle de l'agent
@@ -129,8 +133,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
 }
 
 // DELETE /api/agent/session : déconnexion.
-export async function DELETE(_req: Request, { params }: { params: Promise<{ path: string[] }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
-  if (path.join("/") !== "session") return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (path.join("/") !== "session") return NextResponse.json({ error: T[requestLang(req)].errNotFound }, { status: 404 });
   return NextResponse.json({ owner: false }, { headers: { "Set-Cookie": clearSessionCookieHeader() } });
 }

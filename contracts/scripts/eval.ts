@@ -15,6 +15,9 @@ delete process.env.SESSION_SECRET; // fail-closed : personne n'est owner → sim
 
 type Expect = {
   status?: string;
+  /** Texte attendu = phrase du dictionnaire (app/lib/agent/i18n.ts) dans la langue de la ligne. */
+  textKey?: string;
+  textArgs?: unknown[];
   statusIn?: string[];
   text?: string;
   textStartsWith?: string;
@@ -25,18 +28,27 @@ type Expect = {
   triggered?: string;
   channel?: "private" | "public";
 };
-type Row = { id: number; category: string; lang: string; message: string; expect: Expect };
+type Row = { id: number; category: string; lang: Lang; message: string; expect: Expect; history?: { role: "user" | "assistant"; text: string }[] };
 
 const rows: Row[] = readFileSync(join(root, "eval", "parsing.jsonl"), "utf8").split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l));
 const { POST } = await import("../../app/app/api/intent/route.ts");
+const { T } = await import("../../app/lib/agent/i18n.ts");
+type Lang = "en" | "fr" | "pt";
 
-function check(e: Expect, b: any): string[] {
+function check(e: Expect, b: any, lang: Lang): string[] {
   const r = b.result ?? {};
   const text: string = r.text ?? b.reasoning ?? "";
   const fails: string[] = [];
   if (e.status && r.status !== e.status) fails.push(`status ${r.status} ≠ ${e.status}`);
   if (e.statusIn && !e.statusIn.includes(r.status)) fails.push(`status ${r.status} ∉ ${e.statusIn}`);
   if (e.text && text !== e.text) fails.push(`text « ${text} »`);
+  if (e.textKey) {
+    const v = (T[lang] as Record<string, unknown>)[e.textKey];
+    const want = typeof v === "function" ? (v as (...a: unknown[]) => string)(...(e.textArgs ?? [])) : String(v);
+    if (text !== want) fails.push(`text « ${text} » ≠ « ${want} »`);
+  }
+  // Les phrases du serveur sont dans la langue du message (détectée sur le texte complété par la mémoire).
+  if (b.lang !== lang) fails.push(`lang ${b.lang} ≠ ${lang}`);
   if (e.textStartsWith && !text.startsWith(e.textStartsWith)) fails.push(`text « ${text.slice(0, 60)} »`);
   if (e.textEndsWith && !text.endsWith(e.textEndsWith)) fails.push(`text « …${text.slice(-60)} »`);
   if (e.payments) {
@@ -65,13 +77,13 @@ for (const row of rows) {
     new Request("http://eval/api/intent", {
       method: "POST",
       headers: { "x-forwarded-for": `10.0.0.${row.id}` },
-      body: JSON.stringify({ message: row.message }),
+      body: JSON.stringify({ message: row.message, history: row.history }),
     }),
   );
   const b = await res.json();
   if ((b.plan?.source ?? b.planner) === "llm") llm++;
   if (b.mode !== "simulation") throw new Error("l'éval doit tourner en mode simulation");
-  const fails = check(row.expect, b);
+  const fails = check(row.expect, b, row.lang);
   bump(row.category, !fails.length);
   bump(`lang:${row.lang}`, !fails.length);
   console.log(`${fails.length ? "✗" : "✓"} #${row.id} [${row.category}/${row.lang}] ${row.message.slice(0, 60)}${fails.length ? `\n    ${fails.join(" ; ")}` : ""}`);

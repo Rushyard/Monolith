@@ -5,6 +5,7 @@
 import "server-only";
 import { z } from "zod";
 import { BOOK, CONTACTS } from "./contacts";
+import { KEYWORDS, T, keywordText, pickLang } from "./i18n";
 
 const Amount = z.preprocess(
   (v) => (typeof v === "number" ? String(v) : typeof v === "string" ? v.trim().replace(",", ".").replace(/\s/g, "") : v),
@@ -122,40 +123,35 @@ function parseJson(text: string): unknown {
   }
 }
 
-/** « verse les salaires », « paie l'équipe », « run payroll », « pagar salários »… (texte sans accents). */
-export const PAYROLL_RE =
-  /\b(salaires?|salaries|salary|payroll|pa(ie|yer) (de )?l'?equipe|pay (the |my )?team|salarios?|folha de pagamento|pagar (a )?equipe)\b/;
-
-export const stripAccents = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").replace(/[‘’]/g, "'");
-
-/** Planner de secours, sans LLM : couvre les phrases de la démo, sinon demande de reformuler. */
+/** Planner de secours, sans LLM : couvre les phrases de la démo (fr / en / pt), sinon demande de reformuler. */
 export function fallbackPlan(message: string): PlannerOutputT {
+  const t = T[pickLang(message)];
   const text = message.toLowerCase();
-  const plain = stripAccents(text);
+  const plain = keywordText(message);
   const amount = (/(\d+(?:[.,]\d{1,7})?)\s*(?:usdc|\$|usd|dollars?)/.exec(text) ?? /\$\s*(\d+(?:[.,]\d{1,7})?)/.exec(text))?.[1]?.replace(",", ".");
   const address = /\bG[A-Z2-7]{55}\b/.exec(message)?.[0];
   const contact = Object.keys(CONTACTS).find((n) => new RegExp(`\\b${n}\\b`).test(plain));
   // Paie, sauf si c'est un paiement complet à quelqu'un (« paie 2 USDC à Bob pour son salaire »).
   // Un montant cité avec la paie (« 50 USDC chacun ») va au gatekeeper, qui bloque.
-  if (PAYROLL_RE.test(plain) && !(amount && (address || contact))) return { type: "actions", steps: [{ action: "payroll" }], reasoning: "Paie de l'équipe." };
-  if (/\b(swap|echange|echanger|nft|stak(e|ing)|bridge|pont|lend|pret|emprunt|borrow|troca|trocar)\b/.test(plain))
-    return { type: "unsupported", reason: "Je ne fais que des paiements en USDC : pas d'échange, de NFT, de staking ni de bridge." };
-  if (/\b(pa(ie|ye|yer)|pay|send|envoie|envoyer|vire|virer|transf[eè]re|pague|pagar|envie|enviar|transfira)\b/.test(text)) {
-    const to = address ?? (contact ? contact[0].toUpperCase() + contact.slice(1) : undefined);
-    if (amount && to) return { type: "actions", steps: [{ action: "pay", amount, asset: "USDC", to }], reasoning: `Paiement de ${amount} USDC à ${to}.` };
-    return { type: "clarify", question: "Quel montant en USDC, et à qui (Alice ou une adresse G…) ?" };
+  if (KEYWORDS.payroll.test(plain) && !(amount && (address || contact))) return { type: "actions", steps: [{ action: "payroll" }], reasoning: t.rPayroll };
+  if (KEYWORDS.unsupported.test(plain)) return { type: "unsupported", reason: t.fbUnsupported };
+  // Avant le verbe « payer » : « qu'est-ce que l'agent a déjà payé ? » est une lecture, pas un paiement.
+  if (KEYWORDS.history.test(plain)) return { type: "actions", steps: [{ action: "history", asset: "USDC" }], reasoning: t.rHistory };
+  if (KEYWORDS.pay.test(plain)) {
+    // Nom hors carnet ou mal écrit (« to Alise ») : recopié tel quel, le serveur le vérifie ensuite (A1).
+    const named = KEYWORDS.recipientPrep.exec(plain)?.[1];
+    // Casse d'origine conservée (« Zorglub »), accents retirés comme dans `plain`.
+    const written = named && !KEYWORDS.notAName.has(named) ? new RegExp(`\\b${named}\\b`, "i").exec(message.normalize("NFD").replace(/\p{M}/gu, ""))?.[0] : undefined;
+    const to = address ?? (contact ? contact[0].toUpperCase() + contact.slice(1) : written);
+    if (amount && to) return { type: "actions", steps: [{ action: "pay", amount, asset: "USDC", to }], reasoning: t.rPay(amount, to) };
+    return { type: "clarify", question: t.fbPayClarify };
   }
-  if (/\b(adresse|address|endere[cç]o)\b/.test(text)) {
-    const of = Object.keys(CONTACTS).find((n) => new RegExp(`\\b${n}\\b`).test(plain));
-    return { type: "actions", steps: [{ action: "address", ...(of ? { of } : {}) }], reasoning: "Adresse demandée." };
+  if (KEYWORDS.address.test(plain)) {
+    return { type: "actions", steps: [{ action: "address", ...(contact ? { of: contact } : {}) }], reasoning: t.rAddress };
   }
-  if (/\b(budget|plafond|cap|limite?|or[cç]amento)\b/.test(text))
-    return { type: "actions", steps: [{ action: "budget" }], reasoning: "Plafond de l'agent." };
-  if (/(historique|history|déjà payé|already paid|paiements)/.test(text))
-    return { type: "actions", steps: [{ action: "history", asset: "USDC" }], reasoning: "Historique des paiements de l'agent." };
-  if (/(solde|balance|reste|combien|budget|remaining)/.test(text))
-    return { type: "actions", steps: [{ action: "balance", asset: "USDC" }], reasoning: "Consultation du solde et du budget." };
-  return { type: "clarify", question: "Je n'ai pas compris. Exemple : « paie 2 USDC à Alice »." };
+  if (KEYWORDS.budget.test(plain)) return { type: "actions", steps: [{ action: "budget" }], reasoning: t.rBudget };
+  if (KEYWORDS.balance.test(plain)) return { type: "actions", steps: [{ action: "balance", asset: "USDC" }], reasoning: t.rBalance };
+  return { type: "clarify", question: t.fbNotUnderstood };
 }
 
 export type PlanResult = { output: PlannerOutputT; source: "llm" | "fallback"; error?: string };

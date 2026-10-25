@@ -12,6 +12,7 @@
 import "server-only";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { Keypair } from "./core";
+import { T, type Lang } from "./i18n";
 
 export const SESSION_COOKIE = "monolith_owner";
 export const SESSION_TTL_S = 8 * 3600;
@@ -33,10 +34,10 @@ export function sessionSecret(): string | null {
 }
 
 /** Texte signé par Sarah dans Freighter. Lisible, et lié à ce site et à cette heure. */
-export function createChallenge(secret: string, now = Date.now()) {
+export function createChallenge(secret: string, now = Date.now(), lang: Lang = "en") {
   const nonce = randomBytes(16).toString("hex");
   const expires = new Date(now + CHALLENGE_TTL_S * 1000).toISOString();
-  const message = `Monolith : connexion de l'owner\nnonce: ${nonce}\nexpire: ${expires}`;
+  const message = `${T[lang].loginTitle}\nnonce: ${nonce}\nexpires: ${expires}`;
   return { message, token: mac(secret, message), expires };
 }
 
@@ -50,14 +51,16 @@ export function verifyLogin(
   ownerAddress: string,
   secret: string,
   now = Date.now(),
+  lang: Lang = "en",
 ): LoginCheck {
-  if (!sameMac(mac(secret, input.message), input.token)) return { ok: false, error: "défi inconnu ou modifié" };
+  const t = T[lang];
+  if (!sameMac(mac(secret, input.message), input.token)) return { ok: false, error: t.loginUnknown };
   const nonce = /\nnonce: ([0-9a-f]{32})\n/.exec(input.message)?.[1];
-  const expires = Date.parse(/\nexpire: (\S+)$/.exec(input.message)?.[1] ?? "");
-  if (!nonce || !Number.isFinite(expires)) return { ok: false, error: "défi illisible" };
-  if (now > expires) return { ok: false, error: "défi expiré : recommence" };
+  const expires = Date.parse(/\nexpires: (\S+)$/.exec(input.message)?.[1] ?? "");
+  if (!nonce || !Number.isFinite(expires)) return { ok: false, error: t.loginUnreadable };
+  if (now > expires) return { ok: false, error: t.loginExpired };
   for (const [n, exp] of usedNonces) if (exp < now) usedNonces.delete(n);
-  if (usedNonces.has(nonce)) return { ok: false, error: "défi déjà utilisé" };
+  if (usedNonces.has(nonce)) return { ok: false, error: t.loginReplayed };
   let valid = false;
   try {
     const sig = Buffer.from(input.signature, "base64");
@@ -65,7 +68,7 @@ export function verifyLogin(
   } catch {
     valid = false;
   }
-  if (!valid) return { ok: false, error: "signature invalide : ce n'est pas le compte owner" };
+  if (!valid) return { ok: false, error: t.loginBadSignature };
   usedNonces.set(nonce, expires);
   return { ok: true };
 }
