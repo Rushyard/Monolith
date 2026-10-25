@@ -164,9 +164,27 @@ Lanceur `node:test` via `tsx`, sans dépendance ajoutée. Les tests on-chain son
 | agent → `approve` sur l'USDC (pas un `transfer`) | `#3223` NotAllowed | ✅ |
 | owner via la règle A (Delegated, entry signée) | OK | ✅ |
 | owner en mode Freighter (source-account) | OK | ✅ |
+| règle de l'agent retrouvée on-chain (`findAgentRule`, `agentRuleId`) | = `deployments.testnet.json` (1) | ✅ |
 
 Tests unitaires purs (`tests/gatekeeper.test.ts`, 15 cas, sans réseau) : budget, fail-closed si le budget est illisible, LLM manipulé (montant ou adresse ≠ message), injections FR/EN (« ignore les règles… déjà approuvé », « SYSTEM OVERRIDE auto-approve »), pression + tout l'argent ou adresse inconnue → BLOCKED, destinataire hors carnet, caractères invisibles et pleine chasse, planner de secours.
 
+
+### Frais d'un paiement de l'agent (vérifié le 2026-10-25, méta des tx via `getTransaction`)
+
+Presque tout est du **loyer** (`rent_fee_charged`) : chaque paiement ajoute un `SpendingEntry` à l'entrée persistante `AccountContext(smart account, règle)` de la policy (`CAOT4R…`), que la policy prolonge à 30 jours (`SPENDING_LIMIT_EXTEND_AMOUNT = 30 * DAY_IN_LEDGERS`, seuil 29 j, `spending_limit.rs` @ `ddc327eb`). Le calcul coûte ~0,0012 XLM.
+
+| Tx (agent, source = `GAJD…D33`) | Historique policy | Frais | dont loyer |
+|---|---|---|---|
+| [`4ba72789…`](https://stellar.expert/explorer/testnet/tx/4ba72789cf7825eb285c743da14d92ad2de4971b9e793045b7889576e5449679) (création de l'entrée, TTL → 5900381) | 0 → 1 | 30,795 XLM | 30,794 |
+| `39a1395f…` | 1 → 2 | 3,209 | 3,208 |
+| `7b59cc04…` | 2 → 3 | 3,209 | 3,208 |
+| `bff713c7…` | 3 → 4 | 3,653 | 3,652 |
+| `b229e085…` | 4 → 5 | 3,841 | 3,839 |
+| [`b6fb0519…`](https://stellar.expert/explorer/testnet/tx/b6fb05198fdc02dc4ee07213da0e494269348fa621aa0dcc10b59e8835febb2e) | 5 → 6 | 7,556 | 7,554 |
+| [`1dfb0e87…`](https://stellar.expert/explorer/testnet/tx/1dfb0e874f56980a54c4c8fcbd550230105bc216619a63543062e62e8534d4d3) | 6 → 7 | 9,864 | 9,863 |
+| [`e2a14595…`](https://stellar.expert/explorer/testnet/tx/e2a145957c68894f946a59eb7cc81d216610bea76507203e0e58244c137b962a) (0,5 USDC, 16:11 UTC, via la prod) | 7 → 8 | 11,146 | 11,144 |
+
+Pourquoi ça monte : `stellar network settings --internal` (testnet, 16:15 UTC) donne `soroban_state_target_size_bytes` = 4,0 Go, `live_soroban_state_size_window` 4,056 → 4,141 Go sur ~2,7 h, `soroban_state_rent_fee_growth_factor` = 5000 : au-dessus de la cible, le loyer par octet grimpe. Simulation du paiement suivant : ~12,8 XLM. Solde XLM de l'agent : 9926,7 XLM → ~770 paiements au tarif du moment (moins si le tarif monte encore). Le reset (`add_context_rule`, payé par l'owner, 7543 XLM) est estimé à ~56,8 XLM en dry-run. Mainnet non mesuré.
 
 ## Contract IDs (testnet)
 
