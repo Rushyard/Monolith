@@ -5,6 +5,15 @@
   "spendingLimitPolicy": "CAOT4RM7SYJPLT5XQVPYDEX6HKQOZFODZE6KQVUQJZUSVJY6HBWUVGHQ",
   "smartAccount": "CC5D2NUS2GXAWMTK2DMSNJHVRGRH5GBEZNUMEPIOPBPQQJN6GDLO43KA",
   "ruleOwner": 0,
-  "ruleAgent": 1,
-  "addRuleTx": "3f92c989446c0f8957be7c74a91e26e99cdfd40fef7232615034c58f6f1202b2"
+  "ruleAgent": 2,
+  "addRuleTx": "3f92c989446c0f8957be7c74a91e26e99cdfd40fef7232615034c58f6f1202b2",
+  "resets": [
+    {
+      "at": "2026-10-25T21:00:07.437Z",
+      "removed": 1,
+      "removeTx": "4f8eeaf722708c30ce3438de0c3748b70df17d9af47b2597d2ab2c5bcd358234",
+      "added": 2,
+      "addTx": "3167d0ac4006cff2e06b2fd96cecc2e21247bae91dfef3225570e72792f0a0b8"
+    }
+  ]
 }
