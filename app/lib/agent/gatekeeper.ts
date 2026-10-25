@@ -20,7 +20,21 @@ export type GateDecision = {
 
 // ---------- safety net : lecture du message brut, indépendante du LLM ----------
 
-export type MessageSignals = { pressure: string[]; amounts: string[]; addresses: string[] };
+export type MessageSignals = { pressure: string[]; amounts: string[]; addresses: string[]; allFunds: boolean };
+
+const ALL_FUNDS = [
+  /\btout (mon |l'|le |ton )?(argent|solde|compte|budget|usdc|fonds)\b/,
+  /\btous (mes|les) (usdc|fonds|dollars)\b/,
+  /\bla totalit[ée]\b/,
+  /\ball (of )?(my|the)\b/,
+  /\beverything\b/,
+  /\b(entire|whole) (balance|account)\b/,
+  /\b(max|maximum)\b/,
+];
+
+/** Refus net (repris d'Orchestra, policy REFUSAL) : pas de carte d'approbation, rien n'est préparé. */
+export const REFUSAL =
+  "Je ne fais pas celui-ci. Ton message me pousse à sauter mes vérifications, et il viderait le compte ou enverrait l'argent vers une adresse inconnue. Si tu le veux vraiment, redemande-le calmement, avec un montant précis, et je te demanderai ton accord.";
 
 const PRESSURE: [string, RegExp[]][] = [
   ["override", [
@@ -55,7 +69,24 @@ export function messageSignals(message: string): MessageSignals {
     String(Number((m[1] ?? m[2]).replace(",", "."))),
   );
   const addresses = [...message.matchAll(/\bG[A-Z2-7]{55}\b/g)].map((m) => m[0]);
-  return { pressure, amounts: [...new Set(amounts)], addresses: [...new Set(addresses)] };
+  return { pressure, amounts: [...new Set(amounts)], addresses: [...new Set(addresses)], allFunds: ALL_FUNDS.some((re) => re.test(text)) };
+}
+
+/**
+ * Filtre appliqué au message brut AVANT et indépendamment du planner : pression + (tout l'argent
+ * ou adresse hors carnet / illisible) → BLOCKED. Retourne null si rien ne déclenche.
+ */
+export function screenMessage(message: string): GateDecision | null {
+  const s = messageSignals(message);
+  if (!s.pressure.length) return null;
+  const unknownAddress =
+    s.addresses.some((a) => !resolveRecipient(a)?.known) || /\bG[A-Z2-7]{2,54}(…|\.\.\.)/.test(message);
+  if (!s.allFunds && !unknownAddress) return null;
+  return {
+    verdict: "BLOCKED",
+    triggered: ["pressure-wording", ...(s.allFunds ? ["all-funds"] : []), ...(unknownAddress ? ["unplanned-address"] : [])],
+    reasons: [REFUSAL],
+  };
 }
 
 // ---------- décision ----------

@@ -5,7 +5,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { planIntent, toPlan } from "@/lib/agent/planner";
-import { decide } from "@/lib/agent/gatekeeper";
+import { decide, screenMessage } from "@/lib/agent/gatekeeper";
 import { execute, readAgentSpending } from "@/lib/agent/executor";
 
 export const runtime = "nodejs";
@@ -21,6 +21,13 @@ export async function POST(req: Request) {
   const spendingP = readAgentSpending(); // en parallèle de l'appel LLM
   const planned = await planIntent(message);
   const out = planned.output;
+
+  // Safety net sur le message brut, quel que soit ce que le planner a compris (même un « clarify »).
+  const screened = screenMessage(message);
+  if (screened) {
+    const plan = out.type === "actions" ? toPlan(out, planned.source) : null;
+    return NextResponse.json({ plan, planner: planned.source, verdict: screened, result: { status: "blocked" }, reasoning: screened.reasons.join(" ") });
+  }
 
   if (out.type !== "actions") {
     const text = out.type === "clarify" ? out.question : out.type === "reply" ? out.text : out.reason;
