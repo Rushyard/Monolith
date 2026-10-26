@@ -1,0 +1,190 @@
+/* /vault: inside the monolith. Everything is scoped under .vault-page. */
+
+.vault-page { --vp-gap: 64px; --vp-edge: rgba(255, 244, 220, 0.85); }
+.vault-page .sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- focus ---------- */
+.vault-page :is(a, button, input, summary):focus-visible {
+  outline: 2px solid var(--sun); outline-offset: 3px;
+}
+.vault-page .input:focus-visible { outline-offset: 0; border-color: var(--sun); }
+
+/* ---------- head ---------- */
+.vault-page .vault-head { padding: 56px 0 56px; display: block; }
+.vault-page .vault-head .chapter { display: block; margin-bottom: 20px; }
+.vault-page .intertitle {
+  font-family: var(--console); font-weight: 400; text-transform: uppercase;
+  font-size: clamp(28px, 4.2vw, 52px); letter-spacing: 0.18em; margin: 0; line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.vault-page .vault-head .lede { max-width: 62ch; margin: 24px 0 0; font-size: 18px; line-height: 1.6; color: var(--muted); }
+.vault-page .vault-callout { margin: 0 0 32px; }
+
+/* ---------- layout: sequence left, slab right ---------- */
+.vault-page .vault-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 40px; }
+.vault-page .vault-aside { order: -1; display: grid; gap: 32px; }
+.vault-page .vault-main { min-width: 0; }
+@media (min-width: 960px) {
+  .vault-page .vault-layout { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--vp-gap); align-items: start; }
+  .vault-page .vault-aside { order: 0; grid-column: 2; grid-row: 1; position: sticky; top: 88px; justify-self: end; width: 100%; max-width: 256px; }
+  .vault-page .vault-main { grid-column: 1; grid-row: 1; }
+}
+
+/* ---------- the slab: one black 1:4:9 object, edge-lit ---------- */
+.vault-page .vault-slab {
+  position: relative; isolation: isolate; width: 100%;
+  background: #000; border-radius: 0; padding: 28px 24px 24px;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 28px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+@media (min-width: 960px) { .vault-page .vault-slab { aspect-ratio: 4 / 9; } }
+@media (max-width: 959px) { .vault-page .vault-slab { min-height: 340px; } }
+.vault-page .vault-slab::before { /* the lit edge: a hairline that rises when the owner's browser reads the balance */
+  content: ""; position: absolute; z-index: 2; top: 0; bottom: 0; left: 0; width: 1px;
+  background: var(--vp-edge); box-shadow: 0 0 18px 1px rgba(255, 236, 200, 0.35);
+  transform: scaleY(0); transform-origin: 50% 100%;
+}
+.vault-page .vault-slab.lit::before { transform: scaleY(1); transition: transform 1.4s cubic-bezier(.2, .7, .1, 1); }
+.vault-page .vault-slab .curve-point { opacity: 0.4; z-index: -1; }
+.vault-page .slab-block p { margin: 0; }
+.vault-page .slab-label { color: var(--muted); font-size: 15px; margin-bottom: 8px !important; }
+.vault-page .slab-figure {
+  font-family: var(--mono); font-size: clamp(30px, 3vw, 38px); line-height: 1.1; color: var(--sun);
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere; font-weight: 300;
+}
+.vault-page .slab-figure.sm { font-size: 22px; color: var(--fg); }
+.vault-page .slab-figure.dormant { color: var(--muted); letter-spacing: 0.1em; font-size: 28px; }
+.vault-page .slab-figure small { font-size: 13px; color: var(--muted); margin-left: 8px; }
+.vault-page .slab-foot { display: grid; gap: 10px; justify-items: start; }
+.vault-page .slab-foot p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--muted); }
+.vault-page .slab-foot .slab-curve { font-family: var(--mono); font-size: 12px; }
+
+/* public account, quietly under the slab */
+.vault-page .vault-public { display: grid; gap: 4px; justify-items: start; }
+.vault-page .vault-public p { margin: 0; }
+.vault-page .pub-title { font-weight: 500; font-size: 16px; }
+.vault-page .pub-figure { font-size: 20px; }
+.vault-page .pub-figure small { font-size: 12px; color: var(--muted); margin-left: 6px; }
+.vault-page .pub-note { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.vault-page .vault-public .btn { margin-top: 12px; }
+
+/* ---------- tags: sentence case, a quiet pill ---------- */
+.vault-page .step-title .tag { margin: 0 0 0 12px; }
+.vault-page .tag {
+  font-family: var(--font); font-size: 13px; letter-spacing: 0; text-transform: none; font-weight: 400;
+  padding: 1px 8px; border-radius: 2px; margin-right: 10px; vertical-align: 2px;
+}
+.vault-page .tag.hidden { color: var(--hidden); border-color: rgba(183, 166, 255, 0.45); }
+.vault-page .tag.public { color: var(--sun); border-color: rgba(255, 244, 220, 0.35); }
+
+/* ---------- buttons, inputs ---------- */
+.vault-page .btn {
+  font-size: 15px; font-weight: 500; letter-spacing: 0.01em; text-transform: none;
+  border-radius: 2px; padding: 11px 20px; display: inline-flex; align-items: center; justify-content: center;
+}
+.vault-page .btn.primary { background: var(--sun); border-color: var(--sun); color: #000; }
+.vault-page .btn.primary:hover:not(:disabled) { background: #fff; border-color: #fff; }
+.vault-page .btn.quiet { border-color: transparent; padding-left: 0; color: var(--muted); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--line-strong); }
+.vault-page .btn.quiet:hover:not(:disabled) { color: var(--fg); border-color: transparent; }
+.vault-page .input { border-radius: 2px; background: #000; }
+.vault-page .field label { font-size: 14px; letter-spacing: 0; text-transform: none; color: var(--muted); }
+.vault-page .op { align-items: end; }
+.vault-page .progress-dots { min-width: 5ch; }
+
+/* ---------- the sequence ---------- */
+.vault-page .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.vault-page .step { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 16px; padding-bottom: 48px; counter-increment: step; }
+.vault-page .step:last-child { padding-bottom: 0; }
+.vault-page .step::before { /* the rail between markers */
+  content: ""; position: absolute; left: 15px; top: 38px; bottom: 6px; width: 1px; background: var(--line-strong);
+}
+.vault-page .step:last-child::before { display: none; }
+.vault-page .step-marker {
+  position: relative; z-index: 1; width: 31px; height: 31px; border: 1px solid var(--line-strong); border-radius: 50%;
+  display: grid; place-items: center; background: #000; color: var(--muted);
+  font-family: var(--mono); font-size: 13px;
+}
+.vault-page .step-marker::before { content: counter(step); }
+.vault-page .step[data-state="current"] .step-marker { border-color: var(--sun); color: var(--sun); box-shadow: 0 0 14px rgba(255, 236, 200, 0.25); }
+.vault-page .step[data-state="done"] .step-marker { border-color: var(--sun); background: var(--sun); color: #000; }
+.vault-page .step[data-state="done"] .step-marker::before {
+  content: ""; width: 9px; height: 5px; margin-top: -2px;
+  border-left: 2px solid #000; border-bottom: 2px solid #000; transform: rotate(-45deg);
+}
+.vault-page .step[data-state="done"]::before { background: rgba(255, 244, 220, 0.5); }
+.vault-page .step[data-state="locked"] .step-marker { color: var(--muted); border-style: dashed; }
+.vault-page .step-body { min-width: 0; display: grid; gap: 16px; align-content: start; }
+.vault-page .step-title { margin: 3px 0 0; font-family: var(--font); font-weight: 500; font-size: 21px; line-height: 1.3; letter-spacing: 0; text-transform: none; color: var(--fg); }
+.vault-page .step[data-state="locked"] .step-title,
+.vault-page .step[data-state="upcoming"] .step-title { color: var(--fg); }
+.vault-page .step[data-state="locked"] .step-title { color: var(--muted); }
+.vault-page .step-help { margin: 0; max-width: 60ch; color: var(--muted); font-size: 16px; line-height: 1.6; }
+.vault-page .step-help.dim { font-size: 15px; }
+.vault-page .step-body > .op, .vault-page .step-body > .field { max-width: 520px; }
+.vault-page .step[data-state="done"] .step-help { font-size: 15px; }
+
+/* the agent funding panel is a component from elsewhere: strip its box, keep its content */
+.vault-page .fund-step .step-body > .panel { background: none; border: 0; padding: 0; margin: 0; }
+.vault-page .fund-step h2.section {
+  font-family: var(--font); font-weight: 500; font-size: 21px; line-height: 1.3; letter-spacing: 0;
+  text-transform: none; color: var(--fg); margin: 3px 0 0;
+}
+.vault-page .fund-step .panel > p { max-width: 60ch; font-size: 16px; line-height: 1.6; }
+.vault-page .fund-step .panel > p b { font-weight: 500; color: var(--fg); }
+.vault-page .fund-step .panel { max-width: 560px; }
+
+/* ---------- confirmation line ---------- */
+.vault-page .vault-confirm {
+  margin: 0 0 40px; padding: 4px 0 4px 16px; border-left: 2px solid var(--sun);
+  display: flex; flex-wrap: wrap; gap: 4px 20px; justify-content: space-between; align-items: baseline;
+  color: var(--fg); font-size: 16px;
+}
+.vault-page .vault-confirm .mono { font-size: 13px; color: var(--muted); }
+
+/* ---------- quiet bottom: history, contract, console ---------- */
+.vault-page .vault-quiet { margin-top: 96px; }
+.vault-page .vault-quiet + .vault-quiet { margin-top: 64px; }
+.vault-page h2.section {
+  font-family: var(--font); font-weight: 500; font-size: 20px; letter-spacing: 0; text-transform: none;
+  color: var(--fg); margin: 0 0 20px;
+}
+.vault-page table.data { font-size: 15px; }
+.vault-page table.data th {
+  font-size: 14px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted);
+  border-bottom: 1px solid var(--line-strong); padding: 8px 16px 8px 0;
+}
+.vault-page table.data td { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--line); }
+.vault-page .contract-id { margin: 0 0 12px; font-size: 13px; overflow-wrap: anywhere; color: var(--muted); }
+.vault-page .vault-console summary {
+  cursor: pointer; font-weight: 500; font-size: 20px; list-style: none; display: flex; align-items: center; gap: 12px; color: var(--fg);
+}
+.vault-page .vault-console summary::-webkit-details-marker { display: none; }
+.vault-page .vault-console summary::before {
+  content: ""; width: 7px; height: 7px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+  transform: rotate(-45deg); transition: transform 0.2s;
+}
+.vault-page .vault-console[open] summary::before { transform: rotate(45deg); }
+.vault-page .vault-console .terminal { margin-top: 20px; border-color: var(--line); font-size: 13px; }
+.vault-page .terminal .t { color: var(--muted); }
+
+/* ---------- phones ---------- */
+@media (max-width: 520px) {
+  .vault-page .vault-head { padding: 32px 0 32px; }
+  .vault-page .vault-head .lede { font-size: 17px; margin-top: 16px; }
+  .vault-page .step { grid-template-columns: 32px minmax(0, 1fr); column-gap: 12px; padding-bottom: 40px; }
+  .vault-page .step-marker { width: 28px; height: 28px; }
+  .vault-page .step::before { left: 13px; top: 34px; }
+  .vault-page .step-title { font-size: 19px; }
+  .vault-page .vault-quiet { margin-top: 64px; }
+  .vault-page .btn { width: 100%; }
+  .vault-page .vault-public .btn.quiet { width: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vault-page .vault-slab.lit::before { transition: none; }
+  .vault-page .vault-console summary::before { transition: none; }
+}
