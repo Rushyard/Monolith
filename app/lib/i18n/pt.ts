@@ -370,4 +370,17 @@ export const pt: Record<Key, string> = {
   "sweep.mergeTx": "Fusão",
   "sweep.done": "{amt} USDC voltaram ao cofre: a partir de agora, só tu e o teu auditor o veem.",
   "sweep.fine": "Com transparência: 3 assinaturas Freighter, o valor é público durante o trajeto (transferência e depósito), depois volta a ficar oculto após a fusão.",
+
+  // --- auditor design (p2) ---
+  "aud.p2.scope": "O auditor lê os valores e os saldos. Não pode mover fundos, e a chave de auditoria nunca sai deste navegador.",
+  "aud.p2.readHint": "Lê as últimas operações da cadeia pública. Não precisa de chave.",
+  "aud.p2.keyHint": "Verificada aqui contra o registo on-chain. Não é enviada a nenhum servidor.",
+  "aud.p2.token": "Token",
+  "aud.p2.registry": "Registo",
+  "aud.p2.auditor": "Auditor",
+  "aud.p2.ledger": "Operações",
+  "aud.p2.ledgerCount": "{n} operações, {k} transferências confidenciais.",
+  "aud.p2.colPublic": "O que todos veem na cadeia",
+  "aud.p2.colKey": "O que a chave de auditoria revela",
+  "aud.p2.to": "para",
 };

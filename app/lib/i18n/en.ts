@@ -369,6 +369,19 @@ export const en = {
   "sweep.mergeTx": "Merge",
   "sweep.done": "{amt} USDC are back in the vault: from now on, only you and your auditor can see it.",
   "sweep.fine": "Honest view: 3 Freighter signatures, the amount is public on the way (transfer and deposit), then hidden again once merged.",
+
+  // --- auditor design (p2) ---
+  "aud.p2.scope": "The auditor reads amounts and balances. He cannot move funds, and the audit key never leaves this browser.",
+  "aud.p2.readHint": "Reads the latest operations from the public chain. No key needed.",
+  "aud.p2.keyHint": "Checked here against the registry on-chain. It is not sent to any server.",
+  "aud.p2.token": "Token",
+  "aud.p2.registry": "Registry",
+  "aud.p2.auditor": "Auditor",
+  "aud.p2.ledger": "Operations",
+  "aud.p2.ledgerCount": "{n} operations, {k} confidential transfers.",
+  "aud.p2.colPublic": "What everyone sees on the chain",
+  "aud.p2.colKey": "What the audit key reveals",
+  "aud.p2.to": "to",
 } as const;
 
 export type Key = keyof typeof en;
