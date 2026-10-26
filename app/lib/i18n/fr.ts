@@ -347,6 +347,7 @@ export const fr: Record<Key, string> = {
   "lib.publicAccount": "le compte public",
   // --- mandate + sweep (p2) ---
   "gate.expired": "Mandat expiré : l'agent n'a plus aucun droit",
+  "step.mandate": "Préparer le mandat de l’agent",
   "gate.mandate": "Mandat préparé pour ta signature",
   "verdict.expired": "Mandat expiré",
   "verdict.mandate": "Signe le mandat de l'agent",

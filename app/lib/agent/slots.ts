@@ -4,7 +4,7 @@
 //   « paie 5 usdc »                       → « À qui ? »
 //   « paie alice »                        → « Combien ? »   (même si le LLM a inventé un montant)
 import { BOOK, damerauLevenshtein, normaliseName } from "./contacts";
-import { KEYWORDS, T, allLangs, keywordText, pickLang, type Lang } from "./i18n";
+import { KEYWORDS, T, allLangs, isLiquidityQuestion, keywordText, pickLang, type Lang } from "./i18n";
 
 export type Slots = { isPay: boolean; amount: boolean; recipient: boolean };
 
@@ -46,7 +46,8 @@ export const MEMORY_TURNS = 6;
 export function withMemory(message: string, history: Turn[] = []): string {
   const recent = history.slice(-MEMORY_TURNS);
   const ours = [...allLangs("slotBoth"), ...allLangs("slotTo"), ...allLangs("slotAmount")];
-  const isSlotQ = (t?: Turn) => t?.role === "assistant" && ours.includes(t.text.trim());
+  // + questions du planificateur (« Combien pour l'outil de design ? »).
+  const isSlotQ = (t?: Turn) => t?.role === "assistant" && (ours.includes(t.text.trim()) || isLiquidityQuestion(t.text));
   const parts: string[] = [];
   // Remonte : [user, NOTRE question]* juste avant le message courant.
   let i = recent.length - 1;

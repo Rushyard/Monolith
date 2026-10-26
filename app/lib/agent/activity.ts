@@ -15,6 +15,7 @@ import { AGENT_CONFIG } from "./config";
 import { BOOK } from "./contacts";
 import { ctClient } from "./vault";
 import { T, type Lang, type Messages } from "./i18n";
+import { formatUsdcExact } from "./liquidity";
 import { Address, NETWORK_PASSPHRASE, TransactionBuilder, contractErrorCodes, fromUsdc, rpc, scValToNative, server } from "./core";
 
 const C = AGENT_CONFIG;
@@ -23,6 +24,7 @@ const CACHE_MS = 30_000;
 const MEMORY_MAX = 50;
 
 export function labelFor(address: string): string {
+  if (address === C.smartAccount) return "Petty cash";
   return BOOK.find((c) => c.address === address)?.name ?? `${address.slice(0, 4)}…${address.slice(-4)}`;
 }
 
@@ -118,12 +120,19 @@ async function privateItems(owner: HorizonTx[]): Promise<Item[]> {
   const times = new Map(owner.map((t) => [t.hash, t.created_at]));
   const out: Item[] = [];
   for (const ev of events) {
-    if (ev.type !== "transfer" || ev.from !== C.ownerAddress) continue;
+    // Retrait du coffre de l'owner vers la petite caisse (planificateur de liquidité) : canal public, montant public.
+    const funding = ev.type === "withdraw" && ev.from === C.ownerAddress && ev.to === C.smartAccount;
+    if (!funding && (ev.type !== "transfer" || ev.from !== C.ownerAddress)) continue;
     let at = times.get(ev.txHash);
     if (!at) {
       const r = await fetch(`${HORIZON}/transactions/${ev.txHash}`, { signal: AbortSignal.timeout(10_000) });
       at = r.ok ? ((await r.json()) as HorizonTx).created_at : new Date().toISOString();
     }
+    if (funding && ev.type === "withdraw") {
+      out.push({ at, kind: "paid", channel: "public", to: ev.to, label: labelFor(ev.to), amountUsdc: formatUsdcExact(BigInt(ev.amount)), hash: ev.txHash, reason: (t) => t.actFunded });
+      continue;
+    }
+    if (ev.type !== "transfer") continue;
     out.push({ at, kind: "paid", channel: "private", to: ev.to, label: labelFor(ev.to), hash: ev.txHash, reason: (t) => t.actPrivate });
   }
   return out;
@@ -158,7 +167,8 @@ export type ReceiptCheck = { ok: true; item: ActivityItem } | { ok: false; statu
 
 /**
  * Vérifie qu'un hash est une tx réussie `confidential_transfer` du contrat confidentiel, envoyée
- * par l'owner vers `to`, puis l'ajoute en mémoire. Attend jusqu'à ~10 s que le RPC la voie.
+ * par l'owner vers `to` (ou un `withdraw` du coffre de l'owner vers la petite caisse, planificateur
+ * de liquidité : montant public, lu dans la tx), puis l'ajoute en mémoire. Attend jusqu'à ~10 s que le RPC la voie.
  */
 export async function verifyVaultReceipt(to: string, hash: string, lang: Lang = "en"): Promise<ReceiptCheck> {
   const t = T[lang];
@@ -170,6 +180,21 @@ export async function verifyVaultReceipt(to: string, hash: string, lang: Lang = 
   if (r.status === rpc.Api.GetTransactionStatus.NOT_FOUND) return { ok: false, status: 404, error: t.errReceiptNotFound };
   if (r.status !== rpc.Api.GetTransactionStatus.SUCCESS) return { ok: false, status: 422, error: t.errReceiptFailed };
   const call = decodeInvoke(r.envelopeXdr.toXDR("base64"));
+  if (call && call.contract === CT.token && call.fn === "withdraw") {
+    if (call.args[0] !== C.ownerAddress || call.args[1] !== C.smartAccount || to !== C.smartAccount) return { ok: false, status: 422, error: t.errReceiptMismatch };
+    const funded: Item = {
+      at: new Date((r.createdAt ?? Date.now() / 1000) * 1000).toISOString(),
+      kind: "paid",
+      channel: "public",
+      to,
+      label: labelFor(to),
+      amountUsdc: formatUsdcExact(BigInt(call.args[2] as bigint)),
+      hash,
+      reason: (m) => m.actFunded,
+    };
+    recordActivity(funded);
+    return { ok: true, item: render(funded, lang) };
+  }
   if (!call || call.contract !== CT.token || call.fn !== "confidential_transfer") {
     return { ok: false, status: 422, error: t.errReceiptNotVault };
   }

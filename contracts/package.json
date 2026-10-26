@@ -10,9 +10,10 @@
     "refund": "tsx scripts/refund.ts",
     "reset-agent": "tsx scripts/reset-agent.ts",
     "mandate": "tsx scripts/mandate.ts",
+    "vault-withdraw": "tsx scripts/vault-withdraw.ts",
     "eval": "tsx --tsconfig ../app/tsconfig.json --conditions react-server scripts/eval.ts",
-    "test": "tsx --conditions react-server --test tests/gatekeeper.test.ts tests/routing.test.ts tests/payroll.test.ts tests/session.test.ts tests/names.test.ts tests/slots.test.ts tests/i18n.test.ts tests/mandate.test.ts tests/onchain.test.ts",
-    "test:unit": "tsx --conditions react-server --test tests/gatekeeper.test.ts tests/routing.test.ts tests/payroll.test.ts tests/session.test.ts tests/names.test.ts tests/slots.test.ts tests/i18n.test.ts tests/mandate.test.ts"
+    "test": "tsx --conditions react-server --test tests/gatekeeper.test.ts tests/routing.test.ts tests/payroll.test.ts tests/session.test.ts tests/names.test.ts tests/slots.test.ts tests/i18n.test.ts tests/mandate.test.ts tests/liquidity.test.ts tests/onchain.test.ts",
+    "test:unit": "tsx --conditions react-server --test tests/gatekeeper.test.ts tests/routing.test.ts tests/payroll.test.ts tests/session.test.ts tests/names.test.ts tests/slots.test.ts tests/i18n.test.ts tests/mandate.test.ts tests/liquidity.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22",

@@ -347,6 +347,7 @@ export const en = {
   "lib.publicAccount": "the public account",
   // --- mandate + sweep (p2) ---
   "gate.expired": "Mandate expired: the agent has no right left",
+  "step.mandate": "Prepare the agent’s mandate",
   "gate.mandate": "Mandate prepared for your signature",
   "verdict.expired": "Mandate expired",
   "verdict.mandate": "Sign the agent's mandate",
