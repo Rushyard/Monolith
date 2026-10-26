@@ -232,6 +232,7 @@ export const pt: Record<Key, string> = {
   "step.budget": "Ler o limite do agente",
   "step.address": "Dar o endereço do agente",
   "step.addressOf": "Dar o endereço de {of}",
+  "step.mandate": "Definir a duração do mandato do agente",
   "gate.paused": "Caixa pequena pausada pela owner",
   "net.simulated": "Simulado: nada enviado",
   "net.simRefused": "Simulado: seria recusado · #3221",

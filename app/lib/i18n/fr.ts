@@ -231,6 +231,7 @@ export const fr: Record<Key, string> = {
   "step.budget": "Lire le plafond de l'agent",
   "step.address": "Donner l'adresse de l'agent",
   "step.addressOf": "Donner l'adresse de {of}",
+  "step.mandate": "Fixer la durée du mandat de l'agent",
   "gate.paused": "Petite caisse mise en pause par l'owner",
   "net.simulated": "Simulé : rien n'est envoyé",
   "net.simRefused": "Simulé : serait refusé · #3221",
