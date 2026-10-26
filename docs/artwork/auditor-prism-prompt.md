@@ -1,0 +1,9 @@
+# Auditor — prisme optique
+
+Créé le 26 octobre 2026 avec l’outil intégré imagegen. Remplace l’œil rouge CSS de la page /auditor.
+
+Master : auditor-prism-master.png. Export : ../../app/public/artwork/auditor-prism.webp (1200 px, WebP).
+
+## Prompt exact
+
+Use case: stylized-concept. Asset type: original premium cinematic illustration for the Auditor page of Monolith, a confidential treasury application. Primary request: an elegant mysterious optical artifact replacing a crude glowing red computer eye. Subject: a single tall sculptural triangular prism of smoky black optical glass standing upright on a dark satin stone plane. Precision cut edges, subtle internal glass planes, a very narrow warm ivory ray entering from upper left and becoming a restrained luminous seam inside the prism, a delicate refracted ivory line reflected on the stone. The glass reveals only a glimpse of its interior. Material feels tangible, beautifully crafted, almost archaeological yet futuristic. Composition: landscape 4:3, isolated complete artifact centered slightly right at 57% horizontal, fills around 65% of frame height with generous black negative space. Full object and subtle reflection visible, no cropped top. Background pure near-black, edges fade smoothly into black for seamless website integration. Style: sophisticated photorealistic practical miniature cinematography, 2001-inspired monumental silence, fine analog grain, deep shadows, controlled soft ivory rim light, very high material quality. Palette strictly obsidian black, charcoal, smoky glass, warm ivory. No red light, no eye, no camera lens, no ring, no LED, no neon, no rainbow dispersion, no blue or purple, no people, no text, no labels, no UI, no logos, no padlock, no coins, no watermark. Strong clean silhouette, restrained beautiful editorial art, no excessive glow.

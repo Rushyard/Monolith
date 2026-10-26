@@ -3,9 +3,9 @@
 // Auditor view (P2): Monolith's audit key reveals the amounts of confidential transfers.
 // The key is never shipped in the app nor stored: it only lives in the page state.
 import { useState } from "react";
+import Image from "next/image";
 
 import { CT, auditToken, explorerTx, formatUsdc, short, type AuditRow, type KeyStatus } from "@/lib/confidential";
-import { HalEye, type HalMood } from "../fx/hal";
 import { Cipher, Decrypt, TypeLine } from "../fx/scramble";
 import { AmbientFilm } from "../fx/ambient-film";
 import { useI18n } from "@/lib/i18n/react";
@@ -38,9 +38,8 @@ export default function AuditorPage() {
   }
 
   const revealed = status.key === "valid";
-  const mood: HalMood = status.key === "valid" ? "accept" : status.key === "invalid" ? "refuse" : "idle";
   const id = CT.auditorId;
-  const halSays =
+  const auditSays =
     status.key === "valid"
       ? t("aud.hal.valid", { id })
       : status.key === "invalid"
@@ -54,9 +53,11 @@ export default function AuditorPage() {
   return (
     <div className="auditor-page">
       <div className="aud-stage">
-        <aside className="aud-hal">
-          <HalEye mood={mood} />
-          <TypeLine text={halSays} className="hal-says" />
+        <aside className="aud-artifact" data-state={status.key}>
+          <div className="aud-artwork" aria-hidden="true">
+            <Image src="/artwork/auditor-prism.webp" alt="" width={1200} height={900} sizes="(min-width: 960px) 42vw, 90vw" className="aud-prism" />
+          </div>
+          <TypeLine text={auditSays} className="aud-status" />
         </aside>
 
         <header className="page-head has-film aud-head">

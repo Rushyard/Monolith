@@ -1,26 +1,26 @@
-/* /auditor — HAL's console. HAL's eye is the one bold object; the ledger is a calm record. */
+/* /auditor — optical glass reveals a glimpse; the ledger remains a calm record. */
 
 .auditor-page { --aud-gap: 64px; }
 
-/* ---------- stage: title + actions left, the eye right (sticky) ---------- */
+/* ---------- stage: title + actions left, the prism right (sticky) ---------- */
 .auditor-page .aud-stage {
   display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 48px; align-items: start;
 }
-.auditor-page .aud-hal {
-  display: grid; justify-items: center; gap: 28px; padding: 32px 0 8px; text-align: left; min-width: 0;
+.auditor-page .aud-artifact {
+  display: grid; justify-items: center; gap: 18px; padding: 16px 0 8px; text-align: left; min-width: 0;
 }
-.auditor-page .aud-hal .hal-lens { width: clamp(132px, 38vw, 200px) !important; height: clamp(132px, 38vw, 200px) !important; }
-.auditor-page .hal-says {
+.auditor-page .aud-artwork { width: 100%; max-width: 560px; overflow: hidden; }
+.auditor-page .aud-prism { display: block; width: 100%; height: auto; }
+.auditor-page .aud-status {
   justify-self: stretch; text-align: left; margin: 0; min-height: 5.4em;
   font-size: 12px; line-height: 1.9; letter-spacing: 0.1em; color: var(--fg);
 }
 
 @media (min-width: 960px) {
   .auditor-page .aud-stage { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
-  .auditor-page .aud-hal {
-    grid-column: 2; grid-row: 1 / span 2; position: sticky; top: 88px; padding-top: 72px;
+  .auditor-page .aud-artifact {
+    grid-column: 2; grid-row: 1 / span 2; position: sticky; top: 88px; padding-top: 24px;
   }
-  .auditor-page .aud-hal .hal-lens { width: clamp(180px, 20vw, 232px) !important; height: clamp(180px, 20vw, 232px) !important; }
   .auditor-page .aud-head, .auditor-page .aud-steps { grid-column: 1; }
 }
 
