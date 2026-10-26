@@ -48,7 +48,8 @@ export function MandateBadge({ refreshKey = 0 }: { refreshKey?: number }) {
   const expired = s.expired || (left !== null && left <= 0);
   const text = s.validUntilLedger === null ? m.badgeNone : expired ? m.badgeExpired : m.badgeLeft(left!);
   return (
-    <span className={`tag ${expired ? "public" : "ok"}`} title={s.validUntilLedger ? `valid_until = ledger ${s.validUntilLedger}` : undefined}>
+    <span className={`session-mandate ${expired ? "expired" : "live"}`} title={s.validUntilLedger ? `valid_until = ledger ${s.validUntilLedger}` : undefined}>
+      <span className="session-dot" aria-hidden />
       {text}
     </span>
   );
@@ -61,14 +62,14 @@ export function MandateCard({ result, receivedAt, onSigned }: { result: MandateS
   const approval: OwnerApproval = { status: "needs_owner_approval", unsignedXdr: result.unsignedXdr, owner: result.owner, rule: 0, validUntilLedger: result.validUntilLedger };
   const { phase, approve } = useOwnerApproval(approval, receivedAt, onSigned);
   return (
-    <div className="approve">
-      <p style={{ margin: "0 0 8px" }}>{result.text}</p>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ fontSize: 13 }}>{m.fee(result.feeXlm)}</span>
+    <div className="approve mandate">
+      <p className="approve-lead">{result.text}</p>
+      <div className="approve-actions">
+        <span className="approve-fee">{m.fee(result.feeXlm)}</span>
         <button className="btn primary" type="button" disabled={phase.kind === "working" || phase.kind === "done"} onClick={approve}>
           {phase.kind === "working" ? <span className="progress-dots">{phase.step.replace("…", "")}</span> : m.sign}
         </button>
-        {phase.kind === "error" && <span style={{ fontSize: 13, color: "var(--hal, #d0443e)" }}>{phase.message}</span>}
+        {phase.kind === "error" && <span className="approve-error">{phase.message}</span>}
         {phase.kind === "done" && <a className="link" href={explorerTx(phase.hash)} target="_blank" rel="noreferrer">tx ↗</a>}
       </div>
     </div>

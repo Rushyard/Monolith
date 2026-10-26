@@ -42,12 +42,13 @@ export function ActivityFeed({ refreshKey }: { refreshKey: number }) {
         <ol className="activity-list">
           {items.slice(0, MAX).map((it, i) => (
             <li key={`${it.hash ?? it.at}-${it.to}-${i}`} className={`activity-item ${it.kind}`}>
-              <span className={`badge ${it.channel}`}>{t(it.channel === "private" ? "act.private" : "act.public")}</span>
+              <time className="act-time" dateTime={it.at}>{time(it.at)}</time>
               <span className="act-who">{it.label} <em>{short(it.to)}</em></span>
+              <span className="act-kind">{t(`act.kind.${it.kind}`)}</span>
+              <span className={`badge ${it.channel}`}>{t(it.channel === "private" ? "act.private" : "act.public")}</span>
               <span className="act-amt">
                 {it.channel === "private" ? t("act.hidden") : it.amountUsdc ? `${it.amountUsdc} USDC` : "—"}
               </span>
-              <span className="act-kind">{t(`act.kind.${it.kind}`)} · {time(it.at)}</span>
               {it.hash && <a className="link act-tx" href={explorerTx(it.hash)} target="_blank" rel="noreferrer">{t("verdict.tx")} ↗</a>}
             </li>
           ))}

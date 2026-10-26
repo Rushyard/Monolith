@@ -30,7 +30,7 @@ export function BudgetSlab({ refreshKey = 0, alarm = false }: { refreshKey?: num
         <div className="slab-light" style={{ height: `${left * 100}%` }} />
       </div>
       <div className="slab-legend">
-        <span className="chapter">{t("slab.title")}</span>
+        <span className="slab-title">{t("slab.title")}</span>
         {b ? (
           <>
             <span className="slab-amount">{fmt(b.remainingUsdc)}<small> / {fmt(b.limitUsdc)} USDC</small></span>

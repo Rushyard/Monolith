@@ -18,12 +18,12 @@ function SignPrepared({ prep, onDone }: { prep: Prep; onDone: (hash: string) => 
   const { phase, approve } = useOwnerApproval(approval, receivedAt, onDone);
   const t = T[useI18n().lang];
   return (
-    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-      <span style={{ fontSize: 13 }}>{t.uiFee(prep.feeXlm)}</span>
+    <div className="approve-actions">
+      <span className="approve-fee">{t.uiFee(prep.feeXlm)}</span>
       <button className="btn primary" type="button" disabled={phase.kind === "working" || phase.kind === "done"} onClick={approve}>
         {phase.kind === "working" ? <span className="progress-dots">{phase.step.replace("…", "")}</span> : prep.action === "pause" ? t.uiSignPause : t.uiSignResume}
       </button>
-      {phase.kind === "error" && <span style={{ fontSize: 13, color: "var(--hal, #d0443e)" }}>{phase.message}</span>}
+      {phase.kind === "error" && <span className="approve-error">{phase.message}</span>}
       {phase.kind === "done" && <a className="link" href={explorerTx(phase.hash)} target="_blank" rel="noreferrer">tx ↗</a>}
     </div>
   );
@@ -64,16 +64,16 @@ export function PauseBanner({ owner, refreshKey = 0 }: { owner: boolean; refresh
   if (!paused && !owner) return null;
 
   return (
-    <section className={`panel ${paused ? "pause-banner" : ""}`} style={{ borderColor: paused ? "var(--hal, #d0443e)" : undefined }}>
-      <b>{paused ? t.uiPaused : t.uiActive(status.ruleId)}</b>
-      <p style={{ margin: "6px 0", fontSize: 13, color: "var(--muted)" }}>{status.scope}</p>
+    <section className={`pause-panel ${paused ? "pause-banner" : "running"}`}>
+      <b className="pause-title">{paused ? t.uiPaused : t.uiActive(status.ruleId)}</b>
+      <p className="pause-scope">{status.scope}</p>
       {owner && !prep && (
-        <button className="btn" type="button" disabled={busy} onClick={() => ask(paused ? "resume" : "pause")}>
+        <button className={`btn ${paused ? "" : "quiet"}`} type="button" disabled={busy} onClick={() => ask(paused ? "resume" : "pause")}>
           {busy ? <span className="progress-dots">{t.uiSimulating}</span> : paused ? t.uiResume : t.uiPause}
         </button>
       )}
       {prep && <SignPrepared prep={prep} onDone={() => { setPrep(null); setTimeout(refresh, 1500); }} />}
-      {error && <p style={{ fontSize: 13, color: "var(--hal, #d0443e)" }}>{error}</p>}
+      {error && <p className="approve-error">{error}</p>}
     </section>
   );
 }

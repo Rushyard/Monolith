@@ -174,7 +174,7 @@ export function Transmission({ message, response, error, receivedAt, fresh, appr
   const r = response?.result;
   return (
     <article className={`tx-card ${outcome} ${fresh ? "fresh" : ""}`}>
-      <p className="tx-request">« {message} »</p>
+      <p className="tx-request"><q>{message}</q></p>
       {response?.mode === "simulation" && <p className="sim-tag">{t("sim.tag")}</p>}
       {error && <div className="verdict bad"><span className="verdict-label">{t("verdict.error")}</span><p>{error}</p></div>}
       {response && (
