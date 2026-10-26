@@ -7,6 +7,10 @@ import { useOwnerApproval } from "@/components/agent/ApprovalCard";
 import { VaultPayCard } from "@/components/agent/VaultPayCard";
 import { MandateCard } from "@/components/agent/MandateBadge";
 import { SweepCard } from "@/components/agent/SweepCard";
+// --- liquidity (P1) ---
+import { LiquidityCard } from "@/components/agent/LiquidityCard";
+import { LT } from "@/lib/agent/i18n";
+// --- fin liquidity (P1) ---
 import { short, type IntentResponse, type OwnerApproval } from "@/components/agent/types";
 import { useI18n } from "@/lib/i18n/react";
 import { outcomeOf, type Mood } from "./stage";
@@ -27,7 +31,7 @@ function stepText(s: NonNullable<IntentResponse["plan"]>["steps"][number], t: T)
 function nodes(res: IntentResponse, outcome: Mood, t: T): Node[] {
   const { plan, verdict, result } = res;
   const gate = t("node.gate"), net = t("node.net");
-  const planner: Node = { name: t("node.planner"), text: plan ? plan.steps.map((s) => stepText(s, t)).join(" · ") : t("plan.none"), tone: plan ? "ok" : "idle" };
+  const planner: Node = { name: t("node.planner"), text: plan ? plan.steps.map((s) => (s.action === "plan_liquidity" ? LT[res.lang ?? "en"].plannerStep /* liquidity (P1) */ : stepText(s, t))).join(" · ") : t("plan.none"), tone: plan ? "ok" : "idle" };
   const g: Node = !verdict
     ? { name: gate, text: t("gate.none"), tone: "idle" }
     : verdict.verdict === "AUTO_EXECUTE" ? { name: gate, text: t("gate.auto"), tone: "ok" }
@@ -37,6 +41,9 @@ function nodes(res: IntentResponse, outcome: Mood, t: T): Node[] {
     : verdict.verdict === "PAUSED" ? { name: gate, text: t("gate.paused"), tone: "warn" }
     : verdict.verdict === "EXPIRED" ? { name: gate, text: t("gate.expired"), tone: "bad" }
     : verdict.verdict === "MANDATE" ? { name: gate, text: t("gate.mandate"), tone: "warn" }
+    // --- liquidity (P1) ---
+    : verdict.verdict === "LIQUIDITY" ? { name: gate, text: LT[res.lang ?? "en"].gate, tone: "ok" }
+    // --- fin liquidity (P1) ---
     : { name: gate, text: t("gate.info"), tone: "ok" };
   const vault = result.status === "needs_vault_signature";
   const n: Node =
@@ -122,6 +129,15 @@ function Verdict({ res, outcome, hash }: { res: IntentResponse; outcome: Mood; h
       ? <div className="verdict ok"><span className="verdict-label">{t("verdict.mandateSigned")}</span><p>{r.text}</p></div>
       : <div className="verdict warn"><span className="verdict-label">{t("verdict.mandate")}</span></div>;
   }
+  // --- liquidity (P1) ---
+  if (r.status === "needs_vault_withdraw" || r.status === "liquidity_enough" || r.status === "liquidity_simulated") {
+    const l = LT[res.lang ?? "en"];
+    const signed = r.status === "needs_vault_withdraw" && outcome === "approved";
+    const tone = r.status === "liquidity_simulated" ? "" : r.status === "liquidity_enough" || signed ? "ok" : "warn";
+    const label = r.status === "liquidity_simulated" ? t("verdict.simulated") : l.verdict;
+    return <div className={`verdict ${tone}`}><span className="verdict-label">{label}</span><p>{signed ? l.fine(r.amountUsdc) : r.text}</p></div>;
+  }
+  // --- fin liquidity (P1) ---
   if (r.status === "paused") {
     return <div className="verdict warn"><span className="verdict-label">{t("verdict.paused")}</span><p>{t("verdict.pausedText")}</p></div>;
   }
@@ -170,7 +186,10 @@ export function Transmission({ message, response, error, receivedAt, fresh, appr
   approvedHash?: string; onApproved: (hash: string) => void;
 }) {
   const { t } = useI18n();
-  const outcome = outcomeOf({ response, error }, !!approvedHash);
+  // --- liquidity (P1) : humeur des statuts du planificateur, sans toucher à stage.tsx ---
+  const liq = response?.result.status;
+  const outcome: Mood = liq === "needs_vault_withdraw" ? (approvedHash ? "approved" : "pending") : liq === "liquidity_simulated" ? "simulated" : outcomeOf({ response, error }, !!approvedHash);
+  // --- fin liquidity (P1) ---
   const r = response?.result;
   return (
     <article className={`tx-card ${outcome} ${fresh ? "fresh" : ""}`}>
@@ -192,6 +211,9 @@ export function Transmission({ message, response, error, receivedAt, fresh, appr
           {r?.status === "needs_vault_signature" && (
             <VaultPayCard request={r} onDone={(hashes) => onApproved(hashes[hashes.length - 1])} />
           )}
+          {/* --- liquidity (P1) --- */}
+          {r?.status === "needs_vault_withdraw" && <LiquidityCard request={r} onDone={onApproved} />}
+          {/* --- fin liquidity (P1) --- */}
           <details className="tx-details">
             <summary>{t("det.title")}</summary>
             {response.plan?.reasoning && <p>{t("det.planner", { r: response.plan.reasoning, src: t(response.plan.source === "llm" ? "det.llm" : "det.fallback") })}</p>}

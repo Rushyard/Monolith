@@ -140,6 +140,7 @@ const en = {
   actRefusedCode: (code: number) => `Refused by the network (#${code}).`,
   actRefused: "Refused by the network.",
   actPrivate: "Signed by the owner in the vault: amount hidden.",
+  actFunded: "Vault → petty cash, signed by the owner: the amount out is public, what stays in the vault is not.",
   actBlocked: "Blocked by the gatekeeper.",
   actWaiting: "Waiting for the owner's signature in the vault.",
   // session (B12)
@@ -265,6 +266,7 @@ const fr: Messages = {
   actRefusedCode: (code) => `Refusé par le réseau (#${code}).`,
   actRefused: "Refusé par le réseau.",
   actPrivate: "Signé par l'owner dans le coffre : montant caché.",
+  actFunded: "Coffre → petite caisse, signé par l'owner : le montant sorti est public, ce qui reste dans le coffre ne l'est pas.",
   actBlocked: "Bloqué par le gatekeeper.",
   actWaiting: "En attente de la signature de l'owner dans le coffre.",
   loginTitle: "Monolith : connexion de l'owner",
@@ -385,6 +387,7 @@ const pt: Messages = {
   actRefusedCode: (code) => `Recusado pela rede (#${code}).`,
   actRefused: "Recusado pela rede.",
   actPrivate: "Assinado pelo owner no cofre: valor oculto.",
+  actFunded: "Cofre → caixa, assinado pelo owner: o valor que sai é público, o que fica no cofre não.",
   actBlocked: "Bloqueado pelo gatekeeper.",
   actWaiting: "Aguardando a assinatura do owner no cofre.",
   loginTitle: "Monolith: login do owner",
@@ -571,6 +574,9 @@ const liquidityEn = {
   receiptFailed: "Done on-chain, but the activity feed didn't get the receipt.",
   fine: (out: string) => `The public sees ${out} USDC leave the vault. It doesn't see what stays inside.`,
   plannerStep: "Plan the week's cash",
+  gate: "Amount computed in code: Sarah signs",
+  verdict: "Cash plan",
+  chip: "Plan my week: Alice 4 and 5, design tool 3 on Friday",
 };
 type LiquidityMessages = typeof liquidityEn;
 
@@ -598,6 +604,9 @@ const liquidityFr: LiquidityMessages = {
   receiptFailed: "Fait on-chain, mais le journal d'activité n'a pas reçu le reçu.",
   fine: (out) => `Le public voit ${out} USDC sortir du coffre. Il ne voit pas ce qui reste dedans.`,
   plannerStep: "Prévoir la trésorerie de la semaine",
+  gate: "Montant calculé en code : Sarah signe",
+  verdict: "Plan de trésorerie",
+  chip: "Prévois ma semaine : Alice 4 et 5, l'outil de design 3 vendredi",
 };
 
 const liquidityPt: LiquidityMessages = {
@@ -624,6 +633,9 @@ const liquidityPt: LiquidityMessages = {
   receiptFailed: "Feito on-chain, mas o registro de atividade não recebeu o recibo.",
   fine: (out) => `O público vê ${out} USDC saírem do cofre. Não vê o que fica dentro.`,
   plannerStep: "Planejar o caixa da semana",
+  gate: "Valor calculado em código: Sarah assina",
+  verdict: "Plano de caixa",
+  chip: "Planeje minha semana: Alice 4 e 5, ferramenta de design 3 na sexta",
 };
 
 export const LT: Record<Lang, LiquidityMessages> = { en: liquidityEn, fr: liquidityFr, pt: liquidityPt };
