@@ -84,9 +84,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
 }
 
 // POST /api/agent/submit { signedXdr } : soumet la tx d'approbation signée par Freighter.
-// POST /api/agent/vault-receipt { to, hash } : reçu d'un transfert confidentiel (sans montant).
+// POST /api/agent/vault-receipt { to, hash } : reçu d'un transfert confidentiel (sans montant),
+// ou d'un withdraw du coffre vers la petite caisse (to = smart account C…, montant public lu dans la tx).
 const SubmitBody = z.object({ signedXdr: z.string().min(1).max(20_000) });
-const ReceiptBody = z.object({ to: z.string().regex(/^G[A-Z2-7]{55}$/), hash: z.string().regex(/^[0-9a-f]{64}$/i) }).strict();
+const ReceiptBody = z.object({ to: z.string().regex(/^[GC][A-Z2-7]{55}$/), hash: z.string().regex(/^[0-9a-f]{64}$/i) }).strict();
 
 // POST /api/agent/session { message, token, signature } : connexion owner (signature SEP-53 Freighter).
 const LoginBody = z.object({ message: z.string().min(1).max(500), token: z.string().min(1).max(200), signature: z.string().min(1).max(200) }).strict();

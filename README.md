@@ -84,6 +84,7 @@ TODO: video link.
 | **Owner approves 50 USDC** (rule A, owner as delegated signer) | [`a394bd32…`](https://stellar.expert/explorer/testnet/tx/a394bd32034d6b7fdf4b4cb62837193f0b8db9b67c149c805345eec028660eb7) |
 | **From the app with Freighter:** agent's attempt rejected on-chain (#3221) | [`eb70b4a2…`](https://stellar.expert/explorer/testnet/tx/eb70b4a2cd5eaf80d7df9bed9aacac25ee7e99a100f0d35d0b92015f16293676) |
 | ↳ owner approval signed in Freighter, submitted | [`39a0634f…`](https://stellar.expert/explorer/testnet/tx/39a0634f3ea7df229504c3b152342fc111d60be057df00e5007ebb5b34884243) |
+| **Liquidity planner: withdraw 10 USDC from Sarah's vault to the petty cash** (amount public, vault balance hidden) | [`5227d970…`](https://stellar.expert/explorer/testnet/tx/5227d970b1c2a12c5a7f5743e8f060d364744568840a614170f35dcaf7717ab2) |
 
 Every step (register, merge, …) and the v1 runs are in [`docs/architecture.md`](docs/architecture.md).
 
@@ -102,6 +103,7 @@ What `POST /api/intent` does, all of it covered by `npm test` in `contracts/` (1
 - **Missing details (A2/A3), checked in code.** "pay" → "How much, and to whom?", "pay 5 usdc" → "To whom?", "pay alice" → "How much?" (same in French and Portuguese) (even if the LLM guessed an amount). The client sends its last turns; the server only uses them to complete an answer to its own question, then runs the whole pipeline on the combined text.
 - **Reads (A7).** `budget` (cap, spent, remaining, read from the policy) and `address` (contact book or smart account): the server writes the answer, the LLM never states a number or an address.
 - **Pause (B4).** The owner can remove the agent's rule (`remove_context_rule`, rule found with `findAgentRule`) and add it back with the same parameters as `reset-agent.ts`: the server prepares unsigned XDRs (owner as source) with simulated fees, Sarah signs in Freighter. No agent rule on-chain → verdict `PAUSED`. It only cuts the public petty cash; in the vault Sarah already signs everything. The two transactions were only simulated (pause ~0.10 XLM, re-add ~0.02 XLM in resource fees on 2026-10-25), not sent.
+- **Liquidity planner ("Receiving $10,000 should not mean exposing $10,000").** "Plan my week: Alice 4 and 5, design tool 3 on Friday" (fr / en / pt): the planner only extracts the expenses (`plan_liquidity`, 1 to 5; every amount must appear in what the user wrote, otherwise the agent asks). Fixed code ([`app/lib/agent/liquidity.ts`](app/lib/agent/liquidity.ts), BigInt, 7 decimals) computes need = expenses + 2 USDC reserve, then withdraw = need − petty cash (public USDC balance of the smart account, read on-chain), rounded up to the next 10 USDC and capped at 50, or "no withdrawal needed". Sarah's browser checks her vault's available balance (never shown, never sent to the server) and she signs one `withdraw` to the petty cash (`LiquidityCard`); the receipt is checked on-chain. Visitors get the same plan as a simulation. Proven on testnet: [`5227d970…`](https://stellar.expert/explorer/testnet/tx/5227d970b1c2a12c5a7f5743e8f060d364744568840a614170f35dcaf7717ab2) (10 USDC out of Sarah's vault).
 - **Mandate (expiring agent rights).** The agent's rule B carries a `valid_until` ledger (OpenZeppelin context rules). Sarah gives or renews it with one `update_context_rule_valid_until` signed in Freighter ("give the agent a 7-day mandate", 1 hour to 30 days; or `npm run mandate`); renewing keeps the same rule, so the budget already spent is not reset. Once it expires, the network refuses the agent's signature (`#3002`, proven on testnet: [`29fff98a…`](https://stellar.expert/explorer/testnet/tx/29fff98a454362b97b85bd9810b74a67eeaac5e638040a05c25c1526a169cc10)), the API answers `expired` with no transaction and offers to put the petty cash back in the vault, and the `budget` answer shows the time left. The code refuses to put an expiry on any rule other than the agent's: an expiry on the owner's rule could lock the account permanently (OpenZeppelin `smart_account/mod.rs`).
 - **Activity feed.** `GET /api/agent/activity` is rebuilt from the chain on each call (cached 30 s): public payments and refusals from the Horizon history of the agent and owner accounts (decoded USDC SAC `transfer` calls, refusal code read with `getTransaction`), private payments from the confidential token's `transfer` events whose sender is the owner, **addresses and hash only, never an amount**. `POST /api/agent/vault-receipt { to, hash }` checks on-chain that the hash is a successful `confidential_transfer` from the owner to `to`, then shows it immediately.
 
@@ -111,7 +113,7 @@ Every sentence the server writes (clarifications, missing-detail questions, vaul
 
 ### Parsing eval (`npm run eval` in `contracts/`)
 
-66 sentences in `eval/parsing.jsonl` (typos, missing details, answers to the agent's own question, payroll, the agent's mandate, private/public routing, injections, reads, unsupported requests; French, English, Portuguese), run through the real `/api/intent` pipeline in demo mode (simulation only). Each line also checks that the server answered in the message's language. Result on 2026-10-26:
+72 sentences in `eval/parsing.jsonl` (typos, missing details, answers to the agent's own question, payroll, the agent's mandate, the liquidity planner, private/public routing, injections, reads, unsupported requests; French, English, Portuguese), run through the real `/api/intent` pipeline in demo mode (simulation only). Each line also checks that the server answered in the message's language. Result on 2026-10-26:
 
 | Category | Score |
 |---|---|
@@ -125,9 +127,10 @@ Every sentence the server writes (clarifications, missing-detail questions, vaul
 | reads | 9/9 |
 | unsupported | 3/3 |
 | mandate | 6/6 |
-| **Total** | **66/66** (fr 28/28, en 21/21, pt 17/17) |
+| liquidity | 6/6 |
+| **Total** | **72/72** (fr 30/30, en 24/24, pt 18/18) |
 
-Honest caveats: Groq rate-limited us (HTTP 429) during the run, so the LLM planner answered 25 of the 66 sentences; the others went through the regex fallback planner or a code check that runs before the LLM. Both paths go through the same server-side checks. The paused state (B4) is not in the eval: it would need a real on-chain transaction to remove the agent's rule; the `PAUSED` text is covered by unit tests in the three languages.
+Honest caveats: Groq rate-limited us (HTTP 429) during the run, so the LLM planner answered 16 of the 72 sentences (none of the 6 liquidity ones); the others went through the regex fallback planner or a code check that runs before the LLM. Both paths go through the same server-side checks. The paused state (B4) is not in the eval: it would need a real on-chain transaction to remove the agent's rule; the `PAUSED` text is covered by unit tests in the three languages.
 
 ## Architecture
 
@@ -233,6 +236,7 @@ npm run status        # balances, cap, spent in the rolling window, remaining bu
 npm test              # 123 tests: 14 on testnet (signed simulations, rule discovery, vault membership, demo-mode simulation, pause and mandate XDRs; no tx sent) + 109 unit tests (incl. every server sentence in en/fr/pt, mandate)
 npm run eval          # parsing eval: eval/parsing.jsonl through the real /api/intent, demo mode (no tx)
 npm run reset-agent   # fresh agent rule (remove old rule B, add a new one): restores the budget; --days N adds a mandate; --dry-run to preview
+npm run vault-withdraw -- --check   # liquidity planner: is Sarah's vault enough for 10 USDC? (yes/no, balance never printed); --amount N --yes sends the withdraw to the petty cash
 npm run mandate -- --days 7   # agent mandate: update_context_rule_valid_until on the agent's rule (--ledgers N, --none, --status, --dry-run)
 npm run refund        # alice sends her USDC back to the smart account
 ```
@@ -246,6 +250,7 @@ The WASMs are OpenZeppelin's `examples/multisig-smart-account` (account, ed25519
 - **We reuse shared infrastructure, as OpenZeppelin recommends.** The UltraHonk verifier and the factory were deployed by `brozorec/stellar-confidential-token-demo`, not by us. The verifier's verification keys are byte-identical to OpenZeppelin's audited ones (`stellar-contracts` → `packages/confidential/circuits/vks`). Our auditor registry runs OpenZeppelin's registry wasm as installed on testnet by that demo.
 - **v1 token.** Our first token (`CB4T3M…`) used the shared registry's auditor 0, whose secret is public: anyone can decrypt it. It stays on testnet as history; the app no longer uses it.
 - **Entry and exit are public.** Deposits and withdrawals show their amounts; only transfers inside the vault are hidden.
+- **The liquidity planner reduces what goes out, it doesn't hide it.** Each withdrawal to the petty cash stays public with its amount (rounded to 10 USDC). There is no stored calendar: each request recomputes everything from the expenses written in that message.
 - **Addresses are visible.** Confidential, not anonymous: anyone sees who transacts with whom and that an address has a confidential account.
 - **History window.** The auditor view and the private lines of the agent's activity feed (`GET /api/agent/activity`) read events from the Soroban RPC `getEvents`, which only keeps a rolling window: on testnet `getHealth` reports `ledgerRetentionWindow = 120960` ledgers, about 7 days (checked 2026-10-25). Older private payments drop out of the feed; public payments and refusals come from Horizon account history instead. After that window the auditor table is empty until new operations happen (`npm run ct:e2e`).
 - **Proof timing.** In Node: register 1.4–1.8 s, transfer 3.4 s, withdraw 2.7 s. In the browser (live app, Firefox): register proof 1.3 s, transfer proof 1.9 s; each step takes < 10–20 s end to end with the Freighter signature and network confirmation.

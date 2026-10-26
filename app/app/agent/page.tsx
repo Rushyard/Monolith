@@ -13,6 +13,9 @@ import { OwnerSession } from "@/components/agent/OwnerSession";
 import { PauseBanner } from "@/components/agent/PauseBanner";
 import { MandateBadge } from "@/components/agent/MandateBadge";
 import "./agent.css";
+// --- liquidity (P1) ---
+import { LT } from "@/lib/agent/i18n";
+// --- fin liquidity (P1) ---
 
 type Turn = { id: number; message: string; response?: IntentResponse; error?: string; receivedAt: number };
 
@@ -44,6 +47,7 @@ const mockPayroll = (): IntentResponse => ({
 
 export default function AgentPage() {
   const { t } = useI18n();
+  const { lang } = useI18n(); // liquidity (P1)
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -124,6 +128,9 @@ export default function AgentPage() {
             {SUGGESTIONS.map((s) => (
               <button key={s} type="button" className="chip" disabled={!!pending} onClick={() => send(t(s))}>{t(s)}</button>
             ))}
+            {/* --- liquidity (P1) --- */}
+            <button type="button" className="chip" disabled={!!pending} onClick={() => send(LT[lang].chip)}>{LT[lang].chip}</button>
+            {/* --- fin liquidity (P1) --- */}
             <button type="button" className="chip scam" disabled={!!pending}
               onClick={() => { send(t(SCAMS[scam % SCAMS.length], { addr: SCAMMER })); setScam((n) => n + 1); }}>
               {t("agent.scamBtn")}

@@ -5,7 +5,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { planIntent, toPlan } from "@/lib/agent/planner";
-import { decide, screenMessage } from "@/lib/agent/gatekeeper";
+import { decide, liquidityClarification, screenMessage } from "@/lib/agent/gatekeeper";
 import { execute, readAgentSpending } from "@/lib/agent/executor";
 import { recipientClarification, resolveRecipient } from "@/lib/agent/contacts";
 import { slotQuestion, withMemory } from "@/lib/agent/slots";
@@ -15,7 +15,7 @@ import { paidAddresses, recordActivity } from "@/lib/agent/activity";
 import { AGENT_CONFIG, agentRuleStatus, mandateView } from "@/lib/agent/config";
 import { fromUsdc, readTokenBalance } from "@/lib/agent/core";
 import { clientIp, isOwnerRequest, rateLimit } from "@/lib/agent/session";
-import { MT, T, pickLang, requestLang } from "@/lib/agent/i18n";
+import { MT, T, isLiquidityRequest, keywordText, pickLang, requestLang } from "@/lib/agent/i18n";
 import { validMandateHours } from "@/lib/agent/mandate";
 
 export const runtime = "nodejs";
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
 
   // A2 : montant ou destinataire manquant, vérifié en code sur le message brut (même si le LLM a deviné).
   const missing = slotQuestion(message, lang);
-  if (missing && (out.type === "clarify" || (out.type === "actions" && out.steps.some((s) => s.action === "pay")))) {
+  if (missing && !isLiquidityRequest(keywordText(message)) && (out.type === "clarify" || (out.type === "actions" && out.steps.some((s) => s.action === "pay")))) {
     return NextResponse.json({ plan: null, verdict: null, result: { status: "needs_clarification", text: missing }, reasoning: missing, planner: planned.source, mode, lang });
   }
 
@@ -89,6 +89,14 @@ export async function POST(req: Request) {
   if (mandateStep && mandateStep.action === "mandate" && !validMandateHours(mandateStep.hours)) {
     const text = mandateStep.hours === undefined ? MT[lang].howLong : MT[lang].range;
     return NextResponse.json({ plan, verdict: null, result: { status: "needs_clarification", text }, reasoning: text, mode, lang });
+  }
+
+  // Planificateur de liquidité : dépenses complètes (1 à 5) et montants écrits par l'utilisateur, sinon clarification.
+  const liqStep = plan.steps.find((s) => s.action === "plan_liquidity");
+  if (liqStep && liqStep.action === "plan_liquidity") {
+    const prior = (body.data.history ?? []).filter((t) => t.role === "user").map((t) => t.text);
+    const text = liquidityClarification(liqStep, message, prior, lang);
+    if (text) return NextResponse.json({ plan, verdict: null, result: { status: "needs_clarification", text }, reasoning: text, mode, lang });
   }
 
   // Paie : tous les salariés doivent être dans le coffre.

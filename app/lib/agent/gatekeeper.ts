@@ -6,9 +6,11 @@ import { resolveRecipient, type Recipient } from "./contacts";
 import { payrollLines, sumUsdc, type PayrollLine } from "./payroll";
 import type { Plan } from "./planner";
 import { fromUsdc, type SpendingState } from "./core";
-import { MT, T, pickLang, type Lang, type MandateView, type Messages } from "./i18n";
+import { LT, MT, T, pickLang, writtenNumbers, type Lang, type MandateView, type Messages } from "./i18n";
+import { LIQUIDITY } from "./liquidity";
+import type { StepT } from "./planner";
 
-export type Verdict = "AUTO_EXECUTE" | "NEEDS_APPROVAL" | "NEEDS_VAULT_SIGNATURE" | "BLOCKED" | "INFO" | "PAUSED" | "EXPIRED" | "MANDATE";
+export type Verdict = "AUTO_EXECUTE" | "NEEDS_APPROVAL" | "NEEDS_VAULT_SIGNATURE" | "BLOCKED" | "INFO" | "PAUSED" | "EXPIRED" | "MANDATE" | "LIQUIDITY";
 
 
 export type GateDecision = {
@@ -29,6 +31,8 @@ export type GateDecision = {
   mandate?: MandateView;
   /** Mandat demandé (heures, 1 h – 30 j), verdict MANDATE. */
   mandateHours?: number;
+  /** Planificateur de liquidité : dépenses vérifiées (montants présents dans ce que l'utilisateur a écrit). */
+  liquidityItems?: { label: string; amountUsdc: string; due?: string }[];
 };
 
 // ---------- safety net : lecture du message brut, indépendante du LLM ----------
@@ -132,6 +136,13 @@ export function decide(plan: Plan, message: string, spending: SpendingState | nu
     // Pression / injection ou autre action dans le même message → BLOCKED. Durée vérifiée avant (route).
     if (steps.length > 1 || messageSignals(message).pressure.length) return { verdict: "BLOCKED", triggered: ["mandate-suspicious"], reasons: [t.refusal], lang };
     return { verdict: "MANDATE", triggered: ["mandate"], reasons: [], lang, mandateHours: mandateStep.hours };
+  }
+  const liqStep = steps.find((s) => s.action === "plan_liquidity");
+  if (liqStep && liqStep.action === "plan_liquidity") {
+    // Pression / injection ou autre action dans le même message → BLOCKED. Montants vérifiés avant (route).
+    if (steps.length > 1 || messageSignals(message).pressure.length) return { verdict: "BLOCKED", triggered: ["liquidity-suspicious"], reasons: [t.refusal], lang };
+    const liquidityItems = liqStep.items.map((i) => ({ label: i.label, amountUsdc: i.amount!, ...(i.due ? { due: i.due } : {}) }));
+    return { verdict: "LIQUIDITY", triggered: ["liquidity"], reasons: [], lang, liquidityItems };
   }
   const pays = steps.filter((s) => s.action === "pay");
 
@@ -280,4 +291,19 @@ function decideVault(payment: NonNullable<GateDecision["payment"]>, message: str
     reasons.push(t.vaultUnknownRecipient);
   }
   return { verdict: "NEEDS_VAULT_SIGNATURE", channel: "private", triggered, reasons, payment, lang };
+}
+
+/**
+ * Planificateur : question à poser avant tout calcul, sinon null. Anti-hallucination : chaque montant du plan
+ * doit être écrit dans le message (complété par la mémoire) ou dans un tour précédent de l'utilisateur.
+ */
+export function liquidityClarification(step: Extract<StepT, { action: "plan_liquidity" }>, message: string, priorUserTexts: string[], lang: Lang): string | null {
+  const l = LT[lang];
+  if (step.items.length === 0) return l.which;
+  if (step.items.length > LIQUIDITY.maxItems) return l.tooMany;
+  const missing = step.items.find((i) => !i.amount || Number(i.amount) <= 0);
+  if (missing) return l.howMuch(missing.label);
+  const written = writtenNumbers([message, ...priorUserTexts].join(" "));
+  const invented = step.items.find((i) => !written.has(String(Number(i.amount))));
+  return invented ? l.notInMessage(invented.amount!) : null;
 }

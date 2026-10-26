@@ -5,7 +5,7 @@
 import "server-only";
 import { z } from "zod";
 import { BOOK, CONTACTS, matchName } from "./contacts";
-import { KEYWORDS, MANDATE_KEYWORDS, T, keywordText, mandateHours, pickLang } from "./i18n";
+import { KEYWORDS, MANDATE_KEYWORDS, T, isLiquidityRequest, keywordText, mandateHours, parseExpenses, pickLang } from "./i18n";
 
 const Amount = z.preprocess(
   (v) => (typeof v === "number" ? String(v) : typeof v === "string" ? v.trim().replace(",", ".").replace(/\s/g, "") : v),
@@ -20,6 +20,12 @@ export const Step = z.discriminatedUnion("action", [
   z.object({ action: z.literal("budget") }),
   z.object({ action: z.literal("address"), of: z.string().min(1).max(100).optional() }),
   z.object({ action: z.literal("mandate"), hours: z.number().positive().max(100000).optional() }),
+  // Planificateur de liquidité : les dépenses comprises, jamais un total ni un montant à sortir (calculés en code).
+  // Jusqu'à 10 lignes acceptées ici pour que la route réponde « au plus 5 » au lieu d'un JSON invalide.
+  z.object({
+    action: z.literal("plan_liquidity"),
+    items: z.array(z.object({ label: z.string().trim().min(1).max(60), amount: Amount.optional(), due: z.string().trim().max(40).optional() })).max(10),
+  }),
 ]);
 
 export const PlannerOutput = z.discriminatedUnion("type", [
@@ -63,6 +69,7 @@ STEP is one of:
 {"action":"address","of":"<contact name>"}   a contact's Stellar address; omit "of" for the agent's own account address
 {"action":"mandate","hours":N}        give / renew the agent's mandate (its right to pay alone) for N hours ("7 days" = 168); omit "hours" if no duration is given
 {"action":"history","asset":"USDC"}   what the agent already paid
+{"action":"plan_liquidity","items":[{"label":"<who or what>","amount":AMOUNT,"due":"<day, optional>"},...]}   plan the week's cash: the user lists upcoming expenses ("plan my week", "prévois ma semaine", "planeje minha semana", "this week I pay…"); one item per expense, in order; omit "amount" if the user gave none; never add a total, a reserve or an amount to withdraw (the server computes them)
 {"action":"payroll"}                  pay the team's salaries ("verse les salaires", "paie l'équipe", "run payroll", "pagar salários"); people and amounts are fixed by the server, never put them in the step
 
 Rules:
@@ -88,6 +95,8 @@ Examples:
 "paie Charlie" -> {"type":"clarify","question":"Combien veux-tu payer, et quelle est l'adresse Stellar de Charlie ?"}
 "verse les salaires" -> {"type":"actions","steps":[{"action":"payroll"}],"reasoning":"Paie de l'équipe."}
 "run payroll" -> {"type":"actions","steps":[{"action":"payroll"}],"reasoning":"Team payroll."}
+"plan my week: Alice 4 and 5, design tool 3 on Friday" -> {"type":"actions","steps":[{"action":"plan_liquidity","items":[{"label":"Alice","amount":"4"},{"label":"Alice","amount":"5"},{"label":"design tool","amount":"3","due":"Friday"}]}],"reasoning":"Cash plan for the week."}
+"cette semaine je paie Alice 4 USDC et l'hébergement" -> {"type":"actions","steps":[{"action":"plan_liquidity","items":[{"label":"Alice","amount":"4"},{"label":"hébergement"}]}],"reasoning":"Trésorerie de la semaine."}
 "swap mes USDC en XLM" -> {"type":"unsupported","reason":"Je ne fais pas encore d'échanges : je peux seulement payer en USDC."}`;
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -139,6 +148,11 @@ export function fallbackPlan(message: string): PlannerOutputT {
   if (MANDATE_KEYWORDS.mandate.test(plain) && /\b(agent|agente)\b/.test(plain)) {
     const hours = mandateHours(plain);
     return { type: "actions", steps: [{ action: "mandate", ...(hours !== null ? { hours } : {}) }], reasoning: "" };
+  }
+  // Planificateur de liquidité (bloc « liquidity ») : avant la paie et le verbe « payer » (« cette semaine je paie… »).
+  if (isLiquidityRequest(plain)) {
+    const items = parseExpenses(message, BOOK.map((c) => c.name)).map(({ label, amount, due }) => ({ label, ...(amount ? { amount } : {}), ...(due ? { due } : {}) }));
+    return { type: "actions", steps: [{ action: "plan_liquidity", items }], reasoning: "" };
   }
   // Paie, sauf si c'est un paiement complet à quelqu'un (« paie 2 USDC à Bob pour son salaire »).
   // Un montant cité avec la paie (« 50 USDC chacun ») va au gatekeeper, qui bloque.

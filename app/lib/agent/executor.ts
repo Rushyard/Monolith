@@ -23,11 +23,12 @@ import {
   type SmartAccountCall,
   type SpendingState,
 } from "./core";
-import type { VaultSignatureRequest } from "../../components/agent/types";
+import type { LiquidityEnough, LiquidityPlanView, LiquiditySimulated, VaultSignatureRequest, VaultWithdrawRequest } from "../../components/agent/types";
 import type { GateDecision } from "./gatekeeper";
 import { sumUsdc } from "./payroll";
 import { recipientClarification, resolveRecipient } from "./contacts";
-import { MT, T, mandateDate, mandateLine, type Lang } from "./i18n";
+import { LT, MT, T, mandateDate, mandateLine, type Lang } from "./i18n";
+import { LiquidityError, planLiquidity } from "./liquidity";
 import { mandateExpiry, prepareMandate } from "./mandate";
 import type { Plan } from "./planner";
 
@@ -75,6 +76,9 @@ export type ExecutionResult =
       text: string;
     }
   | { status: "mandate_simulated"; text: string }
+  | VaultWithdrawRequest
+  | LiquidityEnough
+  | LiquiditySimulated
   | { status: "blocked" }
   | {
       status: "info";
@@ -170,6 +174,7 @@ export async function execute(plan: Plan, decision: GateDecision, spending: Spen
   if (decision.verdict === "PAUSED") return { status: "paused", text: decision.reasons[0] };
   if (decision.verdict === "EXPIRED") return { status: "expired", text: decision.reasons.join(" ") }; // aucune tx
   if (decision.verdict === "MANDATE") return mandateResult(decision, mode);
+  if (decision.verdict === "LIQUIDITY") return liquidityResult(decision, mode);
 
   // Coffre : l'agent n'a pas les clés de Sarah, il ne signe et ne prouve rien. Il prépare la liste.
   if (decision.verdict === "NEEDS_VAULT_SIGNATURE") {
@@ -271,4 +276,32 @@ async function mandateResult(decision: GateDecision, mode: ExecMode): Promise<Ex
     expiresAt: prep.expiresAt,
     text: m.granted(mandateDate(prep.expiresAt, decision.lang)),
   };
+}
+
+/** Planificateur : solde PUBLIC de la petite caisse lu on-chain, puis calcul en code fixe (jamais par le LLM). */
+async function liquidityResult(decision: GateDecision, mode: ExecMode): Promise<ExecutionResult> {
+  let petty: bigint;
+  try {
+    petty = await readTokenBalance(C.ownerAddress, C.usdcSac, C.smartAccount);
+  } catch (err) {
+    return { status: "error", error: T[decision.lang].errServer(err instanceof Error ? err.message : String(err)) };
+  }
+  return liquidityOutcome(decision.liquidityItems ?? [], petty, decision.lang, mode);
+}
+
+/** Partie pure (testée sans réseau) : plan → retrait du coffre à signer, simulation, ou « aucun retrait ». */
+export function liquidityOutcome(items: NonNullable<GateDecision["liquidityItems"]>, pettyCash: bigint, lang: Lang, mode: ExecMode): ExecutionResult {
+  const l = LT[lang];
+  let p: ReturnType<typeof planLiquidity>;
+  try {
+    p = planLiquidity({ items, pettyCashUsdc: pettyCash });
+  } catch (err) {
+    if (err instanceof LiquidityError) return { status: "error", error: l.which }; // déjà vérifié par la route : ne devrait pas arriver
+    throw err;
+  }
+  const plan: LiquidityPlanView = { items: p.items, needUsdc: p.needUsdc, spendUsdc: p.spendUsdc, reserveUsdc: p.reserveUsdc, pettyCashUsdc: p.pettyCashUsdc };
+  if (p.reason === "enough") return { status: "liquidity_enough", text: l.enough(p), plan };
+  const text = p.reason === "over_max" ? l.overMax(p) : l.withdraw(p);
+  if (mode === "simulation") return { status: "liquidity_simulated", text: l.simulated(text), amountUsdc: p.withdrawUsdc, plan };
+  return { status: "needs_vault_withdraw", to: C.smartAccount, amountUsdc: p.withdrawUsdc, plan, reasons: [text], text };
 }

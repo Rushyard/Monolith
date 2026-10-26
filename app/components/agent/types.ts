@@ -12,6 +12,24 @@ export type VaultPayment = { to: string; label: string; amountUsdc: string };
 /** Destinataire inscrit dans le coffre : l'agent ne paie pas, il prépare et Sarah signe. */
 export type VaultSignatureRequest = { status: "needs_vault_signature"; payments: VaultPayment[]; totalUsdc: string; reasons: string[] };
 
+// --- liquidity (P1) : planificateur de liquidité ---
+/** Plan calculé par le serveur (code fixe, lib/agent/liquidity.ts) à partir des dépenses comprises. */
+export type LiquidityPlanView = {
+  items: { label: string; amountUsdc: string; due?: string }[];
+  needUsdc: string;
+  spendUsdc: string;
+  reserveUsdc: string;
+  /** Solde USDC PUBLIC de la petite caisse (smart account), lu on-chain. Jamais le solde du coffre. */
+  pettyCashUsdc: string;
+};
+/** Sarah connectée : retrait du coffre (withdraw, montant public) vers la petite caisse, signé dans son navigateur. */
+export type VaultWithdrawRequest = { status: "needs_vault_withdraw"; to: string; amountUsdc: string; plan: LiquidityPlanView; reasons: string[]; text: string };
+/** Aucun retrait nécessaire : la petite caisse couvre déjà le besoin. */
+export type LiquidityEnough = { status: "liquidity_enough"; text: string; plan: LiquidityPlanView };
+/** Visiteur : même plan, rien à signer. */
+export type LiquiditySimulated = { status: "liquidity_simulated"; text: string; amountUsdc: string; plan: LiquidityPlanView };
+// --- fin liquidity (P1) ---
+
 export type IntentResult =
   | ExecutionResult
   | VaultSignatureRequest
