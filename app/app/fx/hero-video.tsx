@@ -16,6 +16,10 @@ const BEATS = [
   { from: 0.42, to: 0.66, text: "hero.beat2" },
 ] as const;
 
+// Which captions / title / hint are on at progress p: the only thing the markup depends on.
+const stage = (p: number) =>
+  `${BEATS.map((b) => +(p >= b.from && p < b.to)).join("")}${+(p > 0.82)}${+(p > 0.02)}`;
+
 export function HeroVideo({ tagline, onFail }: { tagline: string; onFail: () => void }) {
   const { t } = useI18n();
   const section = useRef<HTMLElement>(null);
@@ -44,13 +48,15 @@ export function HeroVideo({ tagline, onFail }: { tagline: string; onFail: () => 
       const r = s.getBoundingClientRect();
       const run = Math.max(1, r.height - innerHeight);
       const p = Math.min(1, Math.max(0, -r.top / run));
-      setProgress((old) => (Math.abs(old - p) > 0.002 ? p : old));
+      // re-render only when a caption, the title or the hint actually changes, not on every scrolled pixel
+      setProgress((old) => (stage(old) !== stage(p) ? p : old));
       if (v.duration) {
         const target = NIGHT_END + p * (v.duration - 0.05 - NIGHT_END);
         if (auto && p > 0.01) { v.pause(); auto = false; shown = v.currentTime; } // the user took over
         if (!auto) {
           shown += (target - shown) * 0.12;
-          if (Math.abs(v.currentTime - shown) > 1 / 48) v.currentTime = shown;
+          // one seek at a time: piling seeks up while the previous frame decodes is what makes it stutter
+          if (!v.seeking && Math.abs(v.currentTime - shown) > 1 / 48) v.currentTime = shown;
         }
       }
       raf = requestAnimationFrame(tick);
