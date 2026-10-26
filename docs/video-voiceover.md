@@ -32,3 +32,33 @@ Scene numbers match `docs/submission.md` §(c).
 
 ## Optional 7c — liquidity planner (+20 s, only if the cut stays under ~2:50)
 > Receiving ten thousand dollars should not mean exposing ten thousand dollars. <break time="0.5s" /> The AI reads Sarah's week. Fixed code computes what the petty cash needs. Sarah signs. <break time="0.4s" /> The public sees ten go out. Never what stays in the vault.
+
+---
+
+## Voice — ElevenLabs Voice Design prompt (Voices → Add voice → Voice Design)
+
+> A warm, intimate male narrator in his late thirties, American accent, low-mid baritone, recorded very close to a high-end studio microphone in a silent room. He speaks slowly and deliberately, with calm, quiet confidence — never loud, never salesy. Soft attack on words, slight breathiness, a hint of a smile. Pitch stays steady; sentences land with a gentle downward inflection. He leaves real silence between ideas and stresses key words by slowing down, not by getting louder. Premium tech product film narration.
+
+Female alternative: replace the first sentence with « A warm, composed female narrator in her late thirties, American accent, mid-low register… ».
+Preview text to judge the voices: « Our server didn't stop it. The Stellar network did. »
+
+Settings: Stability 50 % · Similarity 75 % · Style 10 % · Speaker boost on · Speed 0.92–0.95.
+
+## Same script for Eleven v3 (v3 ignores `<break>`: pauses are « … », em dashes and line breaks; tags in [ ] steer delivery)
+
+1. [calm, intimate] Every payment on a blockchain is public. Every balance. Every salary… And whoever holds the key — can spend everything… [slower] Now… give that key to an AI.
+2. [warm] Meet Sarah. She runs a small company on Stellar. She signs in with Freighter. Without her, the agent can only simulate.
+3. [relaxed, matter-of-fact] Alice is a contractor. The agent pays her on its own — one U.S.D.C., from a public petty cash, with its own key… Done.
+4. [measured] Now… fifty. That's over the agent's limit… [confident, slower] Our server didn't stop it. The Stellar network did… Spending limit exceeded — enforced on-chain, by the smart account… [softly] Only Sarah can let it through. One signature.
+5. [calm] A typo is never paid. The agent asks… [lower, serious] And when someone tries to rush it into sending everything… it refuses. Nothing moves.
+6. [warm, building] Payroll is different. Carol and Bob are paid from the private vault. The AI prepares. Sarah signs — with a zero-knowledge proof, made right in her browser… [slower] One payment. Three views… The public sees who — not how much. Marc, the accountant, sees the amounts. [softly] And the agent never touched the vault.
+7. [quiet] On the explorer… no amount… With his audit key, Marc reads three… and two… [confident] We hide how much. Not who.
+8. [slow, deliberate, quiet confidence] The AI proposes. The chain caps. The human signs… And the vault stays private… [softly] Monolith.
+
+## Music (150 s, one track, cut to the edit)
+
+Prompt for an AI music generator (ElevenLabs Music, Suno, Udio):
+
+> Minimal, elegant instrumental for a premium tech product film, 150 seconds, 96 BPM, no vocals. 0–15 s: soft sustained piano notes and a warm pad, lots of space, slightly tense. 15 s: gentle lift as a light pulse enters — muted plucked synth and soft kick. 15–95 s: steady, understated groove, felt piano, subtle arpeggio, never busy, leaves room for a voice-over. 95–125 s: emotional swell, warm strings pad and wider stereo. 125–145 s: everything opens up, confident resolution. Ends with a clean final chord and silence at 148 s. Clean, modern, optimistic, Apple-keynote-style product reveal.
+
+Library search terms (Epidemic Sound, Artlist, Musicbed, Uppbeat, YouTube Audio Library): « minimal piano tech », « product reveal ambient », « inspiring minimal corporate », « keynote ». Mix: −18 to −22 dB under the voice, back up on the closing card, hard stop on « Monolith ».
