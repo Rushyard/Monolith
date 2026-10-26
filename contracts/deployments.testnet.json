@@ -5,7 +5,7 @@
   "spendingLimitPolicy": "CAOT4RM7SYJPLT5XQVPYDEX6HKQOZFODZE6KQVUQJZUSVJY6HBWUVGHQ",
   "smartAccount": "CC5D2NUS2GXAWMTK2DMSNJHVRGRH5GBEZNUMEPIOPBPQQJN6GDLO43KA",
   "ruleOwner": 0,
-  "ruleAgent": 2,
+  "ruleAgent": 3,
   "addRuleTx": "3f92c989446c0f8957be7c74a91e26e99cdfd40fef7232615034c58f6f1202b2",
   "resets": [
     {
@@ -14,6 +14,13 @@
       "removeTx": "4f8eeaf722708c30ce3438de0c3748b70df17d9af47b2597d2ab2c5bcd358234",
       "added": 2,
       "addTx": "3167d0ac4006cff2e06b2fd96cecc2e21247bae91dfef3225570e72792f0a0b8"
+    },
+    {
+      "at": "2026-10-26T08:04:38.828Z",
+      "removed": 2,
+      "removeTx": "892b67e31a69f6ff6f499205ed0de445c4676a3117ce2bbf27bfbc722879d66d",
+      "added": 3,
+      "addTx": "d8793efab783aadc5b48606669d9876247755ac0f2e6ccf78bd20c6513f2862e"
     }
   ]
 }
