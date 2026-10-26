@@ -51,6 +51,7 @@ export default function VaultPage() {
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [recipients, setRecipients] = useState<string[]>([]);
   const [isolated, setIsolated] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [depositAmt, setDepositAmt] = useState("10");
   const [sendTo, setSendTo] = useState("");
@@ -91,12 +92,15 @@ export default function VaultPage() {
   const run = useCallback(
     async (op: Op, f: (onPhase: (p: TxPhase) => void) => Promise<{ hash: string } | void>, amount?: Visibility) => {
       setBusy({ op });
+      setError(null);
       try {
         const r = await f((phase) => setBusy({ op, phase }));
         if (r) setLastTx({ op, hash: r.hash, amount });
         await reload();
       } catch (e) {
-        log(`${opName(op)}: ${e instanceof Error ? e.message : String(e)}`, true);
+        const message = `${opName(op)}: ${e instanceof Error ? e.message : String(e)}`;
+        setError(message);
+        log(message, true);
       } finally {
         setBusy(null);
       }
@@ -131,6 +135,8 @@ export default function VaultPage() {
         </div>
         <div className="monolith sm" aria-hidden />
       </header>
+
+      {error && <p className="callout" role="alert">{error}</p>}
 
       {!isolated && (
         <p className="callout" style={{ marginBottom: 16 }}>

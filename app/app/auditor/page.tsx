@@ -65,7 +65,7 @@ export default function AuditorPage() {
 
       <section className="panel stack" style={{ marginTop: 16 }}>
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <button className="btn" onClick={() => load()} disabled={loading}>
+          <button className={`btn ${rows ? "" : "primary"}`} onClick={() => load()} disabled={loading}>
             {loading ? <span className="progress-dots">{t("aud.reading")}</span> : rows ? t("aud.reread") : t("aud.read")}
           </button>
           <span className="mono" style={{ fontSize: 12, color: "var(--muted)" }}>
@@ -120,7 +120,7 @@ export default function AuditorPage() {
         <p className="callout info" style={{ margin: 0, fontSize: 14 }}>
           {t("aud.info", { id })}
         </p>
-        {error && <p className="callout" style={{ margin: 0 }}>{error}</p>}
+        {error && <p className="callout" role="alert" style={{ margin: 0 }}>{error}</p>}
       </section>
 
       {rows && (
@@ -146,7 +146,7 @@ export default function AuditorPage() {
                       </div>
                     </td>
                     <td>{r.publicAmount === null ? <span className="tag hidden">{t("tag.encrypted")}</span> : <span className="num">{formatUsdc(r.publicAmount)}</span>}</td>
-                    <td className="num" style={{ color: r.kind === "transfer" && revealed ? "var(--hal)" : undefined }}>
+                    <td className="num" style={{ color: r.kind === "transfer" && revealed ? "var(--ok)" : undefined }}>
                       {r.kind !== "transfer"
                         ? formatUsdc(r.auditedAmount ?? 0n)
                         : r.auditedAmount === null

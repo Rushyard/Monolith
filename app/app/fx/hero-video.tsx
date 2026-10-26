@@ -16,53 +16,134 @@ const BEATS = [
   { from: 0.42, to: 0.66, text: "hero.beat2" },
 ] as const;
 
-export function HeroVideo({ tagline, onFail }: { tagline: string; onFail: () => void }) {
+// Updating React only when a caption changes keeps the video scrub outside reconciliation.
+const captionKey = (p: number) => `${BEATS.map((b) => Number(p >= b.from && p < b.to)).join("")}${Number(p > 0.82)}${Number(p > 0.02)}`;
+
+export function HeroVideo({ tagline }: { tagline: string }) {
   const { t } = useI18n();
   const section = useRef<HTMLElement>(null);
+  const pin = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
-  const [progress, setProgress] = useState(0); // 0..1 scroll through the pinned section
-  const [still, setStill] = useState(false); // reduced motion: last frame, no pinning
+  const [progress, setProgress] = useState(0);
+  const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
+  const [failed, setFailed] = useState(false);
+  const still = reducedMotion === true || failed;
 
   useEffect(() => {
-    const v = video.current, s = section.current;
-    if (!v || !s) return;
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setStill(true);
-      const toEnd = () => { v.currentTime = Math.max(0, v.duration - 0.05); };
-      if (v.readyState >= 1) toEnd(); else v.addEventListener("loadedmetadata", toEnd, { once: true });
-      return;
-    }
-
-    let shown = 0, raf = 0, auto = true;
-    // 1. the night plays by itself, then holds on the first light
-    const onTime = () => { if (auto && v.currentTime >= NIGHT_END) { v.pause(); auto = false; shown = v.currentTime; } };
-    v.addEventListener("timeupdate", onTime);
-    v.play().catch(() => { auto = false; });
-
-    // 2. the scroll drives the sunrise; the shown time eases toward the target (smooth scrubbing)
-    const tick = () => {
-      const r = s.getBoundingClientRect();
-      const run = Math.max(1, r.height - innerHeight);
-      const p = Math.min(1, Math.max(0, -r.top / run));
-      setProgress((old) => (Math.abs(old - p) > 0.002 ? p : old));
-      if (v.duration) {
-        const target = NIGHT_END + p * (v.duration - 0.05 - NIGHT_END);
-        if (auto && p > 0.01) { v.pause(); auto = false; shown = v.currentTime; } // the user took over
-        if (!auto) {
-          shown += (target - shown) * 0.12;
-          if (Math.abs(v.currentTime - shown) > 1 / 48) v.currentTime = shown;
-        }
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(raf); v.removeEventListener("timeupdate", onTime); };
+    const media = matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
   }, []);
+
+  useEffect(() => {
+    const v = video.current, s = section.current, pinned = pin.current;
+    if (!v || !s || !pinned || reducedMotion === null || failed) return;
+
+    // One pending destination, one decoder seek at a time. Scroll events replace the
+    // destination rather than interrupting an in-flight decode or queuing old positions.
+    let target = 0, currentProgress = 0, raf = 0, frame = 0;
+    let intro = !still, started = false, disposed = false;
+    const hasDuration = () => Number.isFinite(v.duration) && v.duration > 0;
+    const end = () => Math.max(0, v.duration - 0.05);
+    const seekLatest = () => {
+      if (disposed || intro || !hasDuration() || v.seeking) return;
+      if (Math.abs(v.currentTime - target) >= 1 / 60) v.currentTime = target;
+    };
+    const stopIntro = () => {
+      intro = false;
+      v.pause();
+      if (frame && typeof v.cancelVideoFrameCallback === "function") v.cancelVideoFrameCallback(frame);
+      frame = 0;
+    };
+    const readScroll = () => {
+      raf = 0;
+      if (disposed) return;
+      if (still) {
+        if (hasDuration()) { target = end(); seekLatest(); }
+        return;
+      }
+      const rect = s.getBoundingClientRect();
+      // Use the actual CSS sticky height (100svh on mobile), not the changing URL-bar viewport.
+      const distance = Math.max(1, rect.height - pinned.offsetHeight);
+      currentProgress = Math.max(0, Math.min(1, -rect.top / distance));
+      setProgress((old) => captionKey(old) === captionKey(currentProgress) ? old : currentProgress);
+      if (!hasDuration()) return;
+      const firstLight = Math.min(NIGHT_END, end());
+      target = firstLight + currentProgress * (end() - firstLight);
+      if (intro && currentProgress > 0) stopIntro();
+      seekLatest();
+    };
+    const scheduleScroll = () => {
+      if (!raf) raf = requestAnimationFrame(readScroll);
+    };
+    const finishIntro = () => {
+      if (!intro || v.currentTime < Math.min(NIGHT_END, hasDuration() ? end() : NIGHT_END)) return;
+      stopIntro();
+      readScroll();
+    };
+    const watchIntro = () => {
+      finishIntro();
+      if (intro && !disposed && typeof v.requestVideoFrameCallback === "function") {
+        frame = v.requestVideoFrameCallback(watchIntro);
+      }
+    };
+    const onMetadata = () => {
+      readScroll();
+      if (started || still || !intro) return;
+      started = true;
+      // Restored scroll positions take ownership before autoplay can start.
+      if (currentProgress > 0) return;
+      v.play().then(() => {
+        if (disposed || !intro) { v.pause(); return; }
+        watchIntro();
+      }).catch(() => {
+        if (disposed) return;
+        stopIntro();
+        readScroll();
+      });
+    };
+    const onVisibility = () => {
+      if (!document.hidden) scheduleScroll();
+    };
+
+    v.addEventListener("loadedmetadata", onMetadata);
+    v.addEventListener("loadeddata", scheduleScroll);
+    v.addEventListener("seeked", seekLatest);
+    v.addEventListener("timeupdate", finishIntro);
+    if (!still) {
+      window.addEventListener("scroll", scheduleScroll, { passive: true });
+      window.addEventListener("resize", scheduleScroll);
+      window.addEventListener("pageshow", scheduleScroll);
+      document.addEventListener("visibilitychange", onVisibility);
+    }
+    const observer = new ResizeObserver(scheduleScroll);
+    observer.observe(s);
+    observer.observe(pinned);
+    readScroll();
+    if (v.readyState >= 1) onMetadata();
+
+    return () => {
+      disposed = true;
+      stopIntro();
+      cancelAnimationFrame(raf);
+      observer.disconnect();
+      v.removeEventListener("loadedmetadata", onMetadata);
+      v.removeEventListener("loadeddata", scheduleScroll);
+      v.removeEventListener("seeked", seekLatest);
+      v.removeEventListener("timeupdate", finishIntro);
+      window.removeEventListener("scroll", scheduleScroll);
+      window.removeEventListener("resize", scheduleScroll);
+      window.removeEventListener("pageshow", scheduleScroll);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [reducedMotion, still, failed]);
 
   const titleOn = still || progress > 0.82;
   return (
     <section ref={section} className={`scroll-film ${still ? "still" : ""}`}>
-      <div className="scroll-film-pin">
+      <div ref={pin} className="scroll-film-pin">
         <video
           ref={video}
           src={HERO_VIDEO.src}
@@ -70,7 +151,7 @@ export function HeroVideo({ tagline, onFail }: { tagline: string; onFail: () => 
           muted
           playsInline
           preload="auto"
-          onError={onFail}
+          onError={() => setFailed(true)}
           aria-hidden="true"
         />
         {!still && BEATS.map((b) => (
