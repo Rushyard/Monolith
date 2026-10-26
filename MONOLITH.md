@@ -63,7 +63,7 @@ Ordre de priorité du jury : **Adoption → Discovery → Continuation**. Revue 
 | Valeur utilisateur | 20 % | Persona concret (freelance/petite équipe), problème formulé simplement. |
 | Exécution technique | 15 % | Tx hashes réels, cas d'échec démontré, tests de contrat. |
 | Innovation | 15 % | La combinaison + le rejet on-chain visible en démo. |
-| Progrès pendant le hack | 10 % | Commits fréquents, disclosure claire de l'antériorité (Orchestra). |
+| Progrès pendant le hack | 10 % | Commits fréquents, disclosure claire du travail antérieur. |
 | Potentiel marché | 10 % | Trésorerie/paie (cas d'usage officiel des CT), agents qui paient (stratégie SDF 2026). |
 | Design / UX | 10 % | Un juge comprend en 30 s. URL live obligatoire. |
 
@@ -331,7 +331,7 @@ LLM_API_KEY=
 2. Solution (le pitch en une ligne + le tableau public/caché)
 3. Démo (3 captures : explorer illisible, rejet #3221, approbation)
 4. Architecture + pourquoi Stellar (smart accounts OZ, CT natifs du réseau, frais faibles, USDC natif)
-5. Ce qui a été fait pendant le hack vs avant (disclosure Orchestra)
+5. Ce qui a été fait pendant le hack vs avant (disclosure du travail antérieur)
 6. Suite + équipe
 
 ---
@@ -349,7 +349,7 @@ One line pitch.
 ## Setup / Install / Env vars / Run
 ## Limitations (honest)                ← testnet only, CT developer preview, entrées/sorties publiques, adresses visibles
 ## Prior work & what we built during HackMeridian
-   - Orchestra (ETHGlobal Cannes 2026, Ethereum/Safe/Uniswap) : concept d'agent à garde-fous. Aucun code réutilisé.
+   - Travail antérieur : pattern du pipeline d'agent (planner LLM validé par schéma, gatekeeper déterministe, executor) et parties du prompt du planner, adaptés d'un de nos projets précédents. Tout le reste a été construit pendant HackMeridian.
    - Inspirations créditées : OpenZeppelin examples, Agent Card, Who Ate Gerald.
 ## Team
 ```

@@ -1,6 +1,6 @@
 // Planner (server-only) : message → plan validé par zod. Un seul appel LLM, une seule
-// réparation si le JSON est invalide. Pattern et prompt repris d'Orchestra (ETHGlobal Cannes
-// 2026, src/intent/planner.ts + prompt.ts), adaptés à Stellar / USDC.
+// réparation si le JSON est invalide. Pattern adapted from an earlier project of ours (pattern et
+// parties du prompt), adaptés à Stellar / USDC.
 // Le planner interprète seulement : il ne décide jamais si c'est autorisé (gatekeeper + policy on-chain).
 import "server-only";
 import { z } from "zod";
@@ -100,7 +100,7 @@ Examples:
 "swap mes USDC en XLM" -> {"type":"unsupported","reason":"Je ne fais pas encore d'échanges : je peux seulement payer en USDC."}`;
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-/** Modèle par défaut repris d'Orchestra ; surcharger avec GROQ_MODEL si Groq ne le sert plus. */
+/** Modèle par défaut ; surcharger avec GROQ_MODEL si Groq ne le sert plus. */
 const DEFAULT_GROQ_MODEL = "qwen/qwen3.8-27b";
 
 async function callGroq(messages: { role: string; content: string }[]): Promise<string> {
