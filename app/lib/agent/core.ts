@@ -413,11 +413,59 @@ export async function readTokenBalance(source: string, token: string, holder: st
   return BigInt(scValToNative((await readContract(source, token, "balance", [new Address(holder).toScVal()]))!));
 }
 
+/** Règle de contexte telle que renvoyée par `get_context_rule` (scValToNative). */
+export type RawContextRule = { id: number; signers: unknown[][]; policies: string[]; valid_until?: number | null };
+
+/** Règle de l'agent : `validUntil` = dernier ledger valable (inclus, OZ storage.rs l.321-324), null = sans expiration. */
+export type AgentRuleInfo = { id: number; validUntil: number | null; expired: boolean };
+
+/** La règle porte-t-elle le signer External(verifier, clé agent) ET la spending-limit policy ? */
+export function isAgentRule(r: RawContextRule, verifier: string, agentRawPublicKey: Uint8Array, policy: string): boolean {
+  const agentHex = Buffer.from(agentRawPublicKey).toString("hex");
+  const hasAgent = r.signers.some(
+    (s) => s[0] === "External" && s[1] === verifier && Buffer.from(s[2] as Uint8Array).toString("hex") === agentHex,
+  );
+  return hasAgent && r.policies.includes(policy);
+}
+
+/**
+ * Choix de la règle de l'agent parmi les règles actives du compte (fonction pure, testée) :
+ * la plus récente des valides ; sinon la plus récente des expirées (expired: true, renouvelable par
+ * update_context_rule_valid_until, même id) ; sinon null (agent en pause : aucune règle).
+ * Expirée = valid_until < ledger courant (même test que OZ, storage.rs l.322).
+ */
+export function pickAgentRule(rules: RawContextRule[], ledger: number, isAgent: (r: RawContextRule) => boolean): AgentRuleInfo | null {
+  const mine = rules.filter(isAgent).map((r) => {
+    const validUntil = r.valid_until === undefined || r.valid_until === null ? null : Number(r.valid_until);
+    return { id: Number(r.id), validUntil, expired: validUntil !== null && validUntil < ledger };
+  });
+  const newest = (xs: AgentRuleInfo[]) => xs.reduce<AgentRuleInfo | null>((a, b) => (a === null || b.id > a.id ? b : a), null);
+  return newest(mine.filter((r) => !r.expired)) ?? newest(mine.filter((r) => r.expired));
+}
+
+/** Lit les règles actives du compte : ids parcourus jusqu'à get_context_rules_count() (ids jamais réutilisés). */
+export async function readContextRules(source: string, smartAccount: string, maxScan = 64): Promise<RawContextRule[]> {
+  const count = Number(scValToNative((await readContract(source, smartAccount, "get_context_rules_count", []))!));
+  const out: RawContextRule[] = [];
+  for (let next = 0; out.length < count && next < count + maxScan; ) {
+    // On lit d'un coup autant d'ids qu'il reste de règles à voir (cas courant : un seul aller-retour).
+    const ids = Array.from({ length: Math.min(8, count - out.length) }, (_, i) => next + i);
+    next += ids.length;
+    const rules = await Promise.all(
+      ids.map((id) =>
+        readContract(source, smartAccount, "get_context_rule", [nativeToScVal(id, { type: "u32" })])
+          .then((v) => scValToNative(v!) as RawContextRule)
+          .catch(() => null), // #3000 : id supprimé ou pas encore attribué
+      ),
+    );
+    for (const r of rules) if (r) out.push(r);
+  }
+  return out;
+}
+
 /**
  * Retrouve on-chain la règle de l'agent : signer External(verifier, clé agent) + la spending-limit
- * policy. Les ids ne sont jamais réutilisés (une règle supprimée → ContextRuleNotFound #3000), donc
- * on parcourt les ids jusqu'à avoir vu get_context_rules_count() règles. Si plusieurs règles
- * correspondent, la plus récente (id le plus haut) gagne. null si aucune.
+ * policy, avec son expiration. Voir pickAgentRule pour le choix entre plusieurs règles.
  */
 export async function findAgentRule(
   source: string,
@@ -425,44 +473,50 @@ export async function findAgentRule(
   verifier: string,
   agentRawPublicKey: Uint8Array,
   policy: string,
-  maxScan = 64,
-): Promise<number | null> {
-  const count = Number(scValToNative((await readContract(source, smartAccount, "get_context_rules_count", []))!));
-  const agentHex = Buffer.from(agentRawPublicKey).toString("hex");
-  let seen = 0;
-  let found: number | null = null;
-  for (let next = 0; seen < count && next < count + maxScan; ) {
-    // On lit d'un coup autant d'ids qu'il reste de règles à voir (cas courant : un seul aller-retour).
-    const ids = Array.from({ length: Math.min(8, count - seen) }, (_, i) => next + i);
-    next += ids.length;
-    const rules = await Promise.all(
-      ids.map((id) =>
-        readContract(source, smartAccount, "get_context_rule", [nativeToScVal(id, { type: "u32" })])
-          .then((v) => scValToNative(v!) as { id: number; signers: unknown[][]; policies: string[] })
-          .catch(() => null), // #3000 : id supprimé ou pas encore attribué
-      ),
+): Promise<AgentRuleInfo | null> {
+  const [rules, ledger] = await Promise.all([readContextRules(source, smartAccount), server.getLatestLedger().then((l) => l.sequence)]);
+  return pickAgentRule(rules, ledger, (r) => isAgentRule(r, verifier, agentRawPublicKey, policy));
+}
+
+/**
+ * Garde-fou du mandat : on ne pose JAMAIS de valid_until ailleurs que sur la règle de l'agent.
+ * OZ mod.rs l.344-349 : si la dernière règle capable d'administrer le compte (ici la règle owner,
+ * Default) expire, le compte est verrouillé définitivement.
+ */
+export function assertMandateTarget(rule: RawContextRule, verifier: string, agentRawPublicKey: Uint8Array, policy: string): void {
+  if (!isAgentRule(rule, verifier, agentRawPublicKey, policy)) {
+    throw new Error(
+      `refus : la règle ${rule.id} n'est pas celle de l'agent (signer agent + spending-limit). Une expiration sur une autre règle, ` +
+        "en particulier celle de l'owner, peut verrouiller le compte définitivement (OpenZeppelin smart_account/mod.rs l.344-349).",
     );
-    for (const r of rules) {
-      if (!r) continue;
-      seen++;
-      const hasAgent = r.signers.some(
-        (s) => s[0] === "External" && s[1] === verifier && Buffer.from(s[2] as Uint8Array).toString("hex") === agentHex,
-      );
-      if (hasAgent && r.policies.includes(policy)) found = Math.max(found ?? -1, Number(r.id));
-    }
   }
-  return found;
+}
+
+/** Argument Option<u32> de update_context_rule_valid_until : Some(ledger) ou None (void). */
+export const validUntilArg = (ledger: number | null) => (ledger === null ? xdr.ScVal.scvVoid() : nativeToScVal(ledger, { type: "u32" }));
+
+/** Durée moyenne réelle d'un ledger sur les ~100 derniers (RPC getLedgers), sinon 5 s. */
+export async function secondsPerLedger(sample = 100): Promise<number> {
+  try {
+    const latest = (await server.getLatestLedger()).sequence;
+    const res = await server.getLedgers({ startLedger: latest - sample, pagination: { limit: 1 } });
+    const t0 = Number(res.ledgers[0]?.ledgerCloseTime);
+    const dt = (Number(res.latestLedgerCloseTime) - t0) / (res.latestLedger - res.ledgers[0].sequence);
+    return Number.isFinite(dt) && dt > 1 && dt < 30 ? dt : 5;
+  } catch {
+    return 5;
+  }
 }
 
 /** Paramètres de la règle B (agent), partagés par reset-agent.ts et la réactivation après pause. */
 export const AGENT_RULE = { name: "agent-usdc-10-24h", limit: usdc(10), periodLedgers: 17_280 } as const;
 
 /** Arguments de add_context_rule pour la règle B : CallContract(USDC SAC), signer External(verifier, agent), spending_limit. */
-export function addAgentRuleArgs(usdcSac: string, verifier: string, agentRawPublicKey: Uint8Array, policy: string): xdr.ScVal[] {
+export function addAgentRuleArgs(usdcSac: string, verifier: string, agentRawPublicKey: Uint8Array, policy: string, validUntil: number | null = null): xdr.ScVal[] {
   return [
     callContractRule(usdcSac),
     nativeToScVal(AGENT_RULE.name, { type: "string" }),
-    xdr.ScVal.scvVoid(),
+    validUntil === null ? xdr.ScVal.scvVoid() : nativeToScVal(validUntil, { type: "u32" }), // mandat (valid_until, ledger inclus)
     xdr.ScVal.scvVec([externalSigner(verifier, agentRawPublicKey)]),
     xdr.ScVal.scvMap([
       new xdr.ScMapEntry({ key: new Address(policy).toScVal(), val: spendingLimitParams(AGENT_RULE.limit, AGENT_RULE.periodLedgers) }),

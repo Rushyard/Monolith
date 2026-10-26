@@ -1,0 +1,291 @@
+/* /agent — mission control (docs/design.md). Everything is scoped under .agent-page so the
+   shared rules in globals.css stay untouched for the other chapters.
+   One bold element: the budget slab, lit from below. Everything else is quiet. */
+
+/* ---------- layout: conversation left, the slab right (sticky) ---------- */
+.agent-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  grid-template-areas: "head aside" "main aside";
+  column-gap: clamp(40px, 6vw, 88px);
+  padding-top: 56px;
+  font-size: 17px; line-height: 1.6;
+}
+.agent-head { grid-area: head; min-width: 0; }
+.agent-aside { grid-area: aside; min-width: 0; }
+.agent-main { grid-area: main; min-width: 0; }
+@media (min-width: 960px) {
+  .agent-aside { position: sticky; top: 104px; align-self: start; padding-top: 40px; }
+}
+@media (max-width: 959px) {
+  .agent-page { grid-template-columns: minmax(0, 1fr); grid-template-areas: "aside" "head" "main"; padding-top: 24px; }
+  .agent-head { margin-top: 48px; }
+}
+
+/* keyboard focus, everywhere on the page */
+.agent-page :is(a, button, input, summary, li[tabindex]):focus-visible {
+  outline: 2px solid var(--sun); outline-offset: 3px;
+}
+
+/* ---------- chapter head ---------- */
+.agent-title {
+  font-family: var(--console); font-weight: 400;
+  font-size: clamp(28px, 4.2vw, 52px); letter-spacing: .18em; line-height: 1.15;
+  margin: 16px -0.18em 0 0;
+}
+.agent-lede { margin: 20px 0 0; max-width: 58ch; color: var(--muted); font-size: 17px; font-weight: 300; line-height: 1.6; }
+
+/* owner session + mandate: clear, but quiet */
+.agent-session { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px; margin-top: 28px; }
+.agent-page .owner-session { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.session-mode, .session-mandate { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+.session-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px var(--muted); }
+.session-mode.owner { color: var(--fg); }
+.session-mode.owner .session-dot { background: var(--sun); box-shadow: 0 0 8px var(--sun-glow); }
+.session-mandate.live .session-dot { background: var(--muted); box-shadow: none; }
+.session-mandate.expired { color: var(--hal); }
+.session-mandate.expired .session-dot { background: var(--hal); box-shadow: none; }
+.session-note { font-size: 14px; color: var(--muted); }
+.session-error { flex-basis: 100%; font-size: 14px; color: var(--hal); }
+
+/* ---------- buttons: sentence case on this page ---------- */
+.agent-page .btn {
+  font-size: 15px; font-weight: 500; letter-spacing: .01em; text-transform: none;
+  border-radius: 2px; padding: 10px 18px;
+}
+.agent-page .btn.quiet {
+  min-height: 36px; padding: 6px 12px; font-size: 14px; font-weight: 400; color: var(--muted);
+}
+.agent-page .btn.quiet:hover:not(:disabled) { color: var(--fg); }
+
+/* ---------- the bold element: the budget slab ---------- */
+.agent-page .budget-slab { display: flex; align-items: flex-end; gap: 28px; position: relative; padding-bottom: 20px; }
+.agent-page .budget-slab::after { /* the floor the slab stands on */
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line-strong);
+}
+.agent-page .slab {
+  width: 128px; height: 288px; /* 4:9 */ flex: none;
+  background: #050506;
+  box-shadow: inset 0 0 0 1px #24262c;
+}
+.agent-page .slab-light {
+  box-shadow: 0 -1px 0 rgba(255,244,220,.95), 0 -10px 32px rgba(255,214,150,.4);
+}
+.agent-page .budget-slab.alarm .slab, .agent-page .budget-slab.empty .slab {
+  box-shadow: inset 0 0 0 1px var(--hal), 0 0 36px rgba(255,42,23,.3);
+}
+.agent-page .slab-legend { display: grid; gap: 6px; padding-bottom: 0; min-width: 0; }
+.slab-title { font-size: 15px; font-weight: 500; color: var(--fg); }
+.agent-page .slab-amount {
+  font-family: var(--mono); font-weight: 400; font-size: 40px; letter-spacing: -.01em; line-height: 1; margin: 8px 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+.agent-page .slab-amount small { font-size: 15px; white-space: nowrap; letter-spacing: 0; color: var(--muted); }
+.agent-page .budget-slab.empty .slab-amount { color: var(--hal); }
+.agent-page .slab-note { font-size: 14px; line-height: 1.45; color: var(--muted); }
+@media (max-width: 959px) {
+  .agent-page .budget-slab { gap: 20px; padding-bottom: 16px; }
+  .agent-page .slab { width: 80px; height: 180px; }
+  .agent-page .slab-amount { font-size: 32px; }
+}
+
+/* ---------- pause panel ---------- */
+.pause-panel { margin-top: 40px; padding: 16px 20px; border: 1px solid var(--line); display: grid; gap: 10px; justify-items: start; }
+.pause-panel.pause-banner { border-color: transparent; border-left: 2px solid var(--hal); background: var(--deep); }
+.pause-title { font-weight: 500; font-size: 17px; }
+.pause-banner .pause-title { color: var(--hal); }
+.pause-scope { margin: 0; font-size: 14px; color: var(--muted); }
+
+/* ---------- composer ---------- */
+.agent-page .composer {
+  margin-top: 48px; padding: 24px; gap: 20px;
+  border: 1px solid var(--line-strong); background: var(--deep);
+}
+.agent-page .agent-status {
+  font: 400 14px/1.3 var(--font); letter-spacing: 0; text-transform: none; color: var(--muted);
+}
+/* the global .lens rule (three views) also matches the status lens: reset it here */
+.agent-page .agent-status .lens { display: block; flex: none; padding: 0; border: 0; gap: 0; font-size: 0; }
+.agent-page .agent-status.pending { color: var(--fg); }
+.agent-page .agent-status.pending .lens { background: var(--void); box-shadow: 0 0 0 3px #15161a, 0 0 0 4px #2a2c32, inset 0 0 0 1.5px var(--fg); }
+.agent-page .composer-row { gap: 12px; }
+.agent-page .composer-input {
+  background: var(--void); border: 1px solid var(--line-strong); border-radius: 2px;
+  font: 300 19px/1.4 var(--font); padding: 12px 14px; min-height: 52px;
+}
+.agent-page .composer-input::placeholder { color: var(--muted); }
+.agent-page .composer-input:focus { border-color: var(--sun); }
+.agent-page .composer-input:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--sun); }
+.agent-page .composer-row .btn.primary { min-height: 52px; padding: 10px 26px; }
+.agent-page .suggestions { gap: 8px; }
+.agent-page .chip {
+  font: 400 14px/1.2 var(--font); color: var(--muted); border-radius: 2px; padding: 8px 12px; min-height: 36px;
+}
+.agent-page .chip.scam { color: var(--hal); border-color: rgba(255,42,23,.55); }
+.agent-page .chip.scam:hover:not(:disabled) { color: var(--fg); border-color: var(--hal); }
+.agent-page .chip.dev { font-family: var(--mono); font-size: 12px; border-style: dashed; }
+@media (max-width: 560px) {
+  .agent-page .composer { padding: 18px 16px; }
+  .agent-page .composer-input { font-size: 18px; }
+}
+
+/* ---------- the conversation: one request per entry ---------- */
+.agent-page .transmissions { gap: 0; margin-top: 56px; }
+.agent-page .tx-card { border: 0; border-top: 1px solid var(--line); background: none; padding: 32px 0 40px; overflow: visible; }
+.agent-page .tx-card::before { top: -1px; }
+.agent-page .tx-card.pending::before, .agent-page .tx-card.paused::before { background: var(--fg); box-shadow: none; }
+
+.agent-page .tx-request { margin: 0; font-size: 22px; font-weight: 300; line-height: 1.4; max-width: 40ch; overflow-wrap: anywhere; }
+.agent-page .tx-request q { quotes: "\201C" "\201D"; }
+:lang(fr) .agent-page .tx-request q { quotes: "\00AB\00A0" "\00A0\00BB"; }
+
+.agent-page .sim-tag {
+  margin: 10px 0 0; display: flex; gap: 10px; align-items: baseline;
+  font: 400 14px/1.5 var(--font); letter-spacing: 0; text-transform: none; color: var(--muted);
+}
+.agent-page .sim-tag::before {
+  content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--muted); transform: translateY(-1px);
+}
+
+/* pipeline: planner, gatekeeper, network */
+.agent-page .pipeline { margin: 28px 0 28px; }
+.agent-page .node { gap: 6px; padding-right: 20px; }
+.agent-page .node-name { font: 500 13px/1.3 var(--font); letter-spacing: .01em; text-transform: none; color: var(--muted); }
+.agent-page .node-text { font-size: 15px; line-height: 1.45; color: var(--muted); }
+.agent-page .node.ok .node-text { color: var(--fg); }
+.agent-page .node.bad .node-text { color: var(--hal); }
+.agent-page .node.warn .node-text { color: var(--fg); }
+.agent-page .node.warn .node-dot { background: var(--void); box-shadow: inset 0 0 0 1.5px var(--fg); }
+
+/* verdict: the sentence that matters */
+.agent-page .verdict { border-top: 0; padding-top: 0; }
+.agent-page .verdict-label {
+  display: block; font: 500 21px/1.3 var(--font); letter-spacing: 0; text-transform: none; color: var(--fg);
+}
+.agent-page .verdict.ok .verdict-label { color: var(--sun); }
+.agent-page .verdict.bad .verdict-label { color: var(--hal); }
+.agent-page .verdict.warn .verdict-label { color: var(--fg); }
+.agent-page .verdict p { margin: 8px 0 0; font-size: 17px; line-height: 1.6; color: var(--fg); max-width: 64ch; overflow-wrap: anywhere; }
+.agent-page .verdict code { color: var(--hal); }
+.agent-page .verdict .link { white-space: nowrap; }
+
+/* ---------- action panels: the owner's move ---------- */
+.agent-page .approve { margin-top: 28px; padding: 22px 24px; border: 1px solid var(--line-strong); background: var(--deep); }
+.agent-page .approve-row { border: 0; padding: 0; gap: 16px 24px; align-items: center; }
+.agent-page .approve-row > div { display: grid; gap: 4px; min-width: 0; flex: 1 1 260px; }
+.agent-page .approve-row b { font-size: 20px; font-weight: 400; line-height: 1.35; }
+.agent-page .approve-row span { font-size: 14px; color: var(--muted); }
+.agent-page .approve-facts { margin: 20px 0 0; padding-top: 16px; border-top: 1px solid var(--line); gap: 10px; font-size: 14px; line-height: 1.5; }
+.agent-page .approve-facts li { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; }
+.agent-page .approve-facts b { font-weight: 500; margin: 0; }
+.agent-page .approve-error { color: var(--hal); font-size: 14px; margin: 12px 0 0; }
+.agent-page .approve .fine, .agent-page .activity .fine { font-size: 13px; color: var(--muted); margin: 16px 0 0; }
+.agent-page .approve-lead { margin: 0; font-size: 17px; line-height: 1.6; }
+.agent-page .approve-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 16px; }
+.agent-page .approve-actions .approve-error { margin: 0; flex-basis: 100%; }
+.agent-page .approve-fee { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.agent-page .pause-panel .approve-actions { margin-top: 4px; }
+@media (max-width: 560px) {
+  .agent-page .approve { padding: 18px 16px; }
+  .agent-page .approve-facts li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .agent-page .approve-row .btn { width: 100%; }
+}
+
+/* payroll and sweep: one line per signature */
+.agent-page .vault-pay-list { border: 0; margin: 20px 0 0; }
+.agent-page .vault-pay-line { padding: 14px 0; gap: 4px 16px; border-top: 1px solid var(--line); align-items: baseline; }
+.agent-page .vault-pay-line .vp-who { font-size: 16px; min-width: 0; overflow-wrap: anywhere; }
+.agent-page .vault-pay-line .vp-who em { font-size: 12px; color: var(--muted); }
+.agent-page .vault-pay-line .vp-amt { font-size: 15px; }
+.agent-page .vault-pay-line .vp-step { font-size: 14px; color: var(--muted); }
+.agent-page .vault-pay-line .vp-step .btn { margin-top: 6px; }
+.agent-page .vault-pay-line:is(.sync, .proving, .submitting, .receipt) .vp-step { color: var(--fg); }
+.agent-page .vault-pay-line:is(.sync, .proving, .submitting, .receipt) .vp-step::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 10px; border-radius: 50%;
+  background: var(--fg); vertical-align: middle; animation: agent-blink 1.2s ease-in-out infinite;
+}
+.agent-page .vault-pay-line.done .vp-step { color: var(--sun); }
+.agent-page .vault-pay-line.done .vp-step .link { border-color: rgba(255,244,220,.35); }
+.agent-page .vault-pay-line.error .vp-step { color: var(--hal); }
+.agent-page .vault-pay-line.focus { background: none; box-shadow: inset 2px 0 0 var(--sun); padding-left: 14px; }
+@keyframes agent-blink { 50% { opacity: .25; } }
+
+/* three views of one payment */
+.agent-page .lenses { margin-top: 28px; }
+.agent-page .lenses-title { font: 500 17px/1.4 var(--font); letter-spacing: 0; text-transform: none; color: var(--fg); margin: 0 0 14px; }
+.agent-page .lenses-grid { border: 1px solid var(--line); }
+.agent-page .lenses-grid .lens { padding: 16px 18px; font-size: 14px; gap: 12px; }
+.agent-page .lens-head { font: 500 14px/1.35 var(--font); letter-spacing: 0; text-transform: none; color: var(--muted); }
+.agent-page .lenses-grid .lens.auditor .lens-head { color: var(--sun); }
+.agent-page .lenses-grid .lens dt { color: var(--muted); }
+.agent-page .lenses-grid .lens .lens-hidden { color: var(--hidden); }
+.agent-page .lenses-grid .lens .lens-amount { font-size: 17px; }
+.agent-page .lenses-grid .lens ul { gap: 8px; }
+.agent-page .lenses-grid .lens .fine { margin: 0; font-size: 13px; color: var(--muted); }
+@media (min-width: 960px) and (max-width: 1100px) {
+  .agent-page .lenses-grid { grid-template-columns: 1fr; }
+  .agent-page .lenses-grid .lens { border-left: 0; border-top: 1px solid var(--line); }
+  .agent-page .lenses-grid .lens:first-child { border-top: 0; }
+}
+
+/* technical details: folded, readable when opened */
+.agent-page .tx-details { margin-top: 24px; font-size: 14px; color: var(--muted); }
+.agent-page .tx-details summary {
+  display: inline-flex; align-items: center; gap: 8px; list-style: none;
+  font: 400 14px/1.4 var(--font); letter-spacing: 0; text-transform: none; color: var(--muted);
+}
+.agent-page .tx-details summary::-webkit-details-marker { display: none; }
+.agent-page .tx-details summary::before {
+  content: ""; width: 6px; height: 6px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor;
+  transform: rotate(-45deg); transition: transform .2s ease;
+}
+.agent-page .tx-details[open] summary::before { transform: rotate(45deg); }
+.agent-page .tx-details summary:hover { color: var(--fg); }
+.agent-page .tx-details p { margin: 8px 0 0; padding-left: 14px; line-height: 1.55; max-width: 72ch; }
+
+/* ---------- activity: a readable log ---------- */
+.agent-page .activity { margin-top: 88px; }
+.agent-page .activity-title { font: 500 21px/1.3 var(--font); letter-spacing: 0; text-transform: none; color: var(--fg); margin: 0 0 20px; }
+.agent-page .activity-list {
+  border-top: 1px solid var(--line-strong);
+  display: grid; grid-template-columns: max-content minmax(0, 1.3fr) minmax(0, 1fr) max-content max-content max-content;
+  column-gap: 20px;
+}
+.agent-page .activity-item {
+  grid-column: 1 / -1; grid-template-columns: subgrid;
+  gap: 4px 20px; padding: 14px 0; font-size: 15px; align-items: baseline;
+}
+.agent-page .activity-item .act-time { grid-column: 1; white-space: nowrap; font-family: var(--mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.agent-page .activity-item .act-who { grid-column: 2; min-width: 0; overflow-wrap: anywhere; }
+.agent-page .activity-item .act-who em { color: var(--muted); }
+.agent-page .activity-item .act-kind { grid-column: 3; font-size: 14px; color: var(--muted); }
+.agent-page .activity-item.paid .act-kind { color: var(--fg); }
+.agent-page .activity-item.waiting .act-kind { color: var(--fg); }
+.agent-page .activity-item.refused .act-kind, .agent-page .activity-item.blocked .act-kind { color: var(--hal); }
+.agent-page .activity-item .badge {
+  grid-column: 4; font: 400 13px/1.3 var(--font); letter-spacing: 0; text-transform: none;
+  padding: 0; border: 0; color: var(--muted);
+}
+.agent-page .activity-item .badge.private { color: var(--hidden); }
+.agent-page .activity-item .act-amt { grid-column: 5; font-size: 14px; text-align: right; white-space: nowrap; }
+.agent-page .activity-item .badge.private + .act-amt { color: var(--hidden); font-family: var(--font); font-size: 14px; }
+.agent-page .activity-item .act-tx { grid-column: 6; font-size: 14px; white-space: nowrap; }
+@media (max-width: 720px) {
+  .agent-page .activity-list { display: block; }
+  .agent-page .activity-item {
+    grid-template-columns: max-content minmax(0, 1fr) auto auto;
+    grid-template-areas: "time who who amt" ". kind badge tx";
+    gap: 2px 12px;
+  }
+  .agent-page .activity-item .act-time { grid-area: time; }
+  .agent-page .activity-item .act-who { grid-area: who; }
+  .agent-page .activity-item .act-kind { grid-area: kind; }
+  .agent-page .activity-item .badge { grid-area: badge; }
+  .agent-page .activity-item .act-amt { grid-area: amt; }
+  .agent-page .activity-item .act-tx { grid-area: tx; }
+}
+
+/* ---------- motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .agent-page .vault-pay-line .vp-step::before, .agent-page .tx-details summary::before { animation: none; transition: none; }
+}

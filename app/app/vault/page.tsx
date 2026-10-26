@@ -27,6 +27,7 @@ import { AGENT_SMART_ACCOUNT, FundAgentPanel } from "@/components/agent/FundAgen
 import { useI18n } from "@/lib/i18n/react";
 import type { Key } from "@/lib/i18n";
 import { nameOf } from "@/lib/names";
+import "./vault.css";
 
 type Op = "connect" | "friendbot" | "buy" | "register" | "deposit" | "merge" | "transfer" | "withdraw" | "refresh" | "fund";
 type Busy = null | { op: Op; phase?: TxPhase };
@@ -119,205 +120,246 @@ export default function VaultPage() {
   const label = (op: Op) =>
     busy?.op === op ? (busy.phase === "proving" ? t("busy.proof") : busy.phase === "submitting" ? t("busy.sending") : "…") : null;
 
+  const hasFunds = !!view && (view.spendable > 0n || view.receiving > 0n);
+  const needPrepare = connected && (!pub?.funded || usdcPublic === null || Number(usdcPublic) < 1);
+  const registered = connected && view.registered;
+  const amtOr = (s: string) => s.trim() || "…";
+  const dep: StepState = !registered ? "locked" : hasFunds ? "done" : "current";
+  const mrg: StepState = !registered ? "locked" : view.receiving > 0n ? "current" : view.spendable > 0n ? "done" : "upcoming";
+  const snd: StepState = !registered ? "locked" : view.spendable > 0n && view.receiving === 0n ? "current" : "upcoming";
+
   return (
-    <>
+    <div className="vault-page">
       <StarGate
         active={busy?.phase === "proving"}
         title={busy ? t("sg.crossing", { op: opName(busy.op) }) : ""}
         detail={busy?.op === "transfer" ? t("sg.encrypting") : undefined}
       />
-      <header className="page-head has-film">
+      <header className="page-head has-film vault-head">
         <AmbientFilm name="vault" />
         <div>
           <span className="chapter">{t("chapter.n", { n: "I" })}</span>
-          <h1 className="intertitle" style={{ marginTop: 10 }}>{t("ch.vault")}</h1>
+          <h1 className="intertitle">{t("ch.vault")}</h1>
           <p className="lede">{t("vault.lede")}</p>
         </div>
-        <div className="monolith sm" aria-hidden />
       </header>
 
       {error && <p className="callout" role="alert">{error}</p>}
 
-      {!isolated && (
-        <p className="callout" style={{ marginBottom: 16 }}>
-          {t("vault.notIsolated")}
-        </p>
-      )}
+      {!isolated && <p className="callout vault-callout">{t("vault.notIsolated")}</p>}
 
-      {!connected ? (
-        <section className="panel stack">
-          <h2 className="section">{t("vault.airlock")}</h2>
-          <p style={{ margin: 0, color: "var(--muted)" }}>{t("vault.connectHelp")}</p>
-          <div className="row">
-            <button className="btn primary" onClick={connect} disabled={!!busy}>
-              {busy ? <span className="progress-dots">{t("vault.connecting")}</span> : t("vault.connectBtn")}
-            </button>
-            <a className="btn" href="https://www.freighter.app/" target="_blank" rel="noreferrer">
-              {t("vault.install")}
-            </a>
+      <div className="vault-layout">
+        <aside className="vault-aside" aria-label={t("vault.spendable")}>
+          <div className={`vault-slab curve-card${connected ? " lit" : ""}`}>
+            <CurvePoint seed={1} />
+            {connected ? (
+              <>
+                <div className="slab-block">
+                  <p className="slab-label">{t("vault.spendable")}</p>
+                  <p className="slab-figure">
+                    <Decrypt text={formatUsdc(view.spendable)} />
+                    <small>USDC</small>
+                  </p>
+                </div>
+                <div className="slab-block">
+                  <p className="slab-label">{t("vault.d.slabIncoming")}</p>
+                  <p className="slab-figure sm">
+                    <Decrypt text={formatUsdc(view.receiving)} />
+                    <small>USDC</small>
+                  </p>
+                </div>
+                <div className="slab-foot">
+                  <span className="tag hidden">{t("vault.d.hiddenLine")}</span>
+                  <p>{t("vault.d.slabNote")}</p>
+                  <p className="slab-curve">{t("vault.spendableNote")}</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="slab-block">
+                  <p className="slab-label">{t("vault.spendable")}</p>
+                  <p className="slab-figure dormant" aria-hidden>— — —</p>
+                </div>
+                <div className="slab-foot">
+                  <span className="tag hidden">{t("vault.d.sealed")}</span>
+                  <p>{t("vault.d.sealedNote")}</p>
+                </div>
+              </>
+            )}
           </div>
-        </section>
-      ) : (
-        <>
-          <section className="grid cols-3">
-            <div className="panel stat">
-              <div className="label">{t("vault.public")} <span className="tag public">{t("tag.visible")}</span></div>
-              <div className="value">{usdcPublic ?? "—"}<small>USDC</small></div>
-              <div className="note num">
-                {pub?.funded ? `${Number(pub.xlm).toFixed(2)} XLM` : t("vault.unfunded")} ·{" "}
+
+          {connected && (
+            <div className="vault-public">
+              <p className="pub-title">{t("vault.d.yourAccount")}</p>
+              <p className="pub-figure num">{usdcPublic ?? "—"}<small>USDC</small></p>
+              <p className="pub-note num">
+                {pub?.funded ? `${Number(pub.xlm).toFixed(2)} XLM` : t("vault.unfunded")}
+                {" · "}
                 <a className="link" href={explorerAccount(v.address)} target="_blank" rel="noreferrer">{short(v.address)}</a>
                 {nameOf(v.address) ? ` (${nameOf(v.address)})` : null}
-              </div>
+              </p>
+              <p className="pub-note">{t("vault.d.publicNote")}</p>
+              <button className="btn quiet" disabled={!!busy} onClick={() => run("refresh", async () => { await reload(); })}>
+                {t("vault.refresh")}
+              </button>
             </div>
-            <div className="panel stat curve-card">
-              <CurvePoint seed={1} />
-              <div className="label">{t("vault.spendable")} <span className="tag hidden">{t("tag.hidden")}</span></div>
-              <div className="value"><Decrypt text={formatUsdc(view.spendable)} /><small>USDC</small></div>
-              <div className="note">{t("vault.spendableNote")}</div>
-            </div>
-            <div className="panel stat curve-card">
-              <CurvePoint seed={2} />
-              <div className="label">{t("vault.receiving")} <span className="tag hidden">{t("tag.hidden")}</span></div>
-              <div className="value"><Decrypt text={formatUsdc(view.receiving)} /><small>USDC</small></div>
-              <div className="note">{t("vault.receivingNote")}</div>
-            </div>
-          </section>
+          )}
+        </aside>
 
-          {view.health !== "ok" && (
-            <p className="callout" style={{ marginTop: 16 }}>
-              {t(view.health === "diverged" ? "vault.diverged" : "vault.unverified")}
-            </p>
+        <div className="vault-main">
+          {connected && view.health !== "ok" && (
+            <p className="callout vault-callout">{t(view.health === "diverged" ? "vault.diverged" : "vault.unverified")}</p>
           )}
 
-          {lastTx && (
-            <div className="panel row" style={{ marginTop: 16, justifyContent: "space-between" }}>
+          {connected && lastTx && (
+            <p className="vault-confirm" role="status">
               <span>
                 {lastTx.amount && (
-                  <>
-                    <span className={`tag ${lastTx.amount}`}>
-                      {lastTx.amount === "hidden" ? t("vault.amountHidden") : t("vault.amountPublic")}
-                    </span>{" "}
-                  </>
+                  <span className={`tag ${lastTx.amount}`}>
+                    {lastTx.amount === "hidden" ? t("vault.amountHidden") : t("vault.amountPublic")}
+                  </span>
                 )}
                 {t("vault.confirmed", { op: opName(lastTx.op) })}
               </span>
               <a className="link mono" href={explorerTx(lastTx.hash)} target="_blank" rel="noreferrer">
-                {short(lastTx.hash, 8)} ↗ stellar.expert
+                {short(lastTx.hash, 8)} stellar.expert
               </a>
-            </div>
+            </p>
           )}
 
-          <div className="spacer" />
-
-          {!pub?.funded || usdcPublic === null || Number(usdcPublic) < 1 ? (
-            <section className="panel stack">
-              <h2 className="section">{t("vault.step0")}</h2>
-              <p style={{ margin: 0, color: "var(--muted)" }}>{t("vault.step0Help")}</p>
-              <div className="row">
-                {!pub?.funded && (
-                  <button className="btn" disabled={!!busy} onClick={() => run("friendbot", async () => {
-                    await friendbot(v.address); log(t("log.xlm"));
-                  })}>{t("vault.getXlm")}</button>
-                )}
-                <button className="btn primary" disabled={!!busy || !pub?.funded} onClick={() => run("buy", async () => {
-                  const hash = await buyTestUsdc(v.signer, "50");
-                  log(t("log.bought"));
-                  return { hash };
-                }, "public")}>{t("vault.get50")}</button>
-              </div>
-            </section>
-          ) : null}
-
-          {!view.registered ? (
-            <section className="panel stack" style={{ marginTop: 16 }}>
-              <h2 className="section">{t("vault.step1")}</h2>
-              <p style={{ margin: 0, color: "var(--muted)" }}>{t("vault.step1Help")}</p>
-              <div className="row">
-                <button className="btn primary" disabled={!!busy} onClick={() => run("register", (p) => v.register(p))}>
-                  {label("register") ? <span className="progress-dots">{label("register")}</span> : t("vault.openBtn")}
-                </button>
-              </div>
-            </section>
-          ) : (
-            <>
-            <section className="grid cols-2">
-              <div className="panel stack">
-                <h2 className="section">{t("vault.deposit")} <span className="tag public">{t("tag.public")}</span></h2>
-                <div className="op">
-                  <div className="field">
-                    <label htmlFor="dep">{t("vault.amount")}</label>
-                    <input id="dep" className="input" inputMode="decimal" value={depositAmt} onChange={(e) => setDepositAmt(e.target.value)} />
+          <ol className="steps" aria-label={t("vault.d.stepsLabel")}>
+            <Step state={connected ? "done" : "current"} title={t("vault.d.connect")} t={t}>
+              {!connected && (
+                <>
+                  <p className="step-help">{t("vault.connectHelp")}</p>
+                  <div className="row">
+                    <button className="btn primary" onClick={connect} disabled={!!busy}>
+                      {busy ? <span className="progress-dots">{t("vault.connecting")}</span> : t("vault.connectBtn")}
+                    </button>
+                    <a className="btn" href="https://www.freighter.app/" target="_blank" rel="noreferrer">
+                      {t("vault.install")}
+                    </a>
                   </div>
-                  <button className="btn" disabled={!!busy} onClick={() => run("deposit", () => v.deposit(parseUsdc(depositAmt)), "public")}>
-                    {label("deposit") ? <span className="progress-dots">{t("busy.sending")}</span> : t("vault.deposit")}
-                  </button>
-                </div>
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <span style={{ color: "var(--muted)", fontSize: 14 }}>{t("vault.incomingToSpendable")}</span>
-                  <button className="btn" disabled={!!busy || view.receiving === 0n} onClick={() => run("merge", () => v.merge())}>
-                    {label("merge") ? <span className="progress-dots">{t("busy.sending")}</span> : t("vault.mergeBtn")}
-                  </button>
-                </div>
-              </div>
+                </>
+              )}
+            </Step>
 
-              <div className="panel stack">
-                <h2 className="section">{t("op.transfer")} <span className="tag hidden">{t("tag.hidden")}</span></h2>
-                <div className="field">
-                  <label htmlFor="to">{t("vault.recipient")}{nameOf(sendTo) ? ` · ${nameOf(sendTo)}` : null}</label>
-                  <input id="to" className="input" list="recips" placeholder="G…" value={sendTo} onChange={(e) => setSendTo(e.target.value.trim())} />
-                  <datalist id="recips">{recipients.map((r) => <option key={r} value={r} label={nameOf(r)} />)}</datalist>
+            {needPrepare && (
+              <Step state="current" title={t("vault.d.prepare")} t={t}>
+                <p className="step-help">{t("vault.step0Help")}</p>
+                <div className="row">
+                  {!pub?.funded && (
+                    <button className="btn" disabled={!!busy} onClick={() => run("friendbot", async () => {
+                      await friendbot(v.address); log(t("log.xlm"));
+                    })}>{t("vault.getXlm")}</button>
+                  )}
+                  <button className="btn primary" disabled={!!busy || !pub?.funded} onClick={() => run("buy", async () => {
+                    const hash = await buyTestUsdc(v.signer, "50");
+                    log(t("log.bought"));
+                    return { hash };
+                  }, "public")}>{t("vault.get50")}</button>
                 </div>
-                <div className="op">
-                  <div className="field">
-                    <label htmlFor="amt">{t("vault.amount")}</label>
-                    <input id="amt" className="input" inputMode="decimal" value={sendAmt} onChange={(e) => setSendAmt(e.target.value)} />
+              </Step>
+            )}
+
+            {connected && !view.registered && (
+              <Step state={needPrepare ? "upcoming" : "current"} title={t("vault.d.open")} t={t}>
+                <p className="step-help">{t("vault.step1Help")}</p>
+                <div className="row">
+                  <button className="btn primary" disabled={!!busy} onClick={() => run("register", (p) => v.register(p))}>
+                    {label("register") ? <span className="progress-dots">{label("register")}</span> : t("vault.openBtn")}
+                  </button>
+                </div>
+              </Step>
+            )}
+            {connected && view.registered && <Step state="done" title={t("vault.d.open")} t={t} />}
+
+            {!registered ? (
+              <>
+                <Step state="locked" title={t("vault.deposit")} t={t} />
+                <Step state="locked" title={t("vault.d.mergeTitle")} t={t} />
+                <Step state="locked" title={t("op.transfer")} t={t} />
+                <Step state="locked" title={t("vault.withdraw")} t={t} />
+                <Step state="locked" title={t("fund.title")} t={t} />
+              </>
+            ) : (
+              <>
+                <Step state={dep} title={t("vault.deposit")} badge="public" t={t}>
+                  <p className="step-help">{t("vault.d.depositHelp")}</p>
+                  <div className="op">
+                    <div className="field">
+                      <label htmlFor="dep">{t("vault.amount")}</label>
+                      <input id="dep" className="input" inputMode="decimal" value={depositAmt} onChange={(e) => setDepositAmt(e.target.value)} />
+                    </div>
+                    <button className={`btn${dep === "current" ? " primary" : ""}`} disabled={!!busy} onClick={() => run("deposit", () => v.deposit(parseUsdc(depositAmt)), "public")}>
+                      {label("deposit") ? <span className="progress-dots">{t("busy.sending")}</span> : t("vault.d.depositBtn", { amt: amtOr(depositAmt) })}
+                    </button>
                   </div>
-                  <button className="btn primary" disabled={!!busy || !sendTo} onClick={() => run("transfer", (p) => v.transfer(sendTo, parseUsdc(sendAmt), p), "hidden")}>
-                    {label("transfer") ? <span className="progress-dots">{label("transfer")}</span> : t("vault.send")}
-                  </button>
-                </div>
-              </div>
+                </Step>
 
-              <div className="panel stack">
-                <h2 className="section">{t("vault.withdraw")} <span className="tag public">{t("tag.public")}</span></h2>
-                <div className="op">
-                  <div className="field">
-                    <label htmlFor="wd">{t("vault.amount")}</label>
-                    <input id="wd" className="input" inputMode="decimal" value={withdrawAmt} onChange={(e) => setWithdrawAmt(e.target.value)} />
+                <Step state={mrg} title={t("vault.d.mergeTitle")} t={t}>
+                  <p className="step-help">{t("vault.d.mergeHelp")}</p>
+                  <div className="row">
+                    <button className={`btn${mrg === "current" ? " primary" : ""}`} disabled={!!busy || view.receiving === 0n} onClick={() => run("merge", () => v.merge())}>
+                      {label("merge") ? <span className="progress-dots">{t("busy.sending")}</span> : t("vault.mergeBtn")}
+                    </button>
                   </div>
-                  <button className="btn" disabled={!!busy} onClick={() => run("withdraw", (p) => v.withdraw(parseUsdc(withdrawAmt), p), "public")}>
-                    {label("withdraw") ? <span className="progress-dots">{label("withdraw")}</span> : t("vault.withdraw")}
-                  </button>
-                </div>
-              </div>
+                </Step>
 
-              <div className="panel stack">
-                <h2 className="section">{t("vault.contract")}</h2>
-                <p className="mono" style={{ margin: 0, fontSize: 13, overflowWrap: "anywhere" }}>
-                  <a className="link" href={explorerAccount(CT.token)} target="_blank" rel="noreferrer">{CT.token}</a>
-                </p>
-                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>{t("vault.contractNote")}</p>
-                <button className="btn" disabled={!!busy} onClick={() => run("refresh", async () => { await reload(); })}>{t("vault.refresh")}</button>
-              </div>
-            </section>
+                <Step state={snd} title={t("op.transfer")} badge="hidden" t={t}>
+                  <p className="step-help">{t("vault.d.sendHelp")}</p>
+                  <div className="field">
+                    <label htmlFor="to">{t("vault.recipient")}{nameOf(sendTo) ? ` · ${nameOf(sendTo)}` : null}</label>
+                    <input id="to" className="input" list="recips" placeholder="G…" value={sendTo} onChange={(e) => setSendTo(e.target.value.trim())} />
+                    <datalist id="recips">{recipients.map((r) => <option key={r} value={r} label={nameOf(r)} />)}</datalist>
+                  </div>
+                  <div className="op">
+                    <div className="field">
+                      <label htmlFor="amt">{t("vault.amount")}</label>
+                      <input id="amt" className="input" inputMode="decimal" value={sendAmt} onChange={(e) => setSendAmt(e.target.value)} />
+                    </div>
+                    <button className={`btn${snd === "current" ? " primary" : ""}`} disabled={!!busy || !sendTo} onClick={() => run("transfer", (p) => v.transfer(sendTo, parseUsdc(sendAmt), p), "hidden")}>
+                      {label("transfer") ? <span className="progress-dots">{label("transfer")}</span> : t("vault.d.sendBtn", { amt: amtOr(sendAmt) })}
+                    </button>
+                  </div>
+                </Step>
 
-            <FundAgentPanel
-              disabled={!!busy}
-              busyLabel={label("fund")}
-              refreshKey={agentRefresh}
-              onFund={(amt) =>
-                run("fund", async (p) => {
-                  const r = await v.withdraw(parseUsdc(amt), p, AGENT_SMART_ACCOUNT);
-                  setAgentRefresh((k) => k + 1);
-                  return r;
-                }, "public")
-              }
-            />
-            </>
-          )}
+                <Step state="upcoming" title={t("vault.withdraw")} badge="public" t={t}>
+                  <p className="step-help">{t("vault.d.withdrawHelp")}</p>
+                  <div className="op">
+                    <div className="field">
+                      <label htmlFor="wd">{t("vault.amount")}</label>
+                      <input id="wd" className="input" inputMode="decimal" value={withdrawAmt} onChange={(e) => setWithdrawAmt(e.target.value)} />
+                    </div>
+                    <button className="btn" disabled={!!busy} onClick={() => run("withdraw", (p) => v.withdraw(parseUsdc(withdrawAmt), p), "public")}>
+                      {label("withdraw") ? <span className="progress-dots">{label("withdraw")}</span> : t("vault.d.withdrawBtn", { amt: amtOr(withdrawAmt) })}
+                    </button>
+                  </div>
+                </Step>
 
-          {history.length > 0 && (
-            <section className="panel" style={{ marginTop: 16 }}>
+                <li className="step fund-step" data-state="upcoming">
+                  <span className="step-marker" aria-hidden />
+                  <div className="step-body">
+                    <FundAgentPanel
+                      disabled={!!busy}
+                      busyLabel={label("fund")}
+                      refreshKey={agentRefresh}
+                      onFund={(amt) =>
+                        run("fund", async (p) => {
+                          const r = await v.withdraw(parseUsdc(amt), p, AGENT_SMART_ACCOUNT);
+                          setAgentRefresh((k) => k + 1);
+                          return r;
+                        }, "public")
+                      }
+                    />
+                  </div>
+                </li>
+              </>
+            )}
+          </ol>
+
+          {connected && history.length > 0 && (
+            <section className="vault-quiet">
               <h2 className="section">{t("vault.logbook")}</h2>
               <div className="table-wrap">
                 <table className="data">
@@ -338,13 +380,53 @@ export default function VaultPage() {
               </div>
             </section>
           )}
-        </>
-      )}
 
-      <div className="spacer" />
-      <h2 className="section">{t("vault.console")}</h2>
-      <Terminal lines={lines} empty={t("vault.consoleEmpty")} />
-    </>
+          {connected && (
+            <section className="vault-quiet">
+              <h2 className="section">{t("vault.contract")}</h2>
+              <p className="mono contract-id">
+                <a className="link" href={explorerAccount(CT.token)} target="_blank" rel="noreferrer">{CT.token}</a>
+              </p>
+              <p className="step-help">{t("vault.contractNote")}</p>
+            </section>
+          )}
+
+          <details className="vault-quiet vault-console">
+            <summary>{t("vault.console")}</summary>
+            <Terminal lines={lines} empty={t("vault.consoleEmpty")} />
+          </details>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type StepState = "done" | "current" | "upcoming" | "locked";
+
+function Step({
+  state, title, badge, t, children,
+}: {
+  state: StepState;
+  title: string;
+  badge?: "public" | "hidden";
+  t: ReturnType<typeof useI18n>["t"];
+  children?: React.ReactNode;
+}) {
+  return (
+    <li className="step" data-state={state} aria-current={state === "current" ? "step" : undefined}>
+      <span className="step-marker" aria-hidden />
+      <div className="step-body">
+        <h2 className="step-title">
+          {title}
+          {badge && (
+            <span className={`tag ${badge}`}>{badge === "hidden" ? t("vault.amountHidden") : t("vault.amountPublic")}</span>
+          )}
+          {state === "done" && <span className="sr-only"> ({t("vault.d.done")})</span>}
+          {state === "current" && <span className="sr-only"> ({t("vault.d.next")})</span>}
+        </h2>
+        {state === "locked" ? <p className="step-help dim">{t("vault.d.locked")}</p> : children}
+      </div>
+    </li>
   );
 }
 

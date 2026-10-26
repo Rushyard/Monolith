@@ -4,8 +4,8 @@
 // Le planner interprète seulement : il ne décide jamais si c'est autorisé (gatekeeper + policy on-chain).
 import "server-only";
 import { z } from "zod";
-import { BOOK, CONTACTS } from "./contacts";
-import { KEYWORDS, T, keywordText, pickLang } from "./i18n";
+import { BOOK, CONTACTS, matchName } from "./contacts";
+import { KEYWORDS, MANDATE_KEYWORDS, T, keywordText, mandateHours, pickLang } from "./i18n";
 
 const Amount = z.preprocess(
   (v) => (typeof v === "number" ? String(v) : typeof v === "string" ? v.trim().replace(",", ".").replace(/\s/g, "") : v),
@@ -19,6 +19,7 @@ export const Step = z.discriminatedUnion("action", [
   z.object({ action: z.literal("payroll") }),
   z.object({ action: z.literal("budget") }),
   z.object({ action: z.literal("address"), of: z.string().min(1).max(100).optional() }),
+  z.object({ action: z.literal("mandate"), hours: z.number().positive().max(100000).optional() }),
 ]);
 
 export const PlannerOutput = z.discriminatedUnion("type", [
@@ -60,6 +61,7 @@ STEP is one of:
 {"action":"balance","asset":"USDC"}   how much is in the account
 {"action":"budget"}                   the agent's cap: limit, already spent, remaining
 {"action":"address","of":"<contact name>"}   a contact's Stellar address; omit "of" for the agent's own account address
+{"action":"mandate","hours":N}        give / renew the agent's mandate (its right to pay alone) for N hours ("7 days" = 168); omit "hours" if no duration is given
 {"action":"history","asset":"USDC"}   what the agent already paid
 {"action":"payroll"}                  pay the team's salaries ("verse les salaires", "paie l'équipe", "run payroll", "pagar salários"); people and amounts are fixed by the server, never put them in the step
 
@@ -80,6 +82,8 @@ Examples:
 "il me reste combien ?" -> {"type":"actions","steps":[{"action":"balance","asset":"USDC"}],"reasoning":"Consultation du solde et du budget."}
 "quel est mon budget ?" -> {"type":"actions","steps":[{"action":"budget"}],"reasoning":"Plafond de l'agent."}
 "what's Bob's address?" -> {"type":"actions","steps":[{"action":"address","of":"Bob"}],"reasoning":"Bob's address."}
+"donne à l'agent un mandat de 7 jours" -> {"type":"actions","steps":[{"action":"mandate","hours":168}],"reasoning":"Mandat de 7 jours."}
+"give the agent access" -> {"type":"actions","steps":[{"action":"mandate"}],"reasoning":"Mandate, no duration given."}
 "qu'est-ce que l'agent a déjà payé ?" -> {"type":"actions","steps":[{"action":"history","asset":"USDC"}],"reasoning":"Historique des paiements de l'agent."}
 "paie Charlie" -> {"type":"clarify","question":"Combien veux-tu payer, et quelle est l'adresse Stellar de Charlie ?"}
 "verse les salaires" -> {"type":"actions","steps":[{"action":"payroll"}],"reasoning":"Paie de l'équipe."}
@@ -131,6 +135,11 @@ export function fallbackPlan(message: string): PlannerOutputT {
   const amount = (/(\d+(?:[.,]\d{1,7})?)\s*(?:usdc|\$|usd|dollars?)/.exec(text) ?? /\$\s*(\d+(?:[.,]\d{1,7})?)/.exec(text))?.[1]?.replace(",", ".");
   const address = /\bG[A-Z2-7]{55}\b/.exec(message)?.[0];
   const contact = Object.keys(CONTACTS).find((n) => new RegExp(`\\b${n}\\b`).test(plain));
+  // Mandat de l'agent (bloc « mandate ») : avant le verbe « payer » et l'adresse.
+  if (MANDATE_KEYWORDS.mandate.test(plain) && /\b(agent|agente)\b/.test(plain)) {
+    const hours = mandateHours(plain);
+    return { type: "actions", steps: [{ action: "mandate", ...(hours !== null ? { hours } : {}) }], reasoning: "" };
+  }
   // Paie, sauf si c'est un paiement complet à quelqu'un (« paie 2 USDC à Bob pour son salaire »).
   // Un montant cité avec la paie (« 50 USDC chacun ») va au gatekeeper, qui bloque.
   if (KEYWORDS.payroll.test(plain) && !(amount && (address || contact))) return { type: "actions", steps: [{ action: "payroll" }], reasoning: t.rPayroll };
@@ -142,7 +151,9 @@ export function fallbackPlan(message: string): PlannerOutputT {
     const named = KEYWORDS.recipientPrep.exec(plain)?.[1];
     // Casse d'origine conservée (« Zorglub »), accents retirés comme dans `plain`.
     const written = named && !KEYWORDS.notAName.has(named) ? new RegExp(`\\b${named}\\b`, "i").exec(message.normalize("NFD").replace(/\p{M}/gu, ""))?.[0] : undefined;
-    const to = address ?? (contact ? contact[0].toUpperCase() + contact.slice(1) : written);
+    // Sans préposition (« pay qlice 2 USDC ») : un mot proche d'un contact (distance ≤ 2), contrôlé ensuite par A1.
+    const near = message.split(/[^\p{L}'-]+/u).find((w) => w.length >= 3 && matchName(w).kind === "close");
+    const to = address ?? (contact ? contact[0].toUpperCase() + contact.slice(1) : written ?? near);
     if (amount && to) return { type: "actions", steps: [{ action: "pay", amount, asset: "USDC", to }], reasoning: t.rPay(amount, to) };
     return { type: "clarify", question: t.fbPayClarify };
   }

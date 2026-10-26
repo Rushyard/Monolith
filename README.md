@@ -1,24 +1,45 @@
 # Monolith
 
-**Your treasury stays confidential. Your AI agent can only spend what the contract allows.**
+**The AI proposes, the chain caps, the human signs, and the vault stays private.**
+
+Monolith gives a company a private vault where its AI agent prepares confidential payments that the owner signs, and a small public petty cash the agent spends on its own under a cap enforced by the Stellar network.
 
 Built on Stellar testnet for HackMeridian 2026 (tracks: **Genesis** · **Stellar Composed**).
 
-**Live demo: https://monolith-nine-rosy.vercel.app** (testnet, public, no login)
+**Live demo: https://monolith-nine-rosy.vercel.app** (testnet, public, no account needed: visitors get simulations; real agent payments need the owner's Freighter sign-in)
+
+**Cast** (the same in the app, the docs and the video):
+- **Sarah** — founder, owner of the account (`GCIF…RS7B`).
+- **Bob** and **Carol** — employees with a vault account. Payroll: Carol 3 USDC, Bob 2 USDC.
+- **Alice** — outside contractor, no vault account, paid from the agent's public petty cash.
+- **Marc** — the accountant, auditor #1 of our registry.
 
 ## Problem
 
-A freelancer or a small team wants to let an AI agent pay for tools, APIs and contractors. Two things stop them:
-
-1. **On a public chain, everything is readable.** Balances and payment amounts are visible to clients, competitors and employees.
-2. **Giving an agent a wallet means giving it all the money.** The "limits" usually live in the agent's own code, so nobody can verify them.
+A crypto account is all or nothing: everyone sees everything, and whoever holds the key can spend everything. That is already a problem for a company (salaries, suppliers and treasury are public), and it gets worse when an AI agent gets the key: the more you automate, the more you expose and the more you risk.
 
 ## Solution
 
-1. **Confidential vault** — USDC wrapped in a Stellar **Confidential Token** (OpenZeppelin's `stellar-confidential` protocol 0.8.0). Balances and transfer amounts are Pedersen commitments, hidden on-chain. Each operation carries a zero-knowledge proof (UltraHonk) checked by an on-chain verifier. Each account designates **its auditor** (say, the team's accountant) when it opens the vault: only that auditor's key can reveal transfer amounts, and nothing else. Our token is bound to **our own auditor registry**, so the reference demo's public auditor key opens nothing.
-2. **Agent with an on-chain spending cap** — an OpenZeppelin **smart account** with a `spending_limit` policy. Under the cap the agent pays alone; above it the **Stellar network itself rejects the transaction**. Only the owner can approve more. The server-side pre-check is for display only; the real barrier is the on-chain policy.
+```
+                Sarah (owner) ── Freighter: signs, approves
+                      │
+     ┌────────────────┴─────────────────┐
+     │  PRIVATE VAULT                   │  PUBLIC PETTY CASH
+     │  Confidential Token (OZ)         │  smart account (OZ) + spending_limit
+     │  Bob, Carol                      │  Alice
+     │  AI proposes → Sarah signs       │  AI pays alone ≤ 10 USDC / ~24 h
+     │  (proof in her browser)          │  over the cap → #3221 → Sarah approves
+     │  amounts hidden, Marc reads them │  amounts public, cap enforced on-chain
+     └──────────────────────────────────┘
+                 We hide how much, not who.
+```
+
+1. **Private vault** — USDC wrapped in a Stellar **Confidential Token** (OpenZeppelin's `stellar-confidential` protocol 0.8.0). Balances and transfer amounts are Pedersen commitments, hidden on-chain. Each operation carries a zero-knowledge proof (UltraHonk) checked by an on-chain verifier. Each account designates **its auditor** when it opens the vault (here Marc, auditor #1): only that auditor's key can reveal transfer amounts, and nothing else. Our token is bound to **our own auditor registry**, so the reference demo's public auditor key opens nothing. For a vault recipient the AI never pays: it prepares the payments (e.g. "run payroll") and Sarah signs each one in her browser.
+2. **Public petty cash with an on-chain cap** — an OpenZeppelin **smart account** with a `spending_limit` policy. Under the cap the agent pays alone; above it the **Stellar network itself rejects the transaction**. Only the owner can approve more. The server-side pre-check is for display only; the real barrier is the on-chain policy.
 
 The agent's cap is **10 USDC over a rolling window of 17,280 ledgers (~24 h)**, enforced by OpenZeppelin's `spending_limit` policy on the agent's rule of the smart account. The agent can only call `transfer` on the USDC contract; anything else is rejected by the network. Above the cap, the agent's transaction fails on-chain with `Error(Contract, #3221)` (`SpendingLimitExceeded`), and the app prepares the same payment for the **owner**, who signs it once in **Freighter**.
+
+Submission texts, video script and on-chain proofs: [`docs/submission.md`](docs/submission.md).
 
 ## What is public vs hidden on-chain
 
@@ -53,7 +74,7 @@ TODO: video link.
 |---|---|
 | Our auditor registry created (OZ registry wasm already on testnet) / our auditor key registered | [`ee207713…`](https://stellar.expert/explorer/testnet/tx/ee207713564ab7731ad3afd56707be1b765704c1b9d0caa53135365d7644b491) / [`78c52ed8…`](https://stellar.expert/explorer/testnet/tx/78c52ed8b22bc1768f6bfbb84d020d2974fc3a2f27ef67270ebf905ae725536e) |
 | Confidential USDC deployed, bound to our registry | [`8694ce7a…`](https://stellar.expert/explorer/testnet/tx/8694ce7a180a59cc6ccc34c10eaf674be89ddbd861b73d96b6089526a13dc6d7) |
-| **Confidential transfer alice → bob, 7.5 USDC — amount hidden**; our auditor reads 7.5, the shared public key can't | [`1cfe3715…`](https://stellar.expert/explorer/testnet/tx/1cfe37158b1fa2fd25e84468c6d9949bfc69c4710d08bc547630631f007095ff) |
+| **Confidential transfer from a test account to Bob, 7.5 USDC — amount hidden** (`npm run ct:e2e`); our auditor reads 7.5, the shared public key can't | [`1cfe3715…`](https://stellar.expert/explorer/testnet/tx/1cfe37158b1fa2fd25e84468c6d9949bfc69c4710d08bc547630631f007095ff) |
 | Deposit 20 USDC into the vault (amount public) | [`3f2c290d…`](https://stellar.expert/explorer/testnet/tx/3f2c290d48511402c60e089c6517ee86d4c8a4797b097c276df95cf8b32ca0c7) |
 | Withdraw 7.5 USDC from the vault (amount public) | [`ec88598c…`](https://stellar.expert/explorer/testnet/tx/ec88598c0bdbca215539e3136ef035008afc1425c8494611fdaa4ac4f3211a33) |
 | **From the live app with Freighter (Firefox), proofs in the browser:** confidential transfer 2.5 USDC — amount hidden; our auditor reads 2.50 | [`2e6d3957…`](https://stellar.expert/explorer/testnet/tx/2e6d3957b08d96eba12cb7299a16504e266c2a665109e696d20bc76818b2c76b) |
@@ -70,17 +91,18 @@ Every step (register, merge, …) and the v1 runs are in [`docs/architecture.md`
 
 Product rule: **inside the vault, the AI proposes and the owner signs. Outside, the AI acts alone, but capped.** Cast of the demo: Sarah (owner, `GCIF…RS7B`), Bob and Carol (employees with a vault account), Alice (outside the vault, paid from the agent's public petty cash), Marc (accountant = our auditor id 1).
 
-What `POST /api/intent` does, all of it covered by `npm test` in `contracts/` (94 tests, 15 of them signed simulations on testnet, no transaction sent):
+What `POST /api/intent` does, all of it covered by `npm test` in `contracts/` (123 tests, 14 of them on testnet as signed simulations, no transaction sent):
 
 - **Private / public routing.** Before any payment the server checks on-chain whether the recipient has a confidential account (`ChainClient.isRegistered`, a simulation of `confidential_balance`, cached 60 s). Registered → the agent pays nothing and returns `needs_vault_signature` with the list of payments; Sarah signs and proves each confidential transfer in her own browser. The agent never holds the vault keys and never proves anything. Not registered → the capped petty cash (rule B, on-chain cap, `#3221`, Freighter approval), unchanged. **Fail-closed:** if the vault check fails, nothing is paid in public (that would reveal the amount); the API answers with an explicit error.
 - **"Run payroll"** (`verse les salaires`, `paie l'équipe`, `run payroll`, `pagar salários`): `app/lib/agent/payroll.ts` fixes people and amounts (Carol 3 USDC, Bob 2 USDC), never the LLM → `needs_vault_signature` with 2 payments. An employee outside the vault, pressure wording, an amount or an address in the message → `BLOCKED`.
 - **Same gatekeeper for both channels.** Pressure, amount different from the message, address not in the plan: public → owner approval; vault → `BLOCKED`.
 - **Owner session, visitors in simulation.** Sarah signs a one-time challenge (5 min) with Freighter `signMessage`; the server checks the SEP-53 signature (`ed25519(sha256("Stellar Signed Message:\n" + message))`, format read in Freighter's extension source `signBlob.ts` / `encodeSep53Message`) against the owner's public key and sets an `HttpOnly; Secure; SameSite=Strict` cookie signed with `SESSION_SECRET`, valid 8 h. The owner's secret key never reaches the server. Everyone else is in **demo mode**: planner + gatekeeper + a signed simulation of the agent's transaction, nothing sent; the answer says "Simulation : ce paiement aurait été exécuté / refusé (#3221)". Without `SESSION_SECRET`, nobody is owner. `/api/intent` is limited to 20 messages / 10 min per IP for visitors.
 - **First payment (B1).** An address outside the contact book that the smart account never paid (Horizon history) needs the owner's approval even under the cap: "Premier paiement vers cette adresse".
-- **Typos (A1).** Names are resolved on the server with a Damerau-Levenshtein distance over names and aliases: distance 0 → OK; ≤ 2 → "Tu veux dire Alice ?" and nothing is paid; more → "give me their G… address". If the LLM silently fixes a typo, the raw message is checked too. A corrected name never triggers a payment.
-- **Missing details (A2/A3), checked in code.** "paie" → "Payer combien, et à qui ?", "paie 5 usdc" → "À qui ?", "paie alice" → "Combien ?" (even if the LLM guessed an amount). The client sends its last turns; the server only uses them to complete an answer to its own question, then runs the whole pipeline on the combined text.
+- **Typos (A1).** Names are resolved on the server with a Damerau-Levenshtein distance over names and aliases: distance 0 → OK; ≤ 2 → "Did you mean Alice?" and nothing is paid; more → "give me their G… address". If the LLM silently fixes a typo, the raw message is checked too. A corrected name never triggers a payment.
+- **Missing details (A2/A3), checked in code.** "pay" → "How much, and to whom?", "pay 5 usdc" → "To whom?", "pay alice" → "How much?" (same in French and Portuguese) (even if the LLM guessed an amount). The client sends its last turns; the server only uses them to complete an answer to its own question, then runs the whole pipeline on the combined text.
 - **Reads (A7).** `budget` (cap, spent, remaining, read from the policy) and `address` (contact book or smart account): the server writes the answer, the LLM never states a number or an address.
 - **Pause (B4).** The owner can remove the agent's rule (`remove_context_rule`, rule found with `findAgentRule`) and add it back with the same parameters as `reset-agent.ts`: the server prepares unsigned XDRs (owner as source) with simulated fees, Sarah signs in Freighter. No agent rule on-chain → verdict `PAUSED`. It only cuts the public petty cash; in the vault Sarah already signs everything. The two transactions were only simulated (pause ~0.10 XLM, re-add ~0.02 XLM in resource fees on 2026-10-25), not sent.
+- **Mandate (expiring agent rights).** The agent's rule B carries a `valid_until` ledger (OpenZeppelin context rules). Sarah gives or renews it with one `update_context_rule_valid_until` signed in Freighter ("give the agent a 7-day mandate", 1 hour to 30 days; or `npm run mandate`); renewing keeps the same rule, so the budget already spent is not reset. Once it expires, the network refuses the agent's signature (`#3002`, proven on testnet: [`29fff98a…`](https://stellar.expert/explorer/testnet/tx/29fff98a454362b97b85bd9810b74a67eeaac5e638040a05c25c1526a169cc10)), the API answers `expired` with no transaction and offers to put the petty cash back in the vault, and the `budget` answer shows the time left. The code refuses to put an expiry on any rule other than the agent's: an expiry on the owner's rule could lock the account permanently (OpenZeppelin `smart_account/mod.rs`).
 - **Activity feed.** `GET /api/agent/activity` is rebuilt from the chain on each call (cached 30 s): public payments and refusals from the Horizon history of the agent and owner accounts (decoded USDC SAC `transfer` calls, refusal code read with `getTransaction`), private payments from the confidential token's `transfer` events whose sender is the owner, **addresses and hash only, never an amount**. `POST /api/agent/vault-receipt { to, hash }` checks on-chain that the hash is a successful `confidential_transfer` from the owner to `to`, then shows it immediately.
 
 ### Languages
@@ -89,7 +111,7 @@ Every sentence the server writes (clarifications, missing-detail questions, vaul
 
 ### Parsing eval (`npm run eval` in `contracts/`)
 
-60 sentences in `eval/parsing.jsonl` (typos, missing details, answers to the agent's own question, payroll, private/public routing, injections, reads, unsupported requests; French, English, Portuguese), run through the real `/api/intent` pipeline in demo mode (simulation only). Each line also checks that the server answered in the message's language. Result on 2026-10-25:
+66 sentences in `eval/parsing.jsonl` (typos, missing details, answers to the agent's own question, payroll, the agent's mandate, private/public routing, injections, reads, unsupported requests; French, English, Portuguese), run through the real `/api/intent` pipeline in demo mode (simulation only). Each line also checks that the server answered in the message's language. Result on 2026-10-26:
 
 | Category | Score |
 |---|---|
@@ -102,9 +124,10 @@ Every sentence the server writes (clarifications, missing-detail questions, vaul
 | injection | 7/7 |
 | reads | 9/9 |
 | unsupported | 3/3 |
-| **Total** | **60/60** (fr 26/26, en 19/19, pt 15/15) |
+| mandate | 6/6 |
+| **Total** | **66/66** (fr 28/28, en 21/21, pt 17/17) |
 
-Honest caveats: Groq rate-limited us (HTTP 429) during the run, so the LLM planner answered 26 of the 60 sentences; the others went through the regex fallback planner or a code check that runs before the LLM. Both paths go through the same server-side checks. The paused state (B4) is not in the eval: it would need a real on-chain transaction to remove the agent's rule; the `PAUSED` text is covered by unit tests in the three languages.
+Honest caveats: Groq rate-limited us (HTTP 429) during the run, so the LLM planner answered 25 of the 66 sentences; the others went through the regex fallback planner or a code check that runs before the LLM. Both paths go through the same server-side checks. The paused state (B4) is not in the eval: it would need a real on-chain transaction to remove the agent's rule; the `PAUSED` text is covered by unit tests in the three languages.
 
 ## Architecture
 
@@ -207,9 +230,10 @@ cd contracts && npm install
 npm run deploy        # Ed25519 verifier + spending-limit policy + smart account (rule A = owner), then adds rule B (agent, 10 USDC / ~24 h)
 npm run gonogo        # agent 5 USDC ✅ · agent 50 USDC ❌ #3221 (on-chain) · owner 50 USDC ✅ · alice refunds
 npm run status        # balances, cap, spent in the rolling window, remaining budget
-npm test              # 94 tests: 15 on testnet (signed simulations, rule discovery, vault membership, demo-mode simulation, pause XDR; no tx sent) + 79 unit tests (incl. every server sentence in en/fr/pt)
+npm test              # 123 tests: 14 on testnet (signed simulations, rule discovery, vault membership, demo-mode simulation, pause and mandate XDRs; no tx sent) + 109 unit tests (incl. every server sentence in en/fr/pt, mandate)
 npm run eval          # parsing eval: eval/parsing.jsonl through the real /api/intent, demo mode (no tx)
-npm run reset-agent   # fresh agent rule (remove old rule B, add a new one): restores the budget; --dry-run to preview
+npm run reset-agent   # fresh agent rule (remove old rule B, add a new one): restores the budget; --days N adds a mandate; --dry-run to preview
+npm run mandate -- --days 7   # agent mandate: update_context_rule_valid_until on the agent's rule (--ledgers N, --none, --status, --dry-run)
 npm run refund        # alice sends her USDC back to the smart account
 ```
 

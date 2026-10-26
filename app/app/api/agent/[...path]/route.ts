@@ -4,8 +4,9 @@ import { AGENT_CONFIG } from "@/lib/agent/config";
 import { NETWORK_PASSPHRASE, TransactionBuilder, fromUsdc, readTokenBalance, sendAndWait, txLink } from "@/lib/agent/core";
 import { readAgentSpending } from "@/lib/agent/executor";
 import { readActivity, verifyVaultReceipt } from "@/lib/agent/activity";
-import { agentRuleStatus, invalidateAgentRuleCache } from "@/lib/agent/config";
+import { agentRuleStatus, invalidateAgentRuleCache, mandateView } from "@/lib/agent/config";
 import { preparePause, prepareResume } from "@/lib/agent/pause";
+import { prepareSweep } from "@/lib/agent/sweep";
 import { T, requestLang } from "@/lib/agent/i18n";
 import {
   clearSessionCookieHeader,
@@ -29,11 +30,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ path: st
   if (route === "session") {
     return NextResponse.json({ enabled: !!sessionSecret(), owner: isOwnerRequest(req, AGENT_CONFIG.ownerAddress), ownerAddress: AGENT_CONFIG.ownerAddress });
   }
+  // GET /api/agent/mandate → { validUntilLedger, expiresAt, expired, paused, ruleId? } (mandat de l'agent, lu on-chain)
+  if (route === "mandate") {
+    const s = await agentRuleStatus();
+    if (s.state === "unknown") return NextResponse.json({ error: t.ruleUnreadable("RPC") }, { status: 502 });
+    if (s.state === "paused") return NextResponse.json({ validUntilLedger: null, expiresAt: null, expired: false, paused: true });
+    const v = (await mandateView(s))!;
+    const expiresAt = v.validUntil === null ? null : new Date(Date.now() + (v.validUntil - v.ledger + 1) * v.secondsPerLedger * 1000).toISOString();
+    return NextResponse.json({ validUntilLedger: v.validUntil, expiresAt, expired: s.state === "expired", paused: false, ruleId: s.id, ledger: v.ledger });
+  }
   // GET /api/agent/pause → { paused, ruleId?, scope }
   if (route === "pause") {
     const s = await agentRuleStatus();
     if (s.state === "unknown") return NextResponse.json({ error: t.ruleUnreadable("RPC") }, { status: 502 });
-    return NextResponse.json({ paused: s.state === "paused", ruleId: s.state === "active" ? s.id : undefined, scope: t.pauseScope });
+    return NextResponse.json({ paused: s.state === "paused", ruleId: s.state === "active" || s.state === "expired" ? s.id : undefined, scope: t.pauseScope });
   }
   if (route === "challenge") {
     const secret = sessionSecret();
@@ -104,6 +114,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ path: s
     if (!body.success) return NextResponse.json({ error: t.errPauseBody }, { status: 400 });
     const prep = body.data.action === "pause" ? await preparePause(lang) : await prepareResume(lang);
     return prep.ok ? NextResponse.json({ ...prep, scope: t.pauseScope }) : NextResponse.json({ error: prep.error }, { status: 409 });
+  }
+  // POST /api/agent/sweep (owner connecté) → XDR non signé : tout l'USDC de la petite caisse vers Sarah (règle A).
+  if (path.join("/") === "sweep") {
+    if (!isOwnerRequest(req, AGENT_CONFIG.ownerAddress)) return NextResponse.json({ error: t.ownerOnly }, { status: 401 });
+    const prep = await prepareSweep();
+    return prep.ok ? NextResponse.json(prep) : NextResponse.json({ error: prep.error, empty: prep.empty }, { status: 409 });
   }
   if (path.join("/") === "vault-receipt") {
     const body = ReceiptBody.safeParse(await req.json().catch(() => null));

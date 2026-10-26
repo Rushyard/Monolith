@@ -5,6 +5,8 @@
 // the network refused the agent. Technical details (server messages) stay folded.
 import { useOwnerApproval } from "@/components/agent/ApprovalCard";
 import { VaultPayCard } from "@/components/agent/VaultPayCard";
+import { MandateCard } from "@/components/agent/MandateBadge";
+import { SweepCard } from "@/components/agent/SweepCard";
 import { short, type IntentResponse, type OwnerApproval } from "@/components/agent/types";
 import { useI18n } from "@/lib/i18n/react";
 import { outcomeOf, type Mood } from "./stage";
@@ -33,12 +35,16 @@ function nodes(res: IntentResponse, outcome: Mood, t: T): Node[] {
     : verdict.verdict === "BLOCKED" ? { name: gate, text: t("gate.blocked"), tone: "bad" }
     : verdict.verdict === "NEEDS_VAULT_SIGNATURE" ? { name: gate, text: t("gate.vault"), tone: "warn" }
     : verdict.verdict === "PAUSED" ? { name: gate, text: t("gate.paused"), tone: "warn" }
+    : verdict.verdict === "EXPIRED" ? { name: gate, text: t("gate.expired"), tone: "bad" }
+    : verdict.verdict === "MANDATE" ? { name: gate, text: t("gate.mandate"), tone: "warn" }
     : { name: gate, text: t("gate.info"), tone: "ok" };
   const vault = result.status === "needs_vault_signature";
   const n: Node =
     vault ? (outcome === "approved" ? { name: net, text: t("net.vaultDone"), tone: "ok" } : { name: net, text: t("net.vaultPending"), tone: "warn" })
     : result.status === "simulated" ? { name: net, text: result.code === 3221 ? t("net.simRefused") : t("net.simulated"), tone: result.wouldSucceed ? "idle" : "bad" }
-    : result.status === "paused" ? { name: net, text: t("net.nothing"), tone: "idle" }
+    : result.status === "paused" || result.status === "expired" ? { name: net, text: t("net.nothing"), tone: "idle" }
+    : result.status === "mandate_simulated" ? { name: net, text: t("net.simulated"), tone: "idle" }
+    : result.status === "needs_mandate_signature" ? (outcome === "approved" ? { name: net, text: t("net.approved"), tone: "ok" } : { name: net, text: t("net.pending"), tone: "warn" })
     : outcome === "paid" ? { name: net, text: t("net.paid"), tone: "ok" }
     : outcome === "approved" ? { name: net, text: t("net.approved"), tone: "ok" }
     : outcome === "refused" ? { name: net, text: t("net.refused"), tone: "bad" }
@@ -105,6 +111,17 @@ function Verdict({ res, outcome, hash }: { res: IntentResponse; outcome: Mood; h
       : t("sim.approval", { what: w });
     return <div className="verdict"><span className="verdict-label">{t("verdict.simulated")}</span><p>{text} {t("sim.nothingSent")}</p></div>;
   }
+  if (r.status === "expired") {
+    return <div className="verdict bad"><span className="verdict-label">{t("verdict.expired")}</span><p>{r.text}</p></div>;
+  }
+  if (r.status === "mandate_simulated") {
+    return <div className="verdict"><span className="verdict-label">{t("verdict.simulated")}</span><p>{r.text}</p></div>;
+  }
+  if (r.status === "needs_mandate_signature") {
+    return outcome === "approved"
+      ? <div className="verdict ok"><span className="verdict-label">{t("verdict.mandateSigned")}</span><p>{r.text}</p></div>
+      : <div className="verdict warn"><span className="verdict-label">{t("verdict.mandate")}</span></div>;
+  }
   if (r.status === "paused") {
     return <div className="verdict warn"><span className="verdict-label">{t("verdict.paused")}</span><p>{t("verdict.pausedText")}</p></div>;
   }
@@ -157,7 +174,7 @@ export function Transmission({ message, response, error, receivedAt, fresh, appr
   const r = response?.result;
   return (
     <article className={`tx-card ${outcome} ${fresh ? "fresh" : ""}`}>
-      <p className="tx-request">« {message} »</p>
+      <p className="tx-request"><q>{message}</q></p>
       {response?.mode === "simulation" && <p className="sim-tag">{t("sim.tag")}</p>}
       {error && <div className="verdict bad"><span className="verdict-label">{t("verdict.error")}</span><p>{error}</p></div>}
       {response && (
@@ -168,6 +185,10 @@ export function Transmission({ message, response, error, receivedAt, fresh, appr
             <Approve approval={r} receivedAt={receivedAt} amount={response.verdict?.payment?.amountUsdc}
               label={response.verdict?.payment?.recipient.label} onApproved={onApproved} />
           )}
+          {r?.status === "needs_mandate_signature" && !approvedHash && (
+            <MandateCard result={r} receivedAt={receivedAt} onSigned={onApproved} />
+          )}
+          {r?.status === "expired" && <SweepCard />}
           {r?.status === "needs_vault_signature" && (
             <VaultPayCard request={r} onDone={(hashes) => onApproved(hashes[hashes.length - 1])} />
           )}

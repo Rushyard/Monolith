@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
 import { Instrument_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
-import { SiteHeader, SkipLink } from "./nav";
+import { SiteFooter, SiteHeader, SkipLink } from "./nav";
 import { I18nProvider } from "@/lib/i18n/react";
 
 const instrument = Instrument_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-instrument", display: "swap" });
@@ -23,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SkipLink />
           <SiteHeader />
           <main id="main-content" tabIndex={-1}>{children}</main>
-          <footer className="site-footer"><Link href="/" className="footer-brand">Monolith</Link><span><span className="status-dot" />Stellar testnet · HackMeridian 2026</span></footer>
+          <SiteFooter />
         </I18nProvider>
       </body>
     </html>

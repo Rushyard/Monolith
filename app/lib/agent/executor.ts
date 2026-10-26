@@ -27,7 +27,8 @@ import type { VaultSignatureRequest } from "../../components/agent/types";
 import type { GateDecision } from "./gatekeeper";
 import { sumUsdc } from "./payroll";
 import { recipientClarification, resolveRecipient } from "./contacts";
-import { T, type Lang } from "./i18n";
+import { MT, T, mandateDate, mandateLine, type Lang } from "./i18n";
+import { mandateExpiry, prepareMandate } from "./mandate";
 import type { Plan } from "./planner";
 
 const C = AGENT_CONFIG;
@@ -61,6 +62,19 @@ export type ExecutionResult =
       text: string;
     }
   | { status: "paused"; text: string }
+  | { status: "expired"; text: string }
+  | {
+      /** Mandat : XDR non signé (update_context_rule_valid_until, ou add_context_rule si en pause) que Sarah signe. */
+      status: "needs_mandate_signature";
+      unsignedXdr: string;
+      owner: string;
+      feeXlm: number;
+      validUntilLedger: number;
+      mandateUntilLedger: number;
+      expiresAt: string;
+      text: string;
+    }
+  | { status: "mandate_simulated"; text: string }
   | { status: "blocked" }
   | {
       status: "info";
@@ -154,6 +168,8 @@ export function simulationText(decision: GateDecision, code: number | null, woul
 export async function execute(plan: Plan, decision: GateDecision, spending: SpendingState | null, mode: ExecMode = "live"): Promise<ExecutionResult> {
   if (decision.verdict === "BLOCKED") return { status: "blocked" };
   if (decision.verdict === "PAUSED") return { status: "paused", text: decision.reasons[0] };
+  if (decision.verdict === "EXPIRED") return { status: "expired", text: decision.reasons.join(" ") }; // aucune tx
+  if (decision.verdict === "MANDATE") return mandateResult(decision, mode);
 
   // Coffre : l'agent n'a pas les clés de Sarah, il ne signe et ne prouve rien. Il prépare la liste.
   if (decision.verdict === "NEEDS_VAULT_SIGNATURE") {
@@ -192,6 +208,7 @@ export async function execute(plan: Plan, decision: GateDecision, spending: Spen
         out.budget = { limitUsdc: fromUsdc(spending.limit), spentUsdc: fromUsdc(spending.spent), remainingUsdc: fromUsdc(spending.remaining), periodLedgers: spending.periodLedgers };
         const b = out.budget;
         texts.push(t.budget(b.limitUsdc, Math.round((b.periodLedgers * 5) / 3600), b.spentUsdc, b.remainingUsdc));
+        if (decision.mandate) texts.push(mandateLine(decision.mandate, decision.lang));
       } else texts.push(t.budgetError);
     }
     const addr = plan.steps.find((s) => s.action === "address");
@@ -233,4 +250,25 @@ export async function execute(plan: Plan, decision: GateDecision, spending: Spen
   // NEEDS_APPROVAL
   const agentAttempt = decision.triggered.includes("spending-limit") ? await agentRejectionProof(amount, recipient.address) : undefined;
   return ownerApproval(amount, recipient.address, decision.lang, agentAttempt);
+}
+
+/** Mandat : visiteur → simulation (rien n'est préparé) ; Sarah connectée → XDR non signé + frais simulés. */
+async function mandateResult(decision: GateDecision, mode: ExecMode): Promise<ExecutionResult> {
+  const m = MT[decision.lang];
+  if (mode === "simulation") {
+    const at = await mandateExpiry(decision.mandateHours!);
+    return { status: "mandate_simulated", text: m.simulated(mandateDate(at.expiresAt, decision.lang)) };
+  }
+  const prep = await prepareMandate(decision.mandateHours!, decision.lang);
+  if (!prep.ok) return { status: "error", error: prep.error };
+  return {
+    status: "needs_mandate_signature",
+    unsignedXdr: prep.unsignedXdr,
+    owner: prep.owner,
+    feeXlm: prep.feeXlm,
+    validUntilLedger: prep.validUntilLedger,
+    mandateUntilLedger: prep.mandateUntilLedger,
+    expiresAt: prep.expiresAt,
+    text: m.granted(mandateDate(prep.expiresAt, decision.lang)),
+  };
 }

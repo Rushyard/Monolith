@@ -97,20 +97,21 @@ export function OwnerSession({ onChange }: { onChange?: (owner: boolean) => void
   }, [status, owner, onChange]);
 
   return (
-    <div className="owner-session" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-      <span className={`tag ${owner ? "ok" : "public"}`} title={owner ? t.uiOwnerTitle : t.uiDemoTitle}>
+    <div className="owner-session">
+      <span className={`session-mode ${owner ? "owner" : "demo"}`} title={owner ? t.uiOwnerTitle : t.uiDemoTitle}>
+        <span className="session-dot" aria-hidden />
         {owner ? t.uiOwner(short(status!.ownerAddress)) : t.uiDemo}
       </span>
       {owner ? (
-        <button className="btn" type="button" onClick={logout}>{t.uiLogout}</button>
+        <button className="btn quiet" type="button" onClick={logout}>{t.uiLogout}</button>
       ) : status && !status.enabled ? (
-        <span style={{ fontSize: 13, color: "var(--muted)" }}>{t.uiLoginDisabled}</span>
+        <span className="session-note">{t.uiLoginDisabled}</span>
       ) : (
-        <button className="btn" type="button" disabled={!!busy || !status} onClick={login}>
+        <button className="btn quiet" type="button" disabled={!!busy || !status} onClick={login}>
           {busy ? <span className="progress-dots">{busy}</span> : t.uiLogin}
         </button>
       )}
-      {error && <span style={{ fontSize: 13, color: "var(--hal, #d0443e)" }}>{error}</span>}
+      {error && <span className="session-error" role="alert">{error}</span>}
     </div>
   );
 }

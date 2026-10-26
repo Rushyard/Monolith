@@ -21,6 +21,7 @@ import {
   rpc,
   saveDeployments,
   scValToNative,
+  server,
   txLink,
   xdr,
   type SmartAccountCall,
@@ -37,7 +38,8 @@ const owner = keypairFromCli("owner");
 const agent = keypairFromCli("agent");
 const SA = d.smartAccount!;
 // La règle à remplacer est celle qu'on trouve on-chain (signer agent + spending-limit), pas celle du fichier.
-const found = await findAgentRule(owner.publicKey(), SA, d.ed25519Verifier!, agent.rawPublicKey(), d.spendingLimitPolicy!);
+// Valide la plus récente, sinon expirée (on la remplace aussi) : voir pickAgentRule.
+const found = (await findAgentRule(owner.publicKey(), SA, d.ed25519Verifier!, agent.rawPublicKey(), d.spendingLimitPolicy!))?.id ?? null;
 if (found === null) throw new Error("aucune règle agent trouvée on-chain : rien à remplacer");
 if (found !== d.ruleAgent) console.warn(`⚠ deployments.testnet.json dit règle ${d.ruleAgent}, la chaîne dit ${found} : on suit la chaîne`);
 const oldRule = found;
@@ -53,7 +55,10 @@ const asOwner = (fn: string, args: xdr.ScVal[]): SmartAccountCall => ({
 });
 
 const removeCall = asOwner("remove_context_rule", [nativeToScVal(oldRule, { type: "u32" })]);
-const addCall = asOwner("add_context_rule", addAgentRuleArgs(d.usdcSac, d.ed25519Verifier!, agent.rawPublicKey(), d.spendingLimitPolicy!));
+// --days N : nouvelle règle avec un mandat (valid_until = ledger courant + N jours à ~5 s/ledger). Sans option : sans expiration.
+const daysIdx = process.argv.indexOf("--days");
+const mandateUntil = daysIdx === -1 ? null : (await server.getLatestLedger()).sequence + Math.round((Number(process.argv[daysIdx + 1]) * 86400) / 5);
+const addCall = asOwner("add_context_rule", addAgentRuleArgs(d.usdcSac, d.ed25519Verifier!, agent.rawPublicKey(), d.spendingLimitPolicy!, mandateUntil));
 
 const before = await readSpendingState(owner.publicKey(), d.spendingLimitPolicy!, SA, oldRule);
 console.log(`Smart account ${SA}`);

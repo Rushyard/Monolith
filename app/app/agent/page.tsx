@@ -11,6 +11,8 @@ import { Transmission } from "./transmission";
 import { useI18n } from "@/lib/i18n/react";
 import { OwnerSession } from "@/components/agent/OwnerSession";
 import { PauseBanner } from "@/components/agent/PauseBanner";
+import { MandateBadge } from "@/components/agent/MandateBadge";
+import "./agent.css";
 
 type Turn = { id: number; message: string; response?: IntentResponse; error?: string; receivedAt: number };
 
@@ -86,75 +88,81 @@ export default function AgentPage() {
 
   return (
     <div className={`agent-page ${mood}`}>
-      <header className="page-head">
-        <div>
-          <span className="chapter">{t("chapter.n", { n: "II" })}</span>
-          <h1 className="intertitle" style={{ marginTop: 10 }}>{t("ch.agent")}</h1>
-          <p className="lede">{t("agent.lede")}</p>
+      <header className="agent-head">
+        <span className="chapter">{t("chapter.n", { n: "II" })}</span>
+        <h1 className="agent-title">{t("ch.agent")}</h1>
+        <p className="agent-lede">{t("agent.lede")}</p>
+        <div className="agent-session">
           <OwnerSession onChange={setOwner} />
+          <MandateBadge refreshKey={refreshKey} />
         </div>
-        <BudgetSlab refreshKey={refreshKey} alarm={mood === "refused" || mood === "blocked"} />
       </header>
 
-      <PauseBanner owner={owner} refreshKey={refreshKey} />
+      <aside className="agent-aside">
+        <BudgetSlab refreshKey={refreshKey} alarm={mood === "refused" || mood === "blocked"} />
+      </aside>
 
-      <form className="composer" onSubmit={(e) => { e.preventDefault(); send(message); }}>
-        <div className="composer-top"><AgentStatus mood={mood} /><span className={`composer-mode ${owner ? "is-owner" : ""}`}>{t(owner ? "agent.ownerNotice" : "agent.demoNotice")}</span></div>
-        <div className="composer-row">
-          <input
-            id="msg"
-            className="composer-input"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder={t("agent.placeholder")}
-            aria-label={t("agent.inputLabel")}
-            disabled={!!pending}
-            autoComplete="off"
-          />
-          <button className="btn primary" type="submit" disabled={!!pending || !message.trim()}>{t("agent.send")}</button>
-        </div>
-        <div className="suggestions">
-          {SUGGESTIONS.map((s) => (
-            <button key={s} type="button" className="chip" disabled={!!pending} onClick={() => send(t(s))}>{t(s)}</button>
-          ))}
-          <button type="button" className="chip scam" disabled={!!pending}
-            onClick={() => { send(t(SCAMS[scam % SCAMS.length], { addr: SCAMMER })); setScam((n) => n + 1); }}>
-            {t("agent.scamBtn")}
-          </button>
-          {VAULT_MOCK && (
-            <button type="button" className="chip" onClick={() => setTurns((ts) => [...ts, { id: Date.now(), message: "payroll (dev mock)", response: mockPayroll(), receivedAt: Date.now() }])}>
-              payroll (dev mock)
+      <div className="agent-main">
+        <PauseBanner owner={owner} refreshKey={refreshKey} />
+
+        <form className="composer" onSubmit={(e) => { e.preventDefault(); send(message); }}>
+          <div className="composer-top"><AgentStatus mood={mood} /><span className={`composer-mode ${owner ? "is-owner" : ""}`}>{t(owner ? "agent.ownerNotice" : "agent.demoNotice")}</span></div>
+          <div className="composer-row">
+            <input
+              id="msg"
+              className="composer-input"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder={t("agent.placeholder")}
+              aria-label={t("agent.inputLabel")}
+              disabled={!!pending}
+              autoComplete="off"
+            />
+            <button className="btn primary" type="submit" disabled={!!pending || !message.trim()}>{t("agent.send")}</button>
+          </div>
+          <div className="suggestions">
+            {SUGGESTIONS.map((s) => (
+              <button key={s} type="button" className="chip" disabled={!!pending} onClick={() => send(t(s))}>{t(s)}</button>
+            ))}
+            <button type="button" className="chip scam" disabled={!!pending}
+              onClick={() => { send(t(SCAMS[scam % SCAMS.length], { addr: SCAMMER })); setScam((n) => n + 1); }}>
+              {t("agent.scamBtn")}
             </button>
+            {VAULT_MOCK && (
+              <button type="button" className="chip dev" onClick={() => setTurns((ts) => [...ts, { id: Date.now(), message: "payroll (dev mock)", response: mockPayroll(), receivedAt: Date.now() }])}>
+                payroll (dev mock)
+              </button>
+            )}
+          </div>
+        </form>
+
+        <div className="transmissions">
+          {pending && (
+            <article className="tx-card thinking">
+              <p className="tx-request"><q>{pending}</q></p>
+              <ol className="pipeline">
+                {(["node.planner", "node.gate", "node.net"] as const).map((n) => (
+                  <li key={n} className="node scan"><span className="node-dot" aria-hidden /><span className="node-name">{t(n)}</span><span className="node-text">…</span></li>
+                ))}
+              </ol>
+            </article>
           )}
+          {[...turns].reverse().map((t) => (
+            <Transmission
+              key={t.id}
+              message={t.message}
+              response={t.response}
+              error={t.error}
+              receivedAt={t.receivedAt}
+              fresh={t === last}
+              approvedHash={approved[t.id]}
+              onApproved={(hash) => { setApproved((a) => ({ ...a, [t.id]: hash })); setRefreshKey((k) => k + 1); }}
+            />
+          ))}
         </div>
-      </form>
 
-      <div className="transmissions">
-        {pending && (
-          <article className="tx-card thinking">
-            <p className="tx-request">« {pending} »</p>
-            <ol className="pipeline">
-              {(["node.planner", "node.gate", "node.net"] as const).map((n) => (
-                <li key={n} className="node scan"><span className="node-dot" aria-hidden /><span className="node-name">{t(n)}</span><span className="node-text">…</span></li>
-              ))}
-            </ol>
-          </article>
-        )}
-        {[...turns].reverse().map((t) => (
-          <Transmission
-            key={t.id}
-            message={t.message}
-            response={t.response}
-            error={t.error}
-            receivedAt={t.receivedAt}
-            fresh={t === last}
-            approvedHash={approved[t.id]}
-            onApproved={(hash) => { setApproved((a) => ({ ...a, [t.id]: hash })); setRefreshKey((k) => k + 1); }}
-          />
-        ))}
+        <ActivityFeed refreshKey={refreshKey} />
       </div>
-
-      <ActivityFeed refreshKey={refreshKey} />
     </div>
   );
 }
