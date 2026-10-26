@@ -72,7 +72,7 @@ export default function AuditorPage() {
         <section className="aud-steps">
           <ol className="aud-seq">
             <li className="aud-step">
-              <button className="btn" onClick={() => load()} disabled={loading}>
+              <button className={`btn ${rows ? "" : "primary"}`} onClick={() => load()} disabled={loading}>
                 {loading ? <span className="progress-dots">{t("aud.reading")}</span> : rows ? t("aud.reread") : t("aud.read")}
               </button>
               <p className="aud-hint">{t("aud.p2.readHint")}</p>
@@ -124,7 +124,7 @@ export default function AuditorPage() {
                 {t(status.attempt === "shared" ? "aud.refusedShared" : "aud.refusedOther")}
               </p>
             )}
-            {error && <p className="aud-note refused">{error}</p>}
+            {error && <p className="aud-note refused" role="alert">{error}</p>}
           </div>
 
           <p className="aud-info">{t("aud.info", { id })}</p>

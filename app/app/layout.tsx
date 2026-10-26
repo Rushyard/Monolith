@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import { Instrument_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
-import { SiteFooter, SiteHeader } from "./nav";
-import { Intertitle } from "./fx/intertitle";
+import { SiteFooter, SiteHeader, SkipLink } from "./nav";
 import { I18nProvider } from "@/lib/i18n/react";
+
+const instrument = Instrument_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-instrument", display: "swap" });
+const plex = IBM_Plex_Mono({ subsets: ["latin"], weight: "400", variable: "--font-plex", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Monolith",
@@ -13,20 +16,12 @@ export const viewport: Viewport = { themeColor: "#000000", width: "device-width"
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Jost:wght@300;400;500&family=Michroma&display=swap"
-        />
-      </head>
+    <html lang="en" className={`${instrument.variable} ${plex.variable}`}>
       <body>
         <I18nProvider>
+          <SkipLink />
           <SiteHeader />
-          <Intertitle />
-          <main>{children}</main>
+          <main id="main-content" tabIndex={-1}>{children}</main>
           <SiteFooter />
         </I18nProvider>
       </body>
