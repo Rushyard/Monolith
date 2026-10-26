@@ -53,7 +53,8 @@ const budget = await readSpendingState(owner.publicKey(), d.spendingLimitPolicy!
 
 test("règle de l'agent retrouvée on-chain = deployments.testnet.json (et l'app suit)", async () => {
   const onchain = await findAgentRule(owner.publicKey(), SA, d.ed25519Verifier!, agent.rawPublicKey(), d.spendingLimitPolicy!);
-  assert.equal(onchain, d.ruleAgent);
+  assert.equal(onchain?.id, d.ruleAgent);
+  assert.equal(onchain?.expired, false);
   delete process.env.RULE_AGENT_ID;
   assert.equal(await agentRuleId(), d.ruleAgent);
 });
@@ -151,4 +152,15 @@ test("B4 (simulation) : XDR de pause = remove_context_rule de la règle trouvée
   assert.ok(pause.ok && pause.ruleId === d.ruleAgent && pause.feeXlm > 0 && pause.unsignedXdr.length > 100);
   const resume = await prepareResume();
   assert.ok(!resume.ok && /isn't paused/.test(resume.error));
+});
+
+test("mandat (simulation) : XDR update_context_rule_valid_until préparé sur la règle de l'agent, visiteur = simulation", async () => {
+  process.env.AGENT_SECRET_KEY ??= agent.secret();
+  const { prepareMandate } = await import("../../app/lib/agent/mandate.ts");
+  const prep = await prepareMandate(168, "en");
+  assert.ok(prep.ok, !prep.ok ? prep.error : "");
+  assert.ok(prep.ok && prep.action === "mandate" && prep.feeXlm > 0 && prep.mandateUntilLedger > 0);
+  const p = toPlan({ type: "actions", steps: [{ action: "mandate", hours: 168 } as never], reasoning: "" }, "llm");
+  const r = await execute(p, decide(p, "give the agent a 7-day mandate", budget), budget, "simulation");
+  assert.ok(r.status === "mandate_simulated" && /^Simulation: Sarah would sign a mandate until/.test(r.text), JSON.stringify(r));
 });

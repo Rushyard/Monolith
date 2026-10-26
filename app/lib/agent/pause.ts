@@ -20,10 +20,10 @@ const C = AGENT_CONFIG;
 
 
 export type PausePrep =
-  | { ok: true; action: "pause" | "resume"; unsignedXdr: string; owner: string; feeXlm: number; validUntilLedger: number; ruleId?: number }
+  | { ok: true; action: "pause" | "resume" | "mandate"; unsignedXdr: string; owner: string; feeXlm: number; validUntilLedger: number; ruleId?: number }
   | { ok: false; error: string };
 
-const asOwner = (fn: string, args: SmartAccountCall["args"]): SmartAccountCall => ({
+export const asOwner = (fn: string, args: SmartAccountCall["args"]): SmartAccountCall => ({
   contract: C.smartAccount,
   fn,
   args,
@@ -33,7 +33,7 @@ const asOwner = (fn: string, args: SmartAccountCall["args"]): SmartAccountCall =
   source: C.ownerAddress,
 });
 
-async function prepare(action: "pause" | "resume", call: SmartAccountCall, lang: Lang, ruleId?: number): Promise<PausePrep> {
+export async function prepare(action: "pause" | "resume" | "mandate", call: SmartAccountCall, lang: Lang, ruleId?: number): Promise<PausePrep> {
   const r = await invokeAsSmartAccountUnsigned(call);
   if (!r.ok) return { ok: false, error: T[lang].simulationFailed(call.fn, r.error.split("\n")[0]) };
   const fee = Number(TransactionBuilder.fromXDR(r.unsignedXdr, NETWORK_PASSPHRASE).fee) / 1e7;
@@ -46,6 +46,7 @@ export async function preparePause(lang: Lang = "en"): Promise<PausePrep> {
   const s = await agentRuleStatus();
   if (s.state === "paused") return { ok: false, error: t.alreadyPaused };
   if (s.state === "unknown") return { ok: false, error: t.ruleUnreadable(s.error) };
+  // Règle expirée : on peut quand même la retirer (la pause l'emporte sur le mandat).
   return prepare("pause", asOwner("remove_context_rule", [nativeToScVal(s.id, { type: "u32" })]), lang, s.id);
 }
 
@@ -53,7 +54,7 @@ export async function preparePause(lang: Lang = "en"): Promise<PausePrep> {
 export async function prepareResume(lang: Lang = "en"): Promise<PausePrep> {
   const t = T[lang];
   const s = await agentRuleStatus();
-  if (s.state === "active") return { ok: false, error: t.notPaused(s.id) };
+  if (s.state === "active" || s.state === "expired") return { ok: false, error: t.notPaused(s.id) }; // expirée : renouveler le mandat
   if (s.state === "unknown") return { ok: false, error: t.ruleUnreadable(s.error) };
   const agentKey = process.env.AGENT_SECRET_KEY ? agentKeypair() : Keypair.fromPublicKey(C.agentAddress);
   return prepare("resume", asOwner("add_context_rule", addAgentRuleArgs(C.usdcSac, C.ed25519Verifier, agentKey.rawPublicKey(), C.spendingLimitPolicy)), lang);

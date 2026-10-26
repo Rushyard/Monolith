@@ -2,7 +2,8 @@
 // ./deployment.json (copie écrite par contracts/scripts/reset-agent.ts) ; l'env a priorité.
 // L'id de la règle de l'agent est retrouvé on-chain (agentRuleId), pas besoin de redéployer après un reset.
 import "server-only";
-import { Keypair, findAgentRule } from "./core";
+import { Keypair, findAgentRule, secondsPerLedger, server } from "./core";
+import type { MandateView } from "./i18n";
 import D from "./deployment.json";
 
 export const AGENT_CONFIG = {
@@ -28,7 +29,11 @@ export function agentKeypair(): Keypair {
 }
 
 const RULE_CACHE_MS = 60_000;
-export type AgentRuleStatus = { state: "active"; id: number } | { state: "paused" } | { state: "unknown"; error: string };
+export type AgentRuleStatus =
+  | { state: "active"; id: number; validUntil: number | null }
+  | { state: "expired"; id: number; validUntil: number } // mandat échu : règle présente, signature refusée (#3002)
+  | { state: "paused" }
+  | { state: "unknown"; error: string };
 let ruleCache: { status: AgentRuleStatus; at: number } | null = null;
 
 /** Oublie le cache (après une pause / réactivation soumise par l'owner). */
@@ -41,14 +46,15 @@ export const invalidateAgentRuleCache = () => {
  * signer de l'agent + la spending-limit : B4), ou « unknown » si le RPC ne répond pas.
  */
 export async function agentRuleStatus(): Promise<AgentRuleStatus> {
-  if (process.env.RULE_AGENT_ID) return { state: "active", id: Number(process.env.RULE_AGENT_ID) };
+  if (process.env.RULE_AGENT_ID) return { state: "active", id: Number(process.env.RULE_AGENT_ID), validUntil: null };
   if (ruleCache && Date.now() - ruleCache.at < RULE_CACHE_MS) return ruleCache.status;
   const C = AGENT_CONFIG;
   const agentKey = process.env.AGENT_SECRET_KEY ? agentKeypair() : Keypair.fromPublicKey(C.agentAddress);
   let status: AgentRuleStatus;
   try {
-    const id = await findAgentRule(C.ownerAddress, C.smartAccount, C.ed25519Verifier, agentKey.rawPublicKey(), C.spendingLimitPolicy);
-    status = id === null ? { state: "paused" } : { state: "active", id };
+    const r = await findAgentRule(C.ownerAddress, C.smartAccount, C.ed25519Verifier, agentKey.rawPublicKey(), C.spendingLimitPolicy);
+    status =
+      r === null ? { state: "paused" } : r.expired ? { state: "expired", id: r.id, validUntil: r.validUntil! } : { state: "active", id: r.id, validUntil: r.validUntil };
     ruleCache = { status, at: Date.now() };
   } catch (err) {
     status = { state: "unknown", error: err instanceof Error ? err.message : String(err) };
@@ -63,7 +69,18 @@ export async function agentRuleStatus(): Promise<AgentRuleStatus> {
  */
 export async function agentRuleId(): Promise<number> {
   const s = await agentRuleStatus();
-  if (s.state === "active") return s.id;
+  if (s.state === "active" || s.state === "expired") return s.id; // expirée : la tx échouera on-chain (#3002)
   console.error(`[config] règle de l'agent ${s.state === "paused" ? "absente (pause)" : "illisible"}, repli sur deployment.json (${AGENT_CONFIG.ruleAgentFallback})`);
   return AGENT_CONFIG.ruleAgentFallback;
+}
+
+let splCache: { v: number; at: number } | null = null;
+
+/** Mandat de l'agent pour l'affichage : expiration (ledger), ledger courant, durée moyenne réelle d'un ledger (cache 10 min). */
+export async function mandateView(status?: AgentRuleStatus): Promise<MandateView | null> {
+  const s = status ?? (await agentRuleStatus());
+  if (s.state !== "active" && s.state !== "expired") return null;
+  if (!splCache || Date.now() - splCache.at > 600_000) splCache = { v: await secondsPerLedger(), at: Date.now() };
+  const ledger = (await server.getLatestLedger()).sequence;
+  return { validUntil: s.validUntil, ledger, secondsPerLedger: splCache.v };
 }

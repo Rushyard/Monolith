@@ -6,9 +6,9 @@ import { resolveRecipient, type Recipient } from "./contacts";
 import { payrollLines, sumUsdc, type PayrollLine } from "./payroll";
 import type { Plan } from "./planner";
 import { fromUsdc, type SpendingState } from "./core";
-import { T, pickLang, type Lang, type Messages } from "./i18n";
+import { MT, T, pickLang, type Lang, type MandateView, type Messages } from "./i18n";
 
-export type Verdict = "AUTO_EXECUTE" | "NEEDS_APPROVAL" | "NEEDS_VAULT_SIGNATURE" | "BLOCKED" | "INFO" | "PAUSED";
+export type Verdict = "AUTO_EXECUTE" | "NEEDS_APPROVAL" | "NEEDS_VAULT_SIGNATURE" | "BLOCKED" | "INFO" | "PAUSED" | "EXPIRED" | "MANDATE";
 
 
 export type GateDecision = {
@@ -25,6 +25,10 @@ export type GateDecision = {
   budget?: { limitUsdc: number; spentUsdc: number; remainingUsdc: number };
   /** Langue des textes (raisons, réponses de l'exécuteur) : celle du message, sinon du client, sinon anglais. */
   lang: Lang;
+  /** Mandat de l'agent (lu on-chain), pour la lecture `budget`. */
+  mandate?: MandateView;
+  /** Mandat demandé (heures, 1 h – 30 j), verdict MANDATE. */
+  mandateHours?: number;
 };
 
 // ---------- safety net : lecture du message brut, indépendante du LLM ----------
@@ -111,6 +115,11 @@ export type DecideOptions = {
   paused?: boolean;
   /** Langue imposée ; sinon détectée sur le message (puis anglais). */
   lang?: Lang;
+  /** Mandat : règle de l'agent présente mais expirée (valid_until < ledger) → EXPIRED. */
+  expired?: boolean;
+  /** USDC restant dans la petite caisse (pour proposer de les remettre au coffre quand le mandat a expiré). */
+  leftoverUsdc?: string;
+  mandate?: MandateView;
 };
 
 export function decide(plan: Plan, message: string, spending: SpendingState | null, inVault = false, opts: DecideOptions = {}): GateDecision {
@@ -118,10 +127,16 @@ export function decide(plan: Plan, message: string, spending: SpendingState | nu
   const t = T[lang];
   const steps = plan.steps;
   if (steps.some((s) => s.action === "payroll")) return decidePayroll(plan, message, inVault, lang);
+  const mandateStep = steps.find((s) => s.action === "mandate");
+  if (mandateStep && mandateStep.action === "mandate") {
+    // Pression / injection ou autre action dans le même message → BLOCKED. Durée vérifiée avant (route).
+    if (steps.length > 1 || messageSignals(message).pressure.length) return { verdict: "BLOCKED", triggered: ["mandate-suspicious"], reasons: [t.refusal], lang };
+    return { verdict: "MANDATE", triggered: ["mandate"], reasons: [], lang, mandateHours: mandateStep.hours };
+  }
   const pays = steps.filter((s) => s.action === "pay");
 
   if (pays.length === 0) {
-    return { verdict: "INFO", triggered: [], reasons: [t.infoOnly], lang };
+    return { verdict: "INFO", triggered: [], reasons: [t.infoOnly], lang, mandate: opts.mandate };
   }
   if (pays.length > 1) {
     return { verdict: "BLOCKED", triggered: ["multiple-payments"], reasons: [t.onePaymentPerMessage], lang };
@@ -140,6 +155,10 @@ export function decide(plan: Plan, message: string, spending: SpendingState | nu
   const payment = { amountUsdc: pay.amount, recipient };
   if (inVault) return decideVault(payment, message, lang);
   if (opts.paused) return { verdict: "PAUSED", channel: "public", triggered: ["agent-paused"], reasons: [t.paused], payment, lang };
+  if (opts.expired) {
+    const m = MT[lang];
+    return { verdict: "EXPIRED", channel: "public", triggered: ["mandate-expired"], reasons: [m.expired, ...(opts.leftoverUsdc ? [m.leftover(opts.leftoverUsdc)] : [])], payment, lang };
+  }
   const triggered: string[] = [];
   const reasons: string[] = [];
 

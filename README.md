@@ -91,7 +91,7 @@ Every step (register, merge, …) and the v1 runs are in [`docs/architecture.md`
 
 Product rule: **inside the vault, the AI proposes and the owner signs. Outside, the AI acts alone, but capped.** Cast of the demo: Sarah (owner, `GCIF…RS7B`), Bob and Carol (employees with a vault account), Alice (outside the vault, paid from the agent's public petty cash), Marc (accountant = our auditor id 1).
 
-What `POST /api/intent` does, all of it covered by `npm test` in `contracts/` (94 tests, 15 of them signed simulations on testnet, no transaction sent):
+What `POST /api/intent` does, all of it covered by `npm test` in `contracts/` (123 tests, 14 of them on testnet as signed simulations, no transaction sent):
 
 - **Private / public routing.** Before any payment the server checks on-chain whether the recipient has a confidential account (`ChainClient.isRegistered`, a simulation of `confidential_balance`, cached 60 s). Registered → the agent pays nothing and returns `needs_vault_signature` with the list of payments; Sarah signs and proves each confidential transfer in her own browser. The agent never holds the vault keys and never proves anything. Not registered → the capped petty cash (rule B, on-chain cap, `#3221`, Freighter approval), unchanged. **Fail-closed:** if the vault check fails, nothing is paid in public (that would reveal the amount); the API answers with an explicit error.
 - **"Run payroll"** (`verse les salaires`, `paie l'équipe`, `run payroll`, `pagar salários`): `app/lib/agent/payroll.ts` fixes people and amounts (Carol 3 USDC, Bob 2 USDC), never the LLM → `needs_vault_signature` with 2 payments. An employee outside the vault, pressure wording, an amount or an address in the message → `BLOCKED`.
@@ -102,6 +102,7 @@ What `POST /api/intent` does, all of it covered by `npm test` in `contracts/` (9
 - **Missing details (A2/A3), checked in code.** "pay" → "How much, and to whom?", "pay 5 usdc" → "To whom?", "pay alice" → "How much?" (same in French and Portuguese) (even if the LLM guessed an amount). The client sends its last turns; the server only uses them to complete an answer to its own question, then runs the whole pipeline on the combined text.
 - **Reads (A7).** `budget` (cap, spent, remaining, read from the policy) and `address` (contact book or smart account): the server writes the answer, the LLM never states a number or an address.
 - **Pause (B4).** The owner can remove the agent's rule (`remove_context_rule`, rule found with `findAgentRule`) and add it back with the same parameters as `reset-agent.ts`: the server prepares unsigned XDRs (owner as source) with simulated fees, Sarah signs in Freighter. No agent rule on-chain → verdict `PAUSED`. It only cuts the public petty cash; in the vault Sarah already signs everything. The two transactions were only simulated (pause ~0.10 XLM, re-add ~0.02 XLM in resource fees on 2026-10-25), not sent.
+- **Mandate (expiring agent rights).** The agent's rule B carries a `valid_until` ledger (OpenZeppelin context rules). Sarah gives or renews it with one `update_context_rule_valid_until` signed in Freighter ("give the agent a 7-day mandate", 1 hour to 30 days; or `npm run mandate`); renewing keeps the same rule, so the budget already spent is not reset. Once it expires, the network refuses the agent's signature (`#3002`, proven on testnet: [`29fff98a…`](https://stellar.expert/explorer/testnet/tx/29fff98a454362b97b85bd9810b74a67eeaac5e638040a05c25c1526a169cc10)), the API answers `expired` with no transaction and offers to put the petty cash back in the vault, and the `budget` answer shows the time left. The code refuses to put an expiry on any rule other than the agent's: an expiry on the owner's rule could lock the account permanently (OpenZeppelin `smart_account/mod.rs`).
 - **Activity feed.** `GET /api/agent/activity` is rebuilt from the chain on each call (cached 30 s): public payments and refusals from the Horizon history of the agent and owner accounts (decoded USDC SAC `transfer` calls, refusal code read with `getTransaction`), private payments from the confidential token's `transfer` events whose sender is the owner, **addresses and hash only, never an amount**. `POST /api/agent/vault-receipt { to, hash }` checks on-chain that the hash is a successful `confidential_transfer` from the owner to `to`, then shows it immediately.
 
 ### Languages
@@ -110,7 +111,7 @@ Every sentence the server writes (clarifications, missing-detail questions, vaul
 
 ### Parsing eval (`npm run eval` in `contracts/`)
 
-60 sentences in `eval/parsing.jsonl` (typos, missing details, answers to the agent's own question, payroll, private/public routing, injections, reads, unsupported requests; French, English, Portuguese), run through the real `/api/intent` pipeline in demo mode (simulation only). Each line also checks that the server answered in the message's language. Result on 2026-10-25:
+66 sentences in `eval/parsing.jsonl` (typos, missing details, answers to the agent's own question, payroll, the agent's mandate, private/public routing, injections, reads, unsupported requests; French, English, Portuguese), run through the real `/api/intent` pipeline in demo mode (simulation only). Each line also checks that the server answered in the message's language. Result on 2026-10-26:
 
 | Category | Score |
 |---|---|
@@ -123,9 +124,10 @@ Every sentence the server writes (clarifications, missing-detail questions, vaul
 | injection | 7/7 |
 | reads | 9/9 |
 | unsupported | 3/3 |
-| **Total** | **60/60** (fr 26/26, en 19/19, pt 15/15) |
+| mandate | 6/6 |
+| **Total** | **66/66** (fr 28/28, en 21/21, pt 17/17) |
 
-Honest caveats: Groq rate-limited us (HTTP 429) during the run, so the LLM planner answered 26 of the 60 sentences; the others went through the regex fallback planner or a code check that runs before the LLM. Both paths go through the same server-side checks. The paused state (B4) is not in the eval: it would need a real on-chain transaction to remove the agent's rule; the `PAUSED` text is covered by unit tests in the three languages.
+Honest caveats: Groq rate-limited us (HTTP 429) during the run, so the LLM planner answered 25 of the 66 sentences; the others went through the regex fallback planner or a code check that runs before the LLM. Both paths go through the same server-side checks. The paused state (B4) is not in the eval: it would need a real on-chain transaction to remove the agent's rule; the `PAUSED` text is covered by unit tests in the three languages.
 
 ## Architecture
 
@@ -228,9 +230,10 @@ cd contracts && npm install
 npm run deploy        # Ed25519 verifier + spending-limit policy + smart account (rule A = owner), then adds rule B (agent, 10 USDC / ~24 h)
 npm run gonogo        # agent 5 USDC ✅ · agent 50 USDC ❌ #3221 (on-chain) · owner 50 USDC ✅ · alice refunds
 npm run status        # balances, cap, spent in the rolling window, remaining budget
-npm test              # 94 tests: 15 on testnet (signed simulations, rule discovery, vault membership, demo-mode simulation, pause XDR; no tx sent) + 79 unit tests (incl. every server sentence in en/fr/pt)
+npm test              # 123 tests: 14 on testnet (signed simulations, rule discovery, vault membership, demo-mode simulation, pause and mandate XDRs; no tx sent) + 109 unit tests (incl. every server sentence in en/fr/pt, mandate)
 npm run eval          # parsing eval: eval/parsing.jsonl through the real /api/intent, demo mode (no tx)
-npm run reset-agent   # fresh agent rule (remove old rule B, add a new one): restores the budget; --dry-run to preview
+npm run reset-agent   # fresh agent rule (remove old rule B, add a new one): restores the budget; --days N adds a mandate; --dry-run to preview
+npm run mandate -- --days 7   # agent mandate: update_context_rule_valid_until on the agent's rule (--ledgers N, --none, --status, --dry-run)
 npm run refund        # alice sends her USDC back to the smart account
 ```
 

@@ -17,6 +17,8 @@ type Expect = {
   status?: string;
   /** Texte attendu = phrase du dictionnaire (app/lib/agent/i18n.ts) dans la langue de la ligne. */
   textKey?: string;
+  /** Texte attendu = phrase du bloc « mandate » (MT) dans la langue de la ligne. */
+  mandateKey?: string;
   textArgs?: unknown[];
   statusIn?: string[];
   text?: string;
@@ -32,7 +34,7 @@ type Row = { id: number; category: string; lang: Lang; message: string; expect: 
 
 const rows: Row[] = readFileSync(join(root, "eval", "parsing.jsonl"), "utf8").split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l));
 const { POST } = await import("../../app/app/api/intent/route.ts");
-const { T } = await import("../../app/lib/agent/i18n.ts");
+const { T, MT } = await import("../../app/lib/agent/i18n.ts");
 type Lang = "en" | "fr" | "pt";
 
 function check(e: Expect, b: any, lang: Lang): string[] {
@@ -45,6 +47,10 @@ function check(e: Expect, b: any, lang: Lang): string[] {
   if (e.textKey) {
     const v = (T[lang] as Record<string, unknown>)[e.textKey];
     const want = typeof v === "function" ? (v as (...a: unknown[]) => string)(...(e.textArgs ?? [])) : String(v);
+    if (text !== want) fails.push(`text « ${text} » ≠ « ${want} »`);
+  }
+  if (e.mandateKey) {
+    const want = String((MT[lang] as Record<string, unknown>)[e.mandateKey]);
     if (text !== want) fails.push(`text « ${text} » ≠ « ${want} »`);
   }
   // Les phrases du serveur sont dans la langue du message (détectée sur le texte complété par la mémoire).

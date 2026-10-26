@@ -150,7 +150,7 @@ Remboursements d'alice vers le smart account : [`42d70ea9…`](https://stellar.e
 
 `withdraw(from, to = smart account de l'agent, amount)` du coffre confidentiel : la sortie est **publique** (montant visible), le solde du coffre reste caché. Même appel `submitWithdraw` que le bouton (`ConfidentialVault.withdraw(amount, onPhase, to)`), testé avec `npm run ct:withdraw-to-contract -- CC5D…43KA` : smart account 60 → **61 USDC**, [`8a0cd48d…`](https://stellar.expert/explorer/testnet/tx/8a0cd48dce90c11d384136524cfdfe27121e662ad9ff0753c9e0867a455b3ea8).
 
-### Tests automatisés P1 — `npm test` dans `contracts/` : 94/94 ✅ (2026-10-25 soir, branche `p1-agent-route`)
+### Tests automatisés P1 — `npm test` dans `contracts/` : 123/123 ✅ (2026-10-26 ~00:05, branche `p1-mandate`)
 
 Lanceur `node:test` via `tsx`, sans dépendance ajoutée. Les tests on-chain sont des **simulations signées** : les auths du smart account sont exécutées en mode enforcing (`__check_auth` + policy), mais **aucune tx n'est envoyée** (budget et USDC inchangés). Ils sont placés dans `contracts/` parce qu'ils lisent les clés agent/owner dans le keystore du Stellar CLI.
 
@@ -203,6 +203,20 @@ Règle produit : dans le coffre, l'IA propose et Sarah (owner) signe ; dehors, l
 Remise à zéro après les tests du soir : `npm run reset-agent` (règle de l'agent 1 → 2, retrouvée on-chain par l'app sans redéploiement) puis refund alice → smart account 52,5 USDC [`36eb4657…`](https://stellar.expert/explorer/testnet/tx/36eb465786acd4726a01f850fba997ebd216ff28eddd6624175366e81baecbfd) (2026-10-25 21:38 UTC) : smart account **83 USDC**, alice 0, budget agent 8 / 10 restants. `npm test` : 106/106.
 
 Rétention `getEvents` sur le RPC testnet : `ledgerRetentionWindow = 120960` ledgers (~7 jours), mesuré via `getHealth` le 2026-10-25.
+
+### Mandat de l'agent — droits qui expirent on-chain (`valid_until`, OZ), 2026-10-25 ~23:00 UTC (branche `p1-mandate`)
+
+OZ `ddc327eb` : `valid_until` = numéro de ledger, inclus (`storage.rs` l.321-324 : rejet si `valid_until < ledger`), modifiable par `update_context_rule_valid_until` (même id, historique de dépenses conservé, `mod.rs` l.351-357, signature du compte = règle A). Règle expirée → `__check_auth` → `#3002 UnvalidatedContext`. Garde-fou : jamais de `valid_until` hors de la règle de l'agent (`mod.rs` l.344-349 : une expiration sur la dernière règle d'administration verrouille le compte). Script : `npm run mandate -- --ledgers N | --days N | --none` (`contracts/scripts/mandate.ts`).
+
+| Étape | Tx | Ledger | Résultat |
+|---|---|---|---|
+| Mandat de 30 ledgers : `update_context_rule_valid_until(2, 5389146)`, signé par l'owner | [`464b7534…`](https://stellar.expert/explorer/testnet/tx/464b75343cb10ff98a5ffe676f68afe7cc553df8279317d9bbc601ba47c757c8) | 5389118 | SUCCESS (0,0016 XLM) |
+| Simulation d'un paiement agent de 0,01 USDC avant l'expiration | — | 5389119 | OK |
+| Même simulation après le ledger 5389146 | — | 5389149 | refusée `#3002` |
+| Tentative réelle de l'agent, 0,01 USDC → Alice (signée avant l'expiration, envoyée après) | [`29fff98a…`](https://stellar.expert/explorer/testnet/tx/29fff98a454362b97b85bd9810b74a67eeaac5e638040a05c25c1526a169cc10) | 5389151 | **FAILED `#3002`**, aucun USDC déplacé (0,0012 XLM) |
+| Mandat de 7 jours : `update_context_rule_valid_until(2, 5510116)` (≈ 168 h à 5,00 s/ledger mesurés) | [`499b10c6…`](https://stellar.expert/explorer/testnet/tx/499b10c67b15d3dc459339f610b205adb4c69cd8cc79506a6240de4f62ea06a1) | 5389157 | SUCCESS (0,0014 XLM) ; simulation agent OK |
+
+Budget de l'agent inchangé (règle 2 : 2 / 10 USDC dépensés avant et après). Smart account : 74 USDC.
 
 ### Frais d'un paiement de l'agent (vérifié le 2026-10-25, méta des tx via `getTransaction`)
 
