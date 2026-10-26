@@ -392,4 +392,17 @@ export const fr: Record<Key, string> = {
   "vault.d.hiddenLine": "caché sur la chaîne",
   "vault.d.slabIncoming": "Entrant, à fusionner",
   "vault.d.stepsLabel": "Étapes",
+
+  // --- auditor design (p2) ---
+  "aud.p2.scope": "L'auditeur lit les montants et les soldes. Il ne peut pas déplacer de fonds, et la clé d'audit ne quitte jamais ce navigateur.",
+  "aud.p2.readHint": "Lit les dernières opérations de la chaîne publique. Aucune clé nécessaire.",
+  "aud.p2.keyHint": "Vérifiée ici contre le registre on-chain. Elle n'est envoyée à aucun serveur.",
+  "aud.p2.token": "Jeton",
+  "aud.p2.registry": "Registre",
+  "aud.p2.auditor": "Auditeur",
+  "aud.p2.ledger": "Opérations",
+  "aud.p2.ledgerCount": "{n} opérations, dont {k} virements confidentiels.",
+  "aud.p2.colPublic": "Ce que tout le monde voit sur la chaîne",
+  "aud.p2.colKey": "Ce que la clé d'audit révèle",
+  "aud.p2.to": "vers",
 };

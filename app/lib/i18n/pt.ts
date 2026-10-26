@@ -393,4 +393,17 @@ export const pt: Record<Key, string> = {
   "vault.d.hiddenLine": "oculto na cadeia",
   "vault.d.slabIncoming": "Entrante, por fundir",
   "vault.d.stepsLabel": "Passos",
+
+  // --- auditor design (p2) ---
+  "aud.p2.scope": "O auditor lê os valores e os saldos. Não pode mover fundos, e a chave de auditoria nunca sai deste navegador.",
+  "aud.p2.readHint": "Lê as últimas operações da cadeia pública. Não precisa de chave.",
+  "aud.p2.keyHint": "Verificada aqui contra o registo on-chain. Não é enviada a nenhum servidor.",
+  "aud.p2.token": "Token",
+  "aud.p2.registry": "Registo",
+  "aud.p2.auditor": "Auditor",
+  "aud.p2.ledger": "Operações",
+  "aud.p2.ledgerCount": "{n} operações, {k} transferências confidenciais.",
+  "aud.p2.colPublic": "O que todos veem na cadeia",
+  "aud.p2.colKey": "O que a chave de auditoria revela",
+  "aud.p2.to": "para",
 };
