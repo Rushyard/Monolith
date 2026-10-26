@@ -447,3 +447,11 @@ Première connexion owner cliquée dans le navigateur (défi SEP-53 signé dans 
 | Paie : Sarah → Bob | — | — | non envoyé : il restait 1 USDC dans le coffre (4 − 3), la carte s'arrête sur Bob avec « Reprendre » |
 
 Coffre de Sarah après ce run : ~1 USDC, USDC public : 0. Recharger avant la vidéo (faucet → `deposit` → `merge`).
+
+## Liquidity planner (P1, p1-liquidity)
+
+"Receiving $10,000 should not mean exposing $10,000." The AI understands the upcoming expenses (`plan_liquidity`); fixed code (`app/lib/agent/liquidity.ts`, BigInt, 7 decimals) computes need = expenses + 2 USDC reserve, then withdraw = need − petty cash (public USDC balance of the smart account, read on-chain), rounded up to the next 10 USDC, capped at 50; Sarah's browser checks her vault's available balance (never shown, never sent) and Sarah signs the `withdraw` (`LiquidityCard`). The AI never touches the vault and never decides an amount.
+
+Real proof (testnet, 26 Oct 2026 00:31 UTC, ledger 5390215): `withdraw` of 10 USDC from Sarah's vault to the petty cash (`CC5D…43KA`), `npm run vault-withdraw -- --amount 10 --yes`, fee 0.0101572 XLM: [`5227d970…`](https://stellar.expert/explorer/testnet/tx/5227d970b1c2a12c5a7f5743e8f060d364744568840a614170f35dcaf7717ab2) — SUCCESS, petty cash 77 → 87 USDC. The receipt route verifies it on-chain (`tests/onchain.test.ts`).
+
+Honest limit: every withdrawal stays public with its amount; we reduce what goes out, we don't hide it. No stored calendar: each request recomputes everything.

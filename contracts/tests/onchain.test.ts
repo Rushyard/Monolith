@@ -164,3 +164,18 @@ test("mandat (simulation) : XDR update_context_rule_valid_until préparé sur la
   const r = await execute(p, decide(p, "give the agent a 7-day mandate", budget), budget, "simulation");
   assert.ok(r.status === "mandate_simulated" && /^Simulation: Sarah would sign a mandate until/.test(r.text), JSON.stringify(r));
 });
+
+// Planificateur de liquidité (L4) : le vrai withdraw coffre de Sarah → petite caisse (5227d970, 10 USDC).
+import { verifyVaultReceipt } from "../../app/lib/agent/activity.ts";
+const LIQ_WITHDRAW = "5227d970b1c2a12c5a7f5743e8f060d364744568840a614170f35dcaf7717ab2";
+test("reçu withdraw coffre → petite caisse : vérifié on-chain, canal public, montant lu dans la tx", async () => {
+  const sa = (await import("../../app/lib/agent/deployment.json", { with: { type: "json" } })).default.smartAccount;
+  const ok = await verifyVaultReceipt(sa, LIQ_WITHDRAW, "en");
+  assert.ok(ok.ok, ok.ok ? "" : ok.error);
+  if (!ok.ok) return;
+  assert.equal(ok.item.channel, "public");
+  assert.equal(ok.item.amountUsdc, "10");
+  assert.equal(ok.item.to, sa);
+  const wrong = await verifyVaultReceipt("GBCQZMHQWCIQJRCQJHAI7L2GS56A3EVY5E2E26DU2RX5SRSU4Y5B32GV", LIQ_WITHDRAW, "en");
+  assert.equal(wrong.ok, false); // destination annoncée ≠ celle de la tx
+});
