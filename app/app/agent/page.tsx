@@ -106,7 +106,7 @@ export default function AgentPage() {
         <PauseBanner owner={owner} refreshKey={refreshKey} />
 
         <form className="composer" onSubmit={(e) => { e.preventDefault(); send(message); }}>
-          <AgentStatus mood={mood} />
+          <div className="composer-top"><AgentStatus mood={mood} /><span className={`composer-mode ${owner ? "is-owner" : ""}`}>{t(owner ? "agent.ownerNotice" : "agent.demoNotice")}</span></div>
           <div className="composer-row">
             <input
               id="msg"

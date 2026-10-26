@@ -1,7 +1,6 @@
 "use client";
 
-// Home hero: the scroll-driven dawn film (self-hosted video), the 3D monolith behind `#3d`,
-// and the 2D dawn as the fallback. The title appears at the moment of alignment.
+// The self-hosted film is the default; #3d and #2d preserve the alternate scenes.
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 
@@ -23,15 +22,13 @@ function pickMode(): Mode {
 
 export function Hero({ tagline }: { tagline: string }) {
   const { t } = useI18n();
-  const [aligned, setAligned] = useState(false);
-  const [mode, setMode] = useState<Mode | null>(null);
+  const [aligned, setAligned] = useState(true);
+  const [mode, setMode] = useState<Mode>("film");
   const onAligned = useCallback(() => setAligned(true), []);
-  const onFail = useCallback(() => setMode("dawn"), []);
   useEffect(() => setMode(pickMode()), []);
   return (
     <section className={`hero-dawn ${mode === "3d" ? "is-3d" : ""} ${mode === "film" ? "is-film" : ""}`}>
-      {mode === null ? <div className="hero-film" /> :
-        mode === "film" ? <HeroVideo tagline={tagline} onFail={onFail} /> :
+      {mode === "film" ? <HeroVideo tagline={tagline} /> :
         mode === "3d" ? <Monolith3D onAligned={onAligned} /> : <Dawn onAligned={onAligned} />}
       {mode !== "film" && <div className={`hero-copy ${aligned ? "on" : ""}`}>
         <h1 className="intertitle">Monolith</h1>
