@@ -11,6 +11,7 @@ import { Transmission } from "./transmission";
 import { useI18n } from "@/lib/i18n/react";
 import { OwnerSession } from "@/components/agent/OwnerSession";
 import { PauseBanner } from "@/components/agent/PauseBanner";
+import { MandateBadge } from "@/components/agent/MandateBadge";
 
 type Turn = { id: number; message: string; response?: IntentResponse; error?: string; receivedAt: number };
 
@@ -92,6 +93,7 @@ export default function AgentPage() {
           <h1 className="intertitle" style={{ marginTop: 10 }}>{t("ch.agent")}</h1>
           <p className="lede">{t("agent.lede")}</p>
           <OwnerSession onChange={setOwner} />
+          <MandateBadge refreshKey={refreshKey} />
         </div>
         <BudgetSlab refreshKey={refreshKey} alarm={mood === "refused" || mood === "blocked"} />
       </header>
