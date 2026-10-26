@@ -370,4 +370,11 @@ export const pt: Record<Key, string> = {
   "sweep.mergeTx": "Fusão",
   "sweep.done": "{amt} USDC voltaram ao cofre: a partir de agora, só tu e o teu auditor o veem.",
   "sweep.fine": "Com transparência: 3 assinaturas Freighter, o valor é público durante o trajeto (transferência e depósito), depois volta a ficar oculto após a fusão.",
+  // --- home design (p2) ---
+  "home.act.vault": "Abrir o cofre",
+  "home.act.agent": "Abrir o agente",
+  "home.act.auditor": "Abrir o console do auditor",
+  "home.ledger.title": "O que o registro mostra",
+  "home.ledger.lede": "Qualquer pessoa pode ler o registro da Stellar. Eis o que se encontra nele, e o que não se encontra.",
+  "footer.line": "Roda na testnet da Stellar. Feito para o HackMeridian 2026.",
 };

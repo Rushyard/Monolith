@@ -369,6 +369,13 @@ export const en = {
   "sweep.mergeTx": "Merge",
   "sweep.done": "{amt} USDC are back in the vault: from now on, only you and your auditor can see it.",
   "sweep.fine": "Honest view: 3 Freighter signatures, the amount is public on the way (transfer and deposit), then hidden again once merged.",
+  // --- home design (p2) ---
+  "home.act.vault": "Open the vault",
+  "home.act.agent": "Open the agent",
+  "home.act.auditor": "Open the auditor's console",
+  "home.ledger.title": "What the ledger shows",
+  "home.ledger.lede": "Anyone can read the Stellar ledger. This is what they find there, and what they do not.",
+  "footer.line": "Runs on the Stellar testnet. Built for HackMeridian 2026.",
 } as const;
 
 export type Key = keyof typeof en;
