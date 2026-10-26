@@ -672,7 +672,6 @@ main:has(.home-page) { max-width: 1440px; padding-bottom: 0; }
 /* No mask on decoded video frames: the fade is a cheap, separate overlay. */
 .hero-dawn.is-film { display: block; padding: 0; }
 .scroll-film video { mask-image: none; -webkit-mask-image: none; }
-.scroll-film-pin::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(0deg, #000 0%, transparent 28%); }
 .film-beat, .film-title, .film-hint { z-index: 2; }
 .film-title .intertitle { font-size: clamp(42px, 7.4vw, 106px); font-weight: 400; letter-spacing: .2em; margin-right: 0; text-indent: .2em; line-height: 1; }
 .film-title .lede { max-width: 46ch; font-size: clamp(14px, 1.35vw, 18px); line-height: 1.65; letter-spacing: .005em; margin-top: 24px; }
