@@ -406,4 +406,11 @@ export const pt: Record<Key, string> = {
   "aud.p2.colPublic": "O que todos veem na cadeia",
   "aud.p2.colKey": "O que a chave de auditoria revela",
   "aud.p2.to": "para",
+  // --- home design (p2) ---
+  "home.act.vault": "Abrir o cofre",
+  "home.act.agent": "Abrir o agente",
+  "home.act.auditor": "Abrir o console do auditor",
+  "home.ledger.title": "O que o registro mostra",
+  "home.ledger.lede": "Qualquer pessoa pode ler o registro da Stellar. Eis o que se encontra nele, e o que não se encontra.",
+  "footer.line": "Roda na testnet da Stellar. Feito para o HackMeridian 2026.",
 };

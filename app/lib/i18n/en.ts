@@ -405,6 +405,13 @@ export const en = {
   "aud.p2.colPublic": "What everyone sees on the chain",
   "aud.p2.colKey": "What the audit key reveals",
   "aud.p2.to": "to",
+  // --- home design (p2) ---
+  "home.act.vault": "Open the vault",
+  "home.act.agent": "Open the agent",
+  "home.act.auditor": "Open the auditor's console",
+  "home.ledger.title": "What the ledger shows",
+  "home.ledger.lede": "Anyone can read the Stellar ledger. This is what they find there, and what they do not.",
+  "footer.line": "Runs on the Stellar testnet. Built for HackMeridian 2026.",
 } as const;
 
 export type Key = keyof typeof en;

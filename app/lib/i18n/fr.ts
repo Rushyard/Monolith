@@ -405,4 +405,11 @@ export const fr: Record<Key, string> = {
   "aud.p2.colPublic": "Ce que tout le monde voit sur la chaîne",
   "aud.p2.colKey": "Ce que la clé d'audit révèle",
   "aud.p2.to": "vers",
+  // --- home design (p2) ---
+  "home.act.vault": "Ouvrir le coffre",
+  "home.act.agent": "Ouvrir l'agent",
+  "home.act.auditor": "Ouvrir la console de l'auditeur",
+  "home.ledger.title": "Ce que montre le registre",
+  "home.ledger.lede": "Tout le monde peut lire le registre Stellar. Voici ce qu'on y trouve, et ce qu'on n'y trouve pas.",
+  "footer.line": "Fonctionne sur le testnet Stellar. Conçu pour HackMeridian 2026.",
 };

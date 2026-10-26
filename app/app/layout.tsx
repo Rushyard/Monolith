@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
 import "./globals.css";
-import { Nav } from "./nav";
+import { SiteFooter, SiteHeader } from "./nav";
 import { Intertitle } from "./fx/intertitle";
 import { I18nProvider } from "@/lib/i18n/react";
 
@@ -25,13 +24,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <I18nProvider>
-          <header className="site-header">
-            <Link href="/" className="wordmark">Monolith</Link>
-            <Nav />
-          </header>
+          <SiteHeader />
           <Intertitle />
           <main>{children}</main>
-          <footer className="site-footer">Stellar testnet · HackMeridian 2026</footer>
+          <SiteFooter />
         </I18nProvider>
       </body>
     </html>

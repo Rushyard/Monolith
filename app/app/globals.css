@@ -28,61 +28,83 @@ body {
   background: var(--void);
   color: var(--fg);
   font-family: var(--font);
+  font-size: 17px;
   font-weight: 400;
-  line-height: 1.55;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  display: flex; flex-direction: column;
 }
 a { color: inherit; text-decoration: none; }
 a.link { border-bottom: 1px solid var(--line-strong); }
 a.link:hover { border-color: var(--fg); }
 ::selection { background: var(--hal); color: #000; }
+/* one visible focus ring for everything people can reach with the keyboard */
+:focus-visible { outline: 2px solid var(--sun); outline-offset: 3px; }
+:focus:not(:focus-visible) { outline: none; }
 
-/* ---------- chrome ---------- */
+/* ---------- chrome ----------
+   Inner pages: a thin black bar, always there. Home: an overlay that stays hidden over the film
+   and fades in after the hero, near the top edge, or on keyboard focus (see SiteHeader). */
 .site-header {
   position: sticky; top: 0; z-index: 10;
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 18px var(--gutter);
-  background: linear-gradient(#000 60%, rgba(0,0,0,0));
+  display: flex; align-items: center; justify-content: space-between; gap: 16px 24px;
+  min-height: 56px; padding: 10px max(var(--gutter), calc((100vw - 1120px) / 2 + var(--gutter)));
+  background: var(--void);
 }
+.site-header[data-overlay] {
+  position: fixed; left: 0; right: 0;
+  opacity: 0; pointer-events: none; transition: opacity .3s ease, background-color .3s ease;
+}
+.site-header[data-overlay][data-shown], .site-header[data-overlay]:focus-within { opacity: 1; pointer-events: auto; }
+/* over the film (revealed by the pointer or focus) the sky can be bright: a flat smoked bar keeps it legible */
+.site-header[data-over-film] {
+  background: rgba(0,0,0,.66); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.site-header[data-over-film] .site-nav a:not([aria-current]), .site-header[data-over-film] .lang-switch button { color: #c9c4b9; }
 .wordmark {
-  font-weight: 500; letter-spacing: 0.55em; font-size: 13px; text-transform: uppercase;
-  margin-right: -0.55em;
+  font-weight: 500; letter-spacing: 0.42em; font-size: 13px; text-transform: uppercase;
+  margin-right: -0.42em; padding: 6px 0;
 }
-.site-nav { display: flex; gap: 22px; }
+.site-nav { display: flex; align-items: center; gap: 4px 24px; }
 .site-nav a {
-  font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted);
-  padding: 4px 0; border-bottom: 1px solid transparent;
+  font-size: 15px; font-weight: 400; color: var(--muted);
+  padding: 6px 0 5px; border-bottom: 1px solid transparent; transition: color .2s ease;
 }
-.site-nav a:hover, .site-nav a[aria-current="page"] { color: var(--fg); border-color: var(--fg); }
-.site-nav { align-items: center; }
-.lang-switch { display: flex; gap: 2px; padding-left: 16px; margin-left: 2px; border-left: 1px solid var(--line-strong); }
+.site-nav a:hover { color: var(--fg); }
+.site-nav a[aria-current="page"] { color: var(--fg); border-color: var(--fg); }
+.lang-switch { display: flex; gap: 0; padding-left: 14px; border-left: 1px solid var(--line-strong); }
 .lang-switch button {
-  font: 400 10px/1 var(--mono); letter-spacing: .14em; color: var(--faint); background: none; border: 0;
-  padding: 5px 5px; cursor: pointer; transition: color .2s;
+  font: 400 13px/1 var(--font); letter-spacing: .06em; color: var(--muted); background: none; border: 0;
+  border-radius: 2px; padding: 8px 6px; cursor: pointer; transition: color .2s ease;
 }
-.lang-switch button:hover { color: var(--muted); }
-.lang-switch button[aria-pressed="true"] { color: var(--fg); }
-@media (max-width: 520px) {
-  .site-header { flex-wrap: wrap; row-gap: 10px; }
-  .lang-switch { padding-left: 10px; }
+.lang-switch button:hover { color: var(--fg); }
+.lang-switch button[aria-pressed="true"] { color: var(--fg); text-decoration: underline; text-underline-offset: 5px; text-decoration-thickness: 1px; }
+@media (max-width: 560px) {
+  .site-header { flex-wrap: wrap; row-gap: 0; padding-top: 8px; padding-bottom: 8px; }
+  .site-nav { gap: 4px 18px; }
+  .lang-switch { padding-left: 8px; }
 }
-main { width: 100%; max-width: 1040px; margin: 0 auto; padding: 0 var(--gutter) 96px; }
+main { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 var(--gutter) 96px; flex: 1 0 auto; }
 .site-footer {
-  border-top: 1px solid var(--line); color: var(--faint);
-  font-size: 11px; letter-spacing: 0.25em; text-transform: uppercase;
-  padding: 24px var(--gutter); text-align: center;
+  width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 var(--gutter);
+}
+.site-footer p {
+  margin: 0; padding: 22px 0 28px; border-top: 1px solid var(--line);
+  font-size: 13px; color: var(--muted);
 }
 
 /* ---------- type ---------- */
+/* Michroma: the chapter title only */
 .intertitle {
-  font-weight: 400; text-transform: uppercase; letter-spacing: 0.45em;
-  font-size: clamp(22px, 4vw, 34px); margin: 0 -0.45em 0 0; line-height: 1.3;
+  font-family: var(--console); font-weight: 400; letter-spacing: 0.18em;
+  font-size: clamp(28px, 4.2vw, 52px); margin: 0; line-height: 1.2; overflow-wrap: break-word;
 }
-.chapter { font-family: var(--mono); font-size: 11px; letter-spacing: 0.3em; color: var(--muted); text-transform: uppercase; }
-.lede { color: var(--muted); max-width: 60ch; font-size: 17px; font-weight: 300; }
+/* the chapter marker: the one small tracked-caps element a page may have */
+.chapter { font-family: var(--font); font-size: 12px; font-weight: 500; letter-spacing: 0.28em; color: var(--muted); text-transform: uppercase; }
+.lede { color: var(--muted); max-width: 60ch; font-size: 19px; line-height: 1.55; font-weight: 300; }
 h2.section {
-  font-weight: 500; font-size: 12px; letter-spacing: 0.35em; text-transform: uppercase;
-  color: var(--muted); margin: 0 0 14px;
+  font-weight: 500; font-size: 20px; line-height: 1.3; letter-spacing: 0;
+  color: var(--fg); margin: 0 0 14px;
 }
 .mono { font-family: var(--mono); }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
@@ -127,33 +149,24 @@ h2.section {
 @keyframes sheen { from { background-position: 0 100%; } to { background-position: 0 -200%; } }
 
 /* ---------- layout pieces ---------- */
-.page-head { padding: 48px 0 32px; display: flex; gap: 20px; align-items: flex-end; }
+.page-head { padding: 64px 0 40px; display: flex; gap: 24px; align-items: flex-end; }
 .page-head > div:first-child { flex: 1; min-width: 0; }
-.page-head .lede { margin: 12px 0 0; }
+.page-head .lede { margin: 16px 0 0; }
+@media (max-width: 640px) { .page-head { padding: 40px 0 28px; } }
 .grid { display: grid; gap: 16px; }
 .grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 760px) {
   .grid.cols-3, .grid.cols-2 { grid-template-columns: minmax(0, 1fr); }
-  .site-nav { gap: 14px; }
-  .site-nav a { letter-spacing: 0.18em; }
-  .wordmark { letter-spacing: 0.35em; }
 }
 .panel {
-  background: var(--panel); border: 1px solid var(--line); padding: 20px; min-width: 0;
+  background: var(--panel); border: 1px solid var(--line); padding: 24px; min-width: 0;
 }
 .panel + .panel { margin-top: 16px; }
 .stack > * + * { margin-top: 16px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .spacer { height: 32px; }
 
-.chapter-card {
-  display: block; border: 1px solid var(--line); padding: 24px; background: var(--deep);
-  transition: border-color .3s, background .3s;
-}
-.chapter-card:hover { border-color: var(--line-strong); background: var(--panel); }
-.chapter-card h3 { font-weight: 400; letter-spacing: 0.3em; text-transform: uppercase; font-size: 16px; margin: 10px 0 8px; }
-.chapter-card p { color: var(--muted); margin: 0; font-size: 15px; }
 
 /* ---------- stats ---------- */
 .stat .label { font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--muted); }
@@ -170,17 +183,20 @@ h2.section {
 .tag.ok { color: var(--ok); border-color: rgba(159,216,181,0.35); }
 
 /* ---------- controls ---------- */
+/* buttons: sentence case, 2px radius; primary = light on black */
 .btn {
-  appearance: none; cursor: pointer; font: inherit; font-size: 12px; font-weight: 500;
-  letter-spacing: 0.28em; text-transform: uppercase; color: var(--fg);
-  background: transparent; border: 1px solid var(--line-strong); padding: 12px 18px;
-  transition: border-color .2s, background .2s, color .2s; min-height: 44px;
+  appearance: none; cursor: pointer; font: inherit; font-size: 15px; font-weight: 500; line-height: 1.2;
+  letter-spacing: 0.01em; text-transform: none; color: var(--fg);
+  background: transparent; border: 1px solid var(--line-strong); border-radius: 2px; padding: 11px 20px;
+  transition: border-color .2s, background-color .2s, color .2s; min-height: 44px;
 }
-.btn:hover:not(:disabled) { border-color: var(--fg); }
+.btn:hover:not(:disabled) { border-color: var(--fg); background: rgba(233,230,223,.06); }
+.btn:focus-visible { outline: 2px solid var(--sun); outline-offset: 3px; }
 .btn.primary { background: var(--fg); color: #000; border-color: var(--fg); }
-.btn.primary:hover:not(:disabled) { background: #fff; }
+.btn.primary:hover:not(:disabled) { background: #fff; border-color: #fff; }
 .btn.hal { border-color: rgba(255,42,23,0.6); color: var(--hal); }
-.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn.hal:hover:not(:disabled) { border-color: var(--hal); background: rgba(255,42,23,.08); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .input, select.input {
   font: inherit; font-family: var(--mono); font-size: 15px; color: var(--fg);
   background: #000; border: 1px solid var(--line-strong); padding: 11px 12px; min-height: 44px;
@@ -364,9 +380,11 @@ html, body { overflow-x: clip; }
 .film-title.on { opacity: 1; transform: none; }
 .film-title .intertitle { text-shadow: 0 2px 24px rgba(0,0,0,.8); }
 .film-title .lede { margin: 16px auto 0; text-align: center; color: #d8d3c8; text-shadow: 0 1px 16px rgba(0,0,0,.9); }
+/* the film's title card keeps the wordmark's caps: it is the logo, not a label */
+.hero-dawn .intertitle { text-transform: uppercase; letter-spacing: .32em; margin-right: -.32em; }
 .film-hint {
-  position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); font: 400 11px/1 var(--mono);
-  letter-spacing: .3em; text-transform: uppercase; color: rgba(255,255,255,.7); transition: opacity .5s ease;
+  position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); font: 400 13px/1 var(--font);
+  letter-spacing: .08em; color: rgba(255,255,255,.75); transition: opacity .5s ease;
   animation: hint-bob 2.2s ease-in-out infinite;
 }
 .film-hint.off { opacity: 0; }
@@ -531,4 +549,80 @@ html, body { overflow-x: clip; }
 .tx-details p { margin: 6px 0 0; overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) {
   .tx-card.fresh .node, .tx-card.fresh .verdict, .tx-card.fresh .approve, .tx-card.fresh::before, .node.scan .node-dot, .agent-status .lens { animation: none !important; }
+}
+
+/* ---------- home: after the film ----------
+   Three acts, one per chapter, each with the object its chapter is built around; then the
+   ledger as a plain two-column record of what anyone can read and what stays hidden. */
+.hero-end { height: 1px; }
+.acts { margin-top: 24px; }
+.act {
+  position: relative; display: grid; grid-template-columns: 56px minmax(0, 5fr) minmax(0, 6fr);
+  column-gap: 48px; align-items: start; padding: 88px 0; border-top: 1px solid var(--line);
+}
+.act-head .chapter { display: block; margin: 2px 0 18px; }
+.act-title {
+  font-family: var(--console); font-weight: 400; font-size: clamp(26px, 3.1vw, 40px);
+  letter-spacing: .14em; line-height: 1.2; margin: 0; overflow-wrap: break-word;
+}
+.act-body { padding-top: 38px; }
+.act-body p { margin: 0; max-width: 34em; font-size: 20px; font-weight: 300; line-height: 1.55; color: var(--fg); }
+.act-link {
+  display: inline-block; margin-top: 28px; padding-bottom: 4px;
+  font-size: 16px; font-weight: 500; color: var(--fg); border-bottom: 1px solid var(--line-strong);
+  transition: border-color .2s ease;
+}
+.act-link::after { content: ""; position: absolute; inset: 0; } /* the whole act opens the chapter */
+.act:hover .act-link, .act-link:focus-visible { border-color: var(--fg); }
+
+/* the objects: the vault's dark slab (edge-lit), the agent's slab lit from below, HAL's eye */
+.act-object { display: block; position: relative; margin-top: 4px; }
+.act-object.vault, .act-object.agent {
+  width: 40px; aspect-ratio: 4 / 9; overflow: hidden;
+  background: linear-gradient(100deg, #050506 0%, #0f1013 46%, #030304 47%, #000 100%);
+  box-shadow: inset 1px 0 0 rgba(255,244,220,.5), 0 0 0 1px #1d1f24;
+}
+.act-object.agent::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 40%;
+  background: linear-gradient(to top, rgba(255,236,200,.75), rgba(255,214,150,.18) 75%, transparent);
+  box-shadow: 0 -1px 0 rgba(255,244,220,.9);
+}
+.act-object.auditor {
+  width: 40px; height: 40px; margin-top: 10px; border-radius: 50%;
+  background: radial-gradient(circle, #ffd9a0 0 6%, var(--hal) 15%, #8a0c04 40%, #1a0201 64%, #000 72%);
+  box-shadow: 0 0 0 3px #1a1a1d, 0 0 0 4px #3a3b40, 0 0 22px var(--hal-glow);
+}
+
+.ledger { padding: 96px 0 24px; border-top: 1px solid var(--line); }
+.ledger-title { margin: 0; font-size: 22px; font-weight: 500; line-height: 1.3; }
+.ledger-lede { margin: 10px 0 0; max-width: 66ch; color: var(--muted); text-wrap: pretty; }
+.ledger-record {
+  margin-top: 40px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--line-strong);
+}
+.ledger-col { padding-top: 22px; min-width: 0; }
+.ledger-col.public { padding-right: 40px; }
+.ledger-col.hidden { padding-left: 40px; border-left: 1px solid var(--line); }
+.ledger-col h3 { margin: 0 0 6px; font-size: 17px; font-weight: 500; }
+.ledger-col.hidden h3 { color: var(--hidden); }
+.ledger-col ul { list-style: none; margin: 0; padding: 0; }
+.ledger-col li { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.ledger-col.hidden li { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+/* a ciphertext bar: something is there, how much is not readable */
+.redacted {
+  flex: none; width: 88px; height: 9px;
+  background: repeating-linear-gradient(90deg, rgba(183,166,255,.6) 0 7px, transparent 7px 10px);
+}
+.ledger-coda { margin: 64px 0 0; font-size: clamp(24px, 3vw, 34px); font-weight: 300; line-height: 1.3; }
+
+@media (max-width: 760px) {
+  .act { grid-template-columns: 40px minmax(0, 1fr); column-gap: 20px; padding: 56px 0; }
+  .act-body { grid-column: 1 / -1; padding-top: 24px; }
+  .act-body p { font-size: 18px; }
+  .act-head .chapter { margin-bottom: 12px; }
+  .ledger { padding-top: 64px; }
+  .ledger-record { grid-template-columns: minmax(0, 1fr); }
+  .ledger-col.public { padding-right: 0; }
+  .ledger-col.hidden { padding-left: 0; border-left: 0; margin-top: 32px; }
+  .ledger-coda { margin-top: 48px; }
 }
