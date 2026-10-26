@@ -66,7 +66,7 @@ Fastest check for a judge (no wallet): open `/auditor` and click **Lire la chaî
 
 ### Video
 
-TODO: video link.
+Demo video (2 min): link in the HackMeridian submission.
 
 ### On-chain proof (testnet)
 
@@ -132,6 +132,44 @@ Every sentence the server writes (clarifications, missing-detail questions, vaul
 
 Honest caveats: Groq rate-limited us (HTTP 429) during the run, so the LLM planner answered 16 of the 72 sentences (none of the 6 liquidity ones); the others went through the regex fallback planner or a code check that runs before the LLM. Both paths go through the same server-side checks. The paused state (B4) is not in the eval: it would need a real on-chain transaction to remove the agent's rule; the `PAUSED` text is covered by unit tests in the three languages.
 
+## Tests and evaluation
+
+| Command | What it checks |
+|---|---|
+| `cd contracts && npm run test:unit` | 130 unit tests: gatekeeper, private/public routing, payroll, owner session, names and typos, missing-detail questions, i18n (fr/en/pt), mandate, liquidity planner |
+| `cd contracts && npm test` | the same, plus on-chain tests against Stellar testnet (receipts, rules, policy reads) |
+| `cd contracts && npm run eval` | 72-sentence parsing eval through the real `/api/intent` pipeline, in demo mode (see above) |
+| `cd app && npm run typecheck` · `npm run build` | TypeScript and the production Next.js build |
+| `cd contracts && npm run status` · `npm run mandate -- --status` | live state of the smart account, the agent's rule, its budget and its mandate |
+
+## Project structure
+
+```
+app/                         # Next.js app (frontend + API routes), one Vercel deployment
+├── app/
+│   ├── page.tsx             # home: the cinematic journey
+│   ├── vault/               # confidential vault: register, deposit, merge, transfer, withdraw
+│   ├── auditor/             # read the chain, apply the audit key, see the amounts
+│   ├── agent/               # chat with the agent, budget, mandate, activity
+│   └── api/
+│       ├── intent/route.ts  # message → plan → gatekeeper → executor
+│       └── agent/[...path]  # session, approvals, activity, receipts, mandate
+├── components/agent/        # ApprovalCard, BudgetBar, MandateBadge, LiquidityCard, PaymentLenses…
+└── lib/
+    ├── agent/               # planner (LLM, zod), gatekeeper (pure code), executor, payroll,
+    │                        # liquidity, mandate, pause, sweep, session (SEP-53), activity
+    ├── ct/                  # confidential token: key derivation, Freighter, auditor, bb.js loader
+    └── i18n/                # en · fr · pt
+packages/ct-sdk/             # vendored stellar-confidential-token-sdk (brozorec, MIT)
+contracts/
+├── scripts/                 # deploy, gonogo, status, reset-agent, mandate, refund, vault-withdraw, eval
+└── tests/                   # unit + on-chain tests
+scripts/                     # confidential token: deploy, auditor registry, e2e run, register a member
+eval/parsing.jsonl           # the 72 parsing-eval sentences
+docs/                        # architecture (every tx), submission, feedback for OpenZeppelin, design
+deployments/                 # contract ids (machine-readable)
+```
+
 ## Architecture
 
 ```
@@ -181,7 +219,7 @@ Details, deploy tx and every demo hash: [`docs/architecture.md`](docs/architectu
 
 ## How Stellar is used
 
-- **Confidential Tokens** (`stellar-confidential` 0.8.0): our token wraps the testnet **USDC SAC** and was deployed through the shared factory with `deploy_vanilla_token`. We use `register`, `deposit`, `merge`, `confidential_transfer` and `withdraw`. Each one carries an UltraHonk proof, verified on-chain.
+- **Confidential Tokens** (`stellar-confidential` 0.8.0): our token wraps the testnet **USDC SAC** and was deployed through the shared factory with `deploy_vanilla_token`. We use `register`, `deposit`, `merge`, `confidential_transfer` and `withdraw`. `confidential_transfer` and `withdraw` carry an UltraHonk proof, verified on-chain (`deposit` is public and needs none).
 - **In-browser proving**: the vault builds witnesses and proves with `@aztec/bb.js` inside the page. This needs `SharedArrayBuffer`, so the app is served with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: credentialless`.
 - **Key derivation from the wallet**: the user's confidential key is derived from a **SEP-53** message signature in **Freighter**. Same account and same token give the same key on any device; nothing secret is stored. We sign twice and compare to make sure the signature is deterministic.
 - **Designated auditor (compliance)**: we created our own instance of OpenZeppelin's auditor registry from the wasm already installed on testnet (no new contract code), registered our auditor's Grumpkin key (`K_aud = k·H`), and bound our token to it through the factory. Each account picks its auditor at `register`. The auditor view checks a pasted key against the registry, then decrypts transfer amounts and sender balances from on-chain events, with no wallet and no proving. See [`scripts/deploy-auditor.ts`](scripts/deploy-auditor.ts).
