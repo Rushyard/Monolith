@@ -16,7 +16,7 @@
 .vault-page .vault-head { padding: 56px 0 56px; display: block; }
 .vault-page .vault-head .chapter { display: block; margin-bottom: 20px; }
 .vault-page .intertitle {
-  font-family: var(--console); font-weight: 400; text-transform: uppercase;
+  font-family: var(--console); font-weight: 400; text-transform: none;
   font-size: clamp(28px, 4.2vw, 52px); letter-spacing: 0.18em; margin: 0; line-height: 1.15;
   overflow-wrap: anywhere;
 }
