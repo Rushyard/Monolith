@@ -1,5 +1,5 @@
-// Gatekeeper (server-only) : verdict déterministe, sans LLM. Inspiré de la policy d'Orchestra
-// (src/policy/index.ts `decide` + messageSignals.ts). Ici ce n'est qu'un pré-check d'UX :
+// Gatekeeper (server-only) : verdict déterministe, sans LLM. Pattern adapted from an earlier project of ours.
+// Ici ce n'est qu'un pré-check d'UX :
 // la vraie barrière est la spending-limit on-chain (règle B), qui rejette la tx quoi qu'il arrive.
 import "server-only";
 import { resolveRecipient, type Recipient } from "./contacts";
@@ -100,7 +100,7 @@ export function screenMessage(message: string, lang: Lang = pickLang(message)): 
   return {
     verdict: "BLOCKED",
     triggered: ["pressure-wording", ...(s.allFunds ? ["all-funds"] : []), ...(unknownAddress ? ["unplanned-address"] : [])],
-    reasons: [T[lang].refusal], // refus net (repris d'Orchestra) : pas de carte d'approbation
+    reasons: [T[lang].refusal], // refus net : pas de carte d'approbation
     lang,
   };
 }

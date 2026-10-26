@@ -1,6 +1,6 @@
 "use client";
 
-// Raisonnement de l'agent, à la manière d'Orchestra : ce que le Planner a compris,
+// Raisonnement de l'agent : ce que le Planner a compris,
 // ce que le Gatekeeper a décidé et pourquoi, puis ce qui s'est passé on-chain.
 import { short, type IntentResponse } from "./types";
 

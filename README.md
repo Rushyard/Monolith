@@ -286,7 +286,7 @@ Everything in this repo was written during HackMeridian (25–26 Oct 2026), exce
 
 **Built during the event:** our auditor registry and key, deployment of our confidential USDC, the testnet end-to-end run, the vault and auditor UI with in-browser proving, the Next.js app and its "2001: A Space Odyssey" design, the Vercel deployment; the smart account's deployment and configuration (rules, policy), the Soroban auth signing for its External and Delegated signers, the on-chain spending-limit integration, the agent's planner/gatekeeper/executor, the API routes, the approval card and the tests.
 
-**Prior work — Orchestra.** The agent architecture (Planner → deterministic Gatekeeper → Executor) and parts of the planner prompt and safety-net rules come from Orchestra (ETHGlobal Cannes 2026, same team, Ethereum/Safe). All Stellar code was written during HackMeridian: smart account deployment and configuration, Soroban auth signing (External and Delegated signers), the on-chain spending-limit integration, the executor and the API routes.
+**Prior work.** The agent pipeline pattern (LLM planner with schema validation, deterministic gatekeeper, executor) and parts of the planner prompt were adapted from one of our earlier projects. Everything else was built during HackMeridian: the Stellar smart account and on-chain spending cap integration, the confidential vault and auditor flows, payroll, the liquidity planner, the agent mandate, the owner session and the frontend. See the commit history.
 
 **Inspirations, credited:** OpenZeppelin examples, Agent Card, Who Ate Gerald.
 
