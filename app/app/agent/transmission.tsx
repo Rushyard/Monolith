@@ -25,6 +25,7 @@ function stepText(s: NonNullable<IntentResponse["plan"]>["steps"][number], t: T)
   if (s.action === "payroll") return t("step.payroll");
   if (s.action === "budget") return t("step.budget");
   if (s.action === "address") return s.of ? t("step.addressOf", { of: s.of }) : t("step.address");
+  if (s.action === "mandate") return t("step.mandate");
   return t("step.history");
 }
 

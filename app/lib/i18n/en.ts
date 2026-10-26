@@ -231,6 +231,7 @@ export const en = {
   "step.budget": "Read the agent's cap",
   "step.address": "Give the agent's address",
   "step.addressOf": "Give {of}'s address",
+  "step.mandate": "Set how long the agent's mandate lasts",
   "gate.paused": "Petty cash paused by the owner",
   "net.simulated": "Simulated: nothing sent",
   "net.simRefused": "Simulated: would be refused · #3221",
