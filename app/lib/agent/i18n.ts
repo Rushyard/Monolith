@@ -541,3 +541,159 @@ export function mandateHours(text: string): number | null {
 /** Date lisible d'une expiration, dans la langue de la réponse (UTC). */
 export const mandateDate = (iso: string, lang: Lang) =>
   new Intl.DateTimeFormat({ en: "en-US", fr: "fr-FR", pt: "pt-BR" }[lang], { dateStyle: "long", timeStyle: "short", timeZone: "UTC" }).format(new Date(iso));
+
+// ---------- bloc « liquidity » : planificateur de liquidité (on ne sort du coffre que le nécessaire) ----------
+
+type LiqPlanText = { needUsdc: string; spendUsdc: string; reserveUsdc: string; pettyCashUsdc: string; withdrawUsdc: string; shortfallUsdc: string };
+
+const liquidityEn = {
+  withdraw: (p: LiqPlanText) =>
+    `You need ${p.needUsdc} USDC (${p.spendUsdc} in expenses + ${p.reserveUsdc} reserve). The petty cash has ${p.pettyCashUsdc}. I propose taking ${p.withdrawUsdc} USDC out of the vault: the public will see ${p.withdrawUsdc} USDC go out, never what stays in your vault.`,
+  enough: (p: LiqPlanText) =>
+    `You need ${p.needUsdc} USDC (${p.spendUsdc} in expenses + ${p.reserveUsdc} reserve) and the petty cash already has ${p.pettyCashUsdc}: no withdrawal needed. Your vault stays untouched.`,
+  overMax: (p: LiqPlanText) =>
+    `You need ${p.needUsdc} USDC (${p.spendUsdc} in expenses + ${p.reserveUsdc} reserve). The petty cash has ${p.pettyCashUsdc}. That is more than ${p.withdrawUsdc} USDC, the most I take out of the vault at once: I propose ${p.withdrawUsdc} USDC now, and ${p.shortfallUsdc} USDC would still be missing.`,
+  simulated: (text: string) => `Simulation: ${text} Only Sarah, signed in, can sign it. Nothing was sent.`,
+  howMuch: (label: string) => `How much for ${label}?`,
+  which: "Which expenses are coming up? For example: “Plan my week: Alice 4 and 5, design tool 3 on Friday”.",
+  tooMany: "I plan at most 5 expenses at once: which ones matter this week?",
+  notInMessage: (amount: string) => `I can't find ${amount} USDC in what you wrote. Can you list each expense with its amount?`,
+  // carte
+  title: (out: string) => `Take ${out} USDC out of the vault`,
+  expenses: "Expenses",
+  reserve: "Reserve",
+  pettyCash: "Petty cash now",
+  need: "Need",
+  sign: "Sign in the vault",
+  insufficient: "Your vault doesn't have enough available funds: deposit, then merge first.",
+  wrongAccount: (active: string, owner: string) => `Freighter is on ${active}: switch to Sarah's account (${owner}).`,
+  step: { idle: "Waiting for your signature", sync: "Reading your vault", proving: "Proof in your browser", submitting: "Freighter, then the network", receipt: "Receipt", done: "Done", error: "Failed" },
+  receiptFailed: "Done on-chain, but the activity feed didn't get the receipt.",
+  fine: (out: string) => `The public sees ${out} USDC leave the vault. It doesn't see what stays inside.`,
+  plannerStep: "Plan the week's cash",
+};
+type LiquidityMessages = typeof liquidityEn;
+
+const liquidityFr: LiquidityMessages = {
+  withdraw: (p) =>
+    `Il te faut ${p.needUsdc} USDC (${p.spendUsdc} de dépenses + ${p.reserveUsdc} de réserve). La petite caisse en a ${p.pettyCashUsdc}. Je propose de sortir ${p.withdrawUsdc} USDC du coffre : le public verra ${p.withdrawUsdc} USDC sortir, jamais ce qui reste dans ton coffre.`,
+  enough: (p) =>
+    `Il te faut ${p.needUsdc} USDC (${p.spendUsdc} de dépenses + ${p.reserveUsdc} de réserve) et la petite caisse en a déjà ${p.pettyCashUsdc} : aucun retrait nécessaire. Ton coffre n'est pas touché.`,
+  overMax: (p) =>
+    `Il te faut ${p.needUsdc} USDC (${p.spendUsdc} de dépenses + ${p.reserveUsdc} de réserve). La petite caisse en a ${p.pettyCashUsdc}. C'est plus que ${p.withdrawUsdc} USDC, le maximum que je sors du coffre en une fois : je propose ${p.withdrawUsdc} USDC maintenant, et il manquera encore ${p.shortfallUsdc} USDC.`,
+  simulated: (text) => `Simulation : ${text} Seule Sarah, connectée, peut le signer. Rien n'a été envoyé.`,
+  howMuch: (label) => `Combien pour ${label} ?`,
+  which: "Quelles dépenses arrivent ? Par exemple : « Prévois ma semaine : Alice 4 et 5, l'outil de design 3 vendredi ».",
+  tooMany: "Je planifie au plus 5 dépenses à la fois : lesquelles comptent cette semaine ?",
+  notInMessage: (amount) => `Je ne trouve pas ${amount} USDC dans ce que tu as écrit. Peux-tu lister chaque dépense avec son montant ?`,
+  title: (out) => `Sortir ${out} USDC du coffre`,
+  expenses: "Dépenses",
+  reserve: "Réserve",
+  pettyCash: "Petite caisse actuelle",
+  need: "Besoin",
+  sign: "Signer dans le coffre",
+  insufficient: "Ton coffre n'a pas assez de fonds disponibles : dépose puis fusionne d'abord.",
+  wrongAccount: (active, owner) => `Freighter est sur ${active} : passe sur le compte de Sarah (${owner}).`,
+  step: { idle: "En attente de ta signature", sync: "Lecture de ton coffre", proving: "Preuve dans ton navigateur", submitting: "Freighter, puis le réseau", receipt: "Reçu", done: "Fait", error: "Échec" },
+  receiptFailed: "Fait on-chain, mais le journal d'activité n'a pas reçu le reçu.",
+  fine: (out) => `Le public voit ${out} USDC sortir du coffre. Il ne voit pas ce qui reste dedans.`,
+  plannerStep: "Prévoir la trésorerie de la semaine",
+};
+
+const liquidityPt: LiquidityMessages = {
+  withdraw: (p) =>
+    `Você precisa de ${p.needUsdc} USDC (${p.spendUsdc} de despesas + ${p.reserveUsdc} de reserva). O caixa tem ${p.pettyCashUsdc}. Proponho tirar ${p.withdrawUsdc} USDC do cofre: o público verá ${p.withdrawUsdc} USDC saírem, nunca o que fica no seu cofre.`,
+  enough: (p) =>
+    `Você precisa de ${p.needUsdc} USDC (${p.spendUsdc} de despesas + ${p.reserveUsdc} de reserva) e o caixa já tem ${p.pettyCashUsdc}: nenhuma retirada necessária. Seu cofre não é tocado.`,
+  overMax: (p) =>
+    `Você precisa de ${p.needUsdc} USDC (${p.spendUsdc} de despesas + ${p.reserveUsdc} de reserva). O caixa tem ${p.pettyCashUsdc}. É mais do que ${p.withdrawUsdc} USDC, o máximo que tiro do cofre de uma vez: proponho ${p.withdrawUsdc} USDC agora, e ainda faltarão ${p.shortfallUsdc} USDC.`,
+  simulated: (text) => `Simulação: ${text} Só Sarah, conectada, pode assinar. Nada foi enviado.`,
+  howMuch: (label) => `Quanto para ${label}?`,
+  which: "Quais despesas estão chegando? Por exemplo: “Planeje minha semana: Alice 4 e 5, ferramenta de design 3 na sexta”.",
+  tooMany: "Planejo no máximo 5 despesas de cada vez: quais importam nesta semana?",
+  notInMessage: (amount) => `Não encontro ${amount} USDC no que você escreveu. Pode listar cada despesa com o valor?`,
+  title: (out) => `Tirar ${out} USDC do cofre`,
+  expenses: "Despesas",
+  reserve: "Reserva",
+  pettyCash: "Caixa atual",
+  need: "Necessidade",
+  sign: "Assinar no cofre",
+  insufficient: "Seu cofre não tem fundos disponíveis suficientes: deposite e depois una primeiro.",
+  wrongAccount: (active, owner) => `O Freighter está em ${active}: mude para a conta da Sarah (${owner}).`,
+  step: { idle: "Aguardando sua assinatura", sync: "Lendo seu cofre", proving: "Prova no seu navegador", submitting: "Freighter, depois a rede", receipt: "Recibo", done: "Feito", error: "Falhou" },
+  receiptFailed: "Feito on-chain, mas o registro de atividade não recebeu o recibo.",
+  fine: (out) => `O público vê ${out} USDC saírem do cofre. Não vê o que fica dentro.`,
+  plannerStep: "Planejar o caixa da semana",
+};
+
+export const LT: Record<Lang, LiquidityMessages> = { en: liquidityEn, fr: liquidityFr, pt: liquidityPt };
+
+/** Nos questions « Combien pour X ? » et « Quelles dépenses ? » (mémoire courte A3, comme les questions de champ). */
+export function isLiquidityQuestion(text: string): boolean {
+  const s = text.trim();
+  return LANGS.some((l) => {
+    if (s === LT[l].which) return true;
+    const [pre, post] = LT[l].howMuch("\u0000").split("\u0000");
+    return s.length > pre.length + post.length && s.startsWith(pre) && s.endsWith(post);
+  });
+}
+
+/** Mots-clés du planificateur (texte sans accents, minuscules). */
+export const LIQUIDITY_KEYWORDS = {
+  plan: /\b(plan|planifie|planifier|prevois|prevoir|planeje|planejar|preveja|prever)\b(?:\s+\S+){0,3}?\s+(week|semaine|semana|cash|tresorerie|liquidite|caixa|depenses|expenses|despesas)\b/,
+  upcoming: /\b(this week|next week|cette semaine|la semaine prochaine|semaine prochaine|esta semana|proxima semana|nesta semana|na proxima semana)\b/,
+  lead: /^.*?\b(?:plan (?:my|the|our) (?:week|cash|expenses)(?:'s cash)?|prevois (?:ma|la|notre) (?:semaine|tresorerie)|planifie (?:ma|la|notre) (?:semaine|tresorerie)|planeje (?:minha|a|nossa) semana|planejar (?:minha|a) semana|this week|next week|cette semaine|la semaine prochaine|semaine prochaine|esta semana|nesta semana|proxima semana|na proxima semana)\b\s*[:,-]?\s*/,
+  verb: /^(?:i(?:'ll| will)? (?:pay|have to pay|need to pay|spend)|je (?:paie|paye|vais payer|dois payer|depense)|il faut payer|(?:eu )?(?:pago|vou pagar|preciso pagar|tenho que pagar)|pay|paie|pague|with|avec|com)\b\s*/,
+  day: /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tomorrow|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|aujourd'hui|demain|segunda(?:-feira)?|terca(?:-feira)?|quarta(?:-feira)?|quinta(?:-feira)?|sexta(?:-feira)?|sabado|domingo|hoje|amanha)\b/,
+  // virgule décimale (« 2,5 ») gardée : on coupe sur « , » sauf entre deux chiffres
+  split: /\s*(?:;|(?<!\d),|,(?!\d)|\s(?:and|et|e|plus|then|puis|depois)\s)\s*/,
+  edgeWords: /^(?:and|et|e|puis|then|plus|to|for|the|an|a|my|pour|au|aux|le|la|les|du|des|de|mon|ma|mes|para|o|os|as|do|da|meu|minha|on|na|no|em|at)\s+|\s+(?:on|le|na|no|em|at|for|pour|para|de|du|da|do)$/,
+};
+
+const NUMBER = /(?<![\w.])(\d+(?:[.,]\d{1,7})?)(?![\w])/;
+
+/** Demande de planification (« plan my week », « cette semaine je paie Alice 4 et 5… »). */
+export function isLiquidityRequest(plain: string): boolean {
+  if (LIQUIDITY_KEYWORDS.plan.test(plain)) return true;
+  const numbers = plain.replace(/\bg[a-z2-7]{55}\b/g, "").match(new RegExp(NUMBER.source, "g")) ?? [];
+  return LIQUIDITY_KEYWORDS.upcoming.test(plain) && numbers.length >= 2;
+}
+
+export type ParsedExpense = { label: string; amount?: string; due?: string };
+
+/**
+ * Planner de secours : « Alice 4 and 5, design tool 3 on Friday » → 3 lignes. Un montant seul reprend
+ * le libellé précédent (« Alice 4 et 5 »). Une ligne sans montant reste sans montant (on demandera).
+ */
+export function parseExpenses(message: string, names: string[] = []): ParsedExpense[] {
+  let s = strip(message).replace(/\bg[a-z2-7]{55}\b/g, " ");
+  s = s.replace(LIQUIDITY_KEYWORDS.lead, "");
+  const colon = s.indexOf(":");
+  if (colon !== -1) s = s.slice(colon + 1);
+  s = s.trim().replace(LIQUIDITY_KEYWORDS.verb, "").replace(/[.!?]+\s*$/, "");
+  const out: ParsedExpense[] = [];
+  for (const raw of s.split(LIQUIDITY_KEYWORDS.split)) {
+    let seg = raw.replace(/\b(usdc|usd|dollars?)\b|\$/g, " ").replace(/\s+/g, " ").trim();
+    if (!seg) continue;
+    const due = LIQUIDITY_KEYWORDS.day.exec(seg)?.[1];
+    if (due) seg = seg.replace(LIQUIDITY_KEYWORDS.day, " ");
+    const amount = NUMBER.exec(seg)?.[1]?.replace(",", ".");
+    if (amount) seg = seg.replace(NUMBER, " ");
+    let label = seg.replace(/\s+/g, " ").trim();
+    for (let i = 0; i < 3; i++) label = label.replace(/^l'/, "").replace(LIQUIDITY_KEYWORDS.edgeWords, "").trim();
+    if (!label) {
+      const prev = out[out.length - 1];
+      if (!amount || !prev) continue;
+      label = prev.label;
+    }
+    const known = names.find((n) => n.toLowerCase() === label);
+    out.push({ label: known ?? label, ...(amount ? { amount } : {}), ...(due ? { due } : {}) });
+  }
+  return out;
+}
+
+/** Tous les nombres écrits dans un texte (pour vérifier qu'un montant du plan vient bien de l'utilisateur). */
+export function writtenNumbers(text: string): Set<string> {
+  const clean = text.normalize("NFKC").replace(/\bG[A-Z2-7]{55}\b/g, " ");
+  return new Set([...clean.matchAll(new RegExp(NUMBER.source, "g"))].map((m) => String(Number(m[1].replace(",", ".")))));
+}
